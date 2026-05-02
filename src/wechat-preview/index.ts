@@ -1,9 +1,8 @@
 import { existsSync } from "fs";
 import { cp, mkdir, readFile, rm, writeFile } from "fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import { pathToFileURL } from "url";
 import {
-  PACKAGE_ROOT,
   dumpHtmlDom,
   ensureParentDir,
   escapeHtml,
@@ -11,17 +10,16 @@ import {
   readUtf8,
   renderTemplate,
 } from "../imgx/runtime";
+import {
+  PACKAGE_ROOT,
+  TEMPLATE_PATH,
+  DIST_DIR,
+  MANIFEST_PATH,
+  VITE_CONFIG_PATH,
+} from "../runtime-paths";
 import { extractFrontmatter } from "./frontmatter-handler";
 import { getWechatPreviewStyleName, getWechatPreviewTheme } from "./themes";
 import { stripLeadingH1 } from "../text";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const WECHAT_PREVIEW_DIR = __dirname;
-const TEMPLATE_PATH = join(WECHAT_PREVIEW_DIR, "assets/templates/export-shell.html");
-const DIST_DIR = join(WECHAT_PREVIEW_DIR, "assets/browser-dist");
-const MANIFEST_PATH = join(DIST_DIR, ".vite/manifest.json");
-const VITE_CONFIG_PATH = join(PACKAGE_ROOT, "vite.wechat-preview.config.ts");
 
 interface ViteManifestEntry {
   file: string;

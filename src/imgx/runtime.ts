@@ -1,21 +1,28 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { imageSize } from "image-size";
 import { PNG } from "pngjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import {
+  PACKAGE_ROOT as _PACKAGE_ROOT,
+  IMGX_DIR as _IMGX_DIR,
+  ASSETS_DIR as _ASSETS_DIR,
+  TEMPLATES_DIR as _TEMPLATES_DIR,
+  ICONS_DIR as _ICONS_DIR,
+  FONTS_DIR as _FONTS_DIR,
+  STYLES_DIR as _STYLES_DIR,
+} from "../runtime-paths";
 
-export const PACKAGE_ROOT = resolve(__dirname, "../..");
-export const IMGX_DIR = __dirname;
-export const SKILL_DIR = IMGX_DIR;
-export const ASSETS_DIR = join(IMGX_DIR, "assets");
-export const TEMPLATES_DIR = join(ASSETS_DIR, "templates");
-export const ICONS_DIR = join(ASSETS_DIR, "icons");
-export const FONTS_DIR = join(ASSETS_DIR, "fonts");
-export const STYLES_DIR = join(ASSETS_DIR, "styles");
+export const PACKAGE_ROOT = _PACKAGE_ROOT;
+export const IMGX_DIR = _IMGX_DIR;
+export const SKILL_DIR = _IMGX_DIR;
+export const ASSETS_DIR = _ASSETS_DIR;
+export const TEMPLATES_DIR = _TEMPLATES_DIR;
+export const ICONS_DIR = _ICONS_DIR;
+export const FONTS_DIR = _FONTS_DIR;
+export const STYLES_DIR = _STYLES_DIR;
 
 const CHROME_PATHS = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",

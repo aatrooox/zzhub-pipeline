@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "bun run src/cli.ts",
+    "build": "bun run scripts/build.ts",
     "build:wechat-preview": "vite build --config vite.wechat-preview.config.ts",
     "test": "bun test",
     "typecheck": "bun x tsc --noEmit"
