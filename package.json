@@ -1,30 +1,39 @@
 {
-  "name": "zzhub-pipeline",
+  "name": "@zzhub/pipeline",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "zzhub-pipeline": "./src/cli.ts",
-    "zzp": "./src/cli.ts"
+    "zzp": "./dist/cli.js",
+    "zzhub-pipeline": "./dist/cli.js"
   },
+  "files": [
+    "dist/cli.js",
+    "dist/assets/",
+    "dist/node_modules/"
+  ],
   "scripts": {
     "dev": "bun run src/cli.ts",
     "build": "bun run scripts/build.ts",
+    "build:npm": "bun run scripts/build-npm.ts",
     "build:wechat-preview": "vite build --config vite.wechat-preview.config.ts",
+    "prepublishOnly": "bun run scripts/build-npm.ts",
     "test": "bun test",
     "typecheck": "bun x tsc --noEmit"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",
-    "@milkdown/crepe": "^7.18.0",
-    "@milkdown/plugin-listener": "^7.18.0",
-    "@milkdown/utils": "^7.18.0",
-    "@napi-rs/canvas": "^0.1.97",
-    "cos-nodejs-sdk-v5": "^2.15.4",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",
     "zod": "^4.4.2"
   },
+  "optionalDependencies": {
+    "@napi-rs/canvas": "^0.1.97",
+    "cos-nodejs-sdk-v5": "^2.15.4"
+  },
   "devDependencies": {
+    "@milkdown/crepe": "^7.18.0",
+    "@milkdown/plugin-listener": "^7.18.0",
+    "@milkdown/utils": "^7.18.0",
     "@types/pngjs": "^6.0.5",
     "@types/bun": "latest",
     "typescript": "^5.7.0",

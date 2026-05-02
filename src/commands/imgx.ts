@@ -4,6 +4,7 @@ import {
   runRenderCardCli,
   runRenderXLikePostsCli,
 } from "../imgx";
+import { ensureFonts } from "../runtime-paths";
 
 type ImgxHandler = (args: string[]) => void;
 
@@ -27,6 +28,7 @@ export async function imgxCommand(args: string[]): Promise<void> {
     throw new Error(`Unknown imgx subcommand: ${subcommand}`);
   }
 
+  await ensureFonts();
   handler(args.slice(1));
 }
 
