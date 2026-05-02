@@ -11,6 +11,7 @@ import {
 } from "../config";
 import { listPublishProviders } from "../providers";
 import { resolveBunBinary } from "../spawn";
+import { runPluginDoctorChecks } from "../adapter-loader";
 
 export async function doctor(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -38,6 +39,8 @@ Options:
     bunError = error instanceof Error ? error.message : String(error);
   }
 
+  const pluginChecks = await runPluginDoctorChecks(config);
+
   printResult(
     {
       ...configSummary(config),
@@ -56,6 +59,7 @@ Options:
       bun_binary: bunBinary,
       bun_error: bunError,
       publish_providers: listPublishProviders(),
+      plugin_checks: pluginChecks,
     },
     renderDoctor,
   );

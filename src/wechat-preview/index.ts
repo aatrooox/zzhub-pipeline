@@ -212,7 +212,14 @@ export async function exportMarkdownToWechatHtml(
 ): Promise<ExportMarkdownToWechatHtmlResult> {
   const chromePath = findChrome();
   if (chromePath === null) {
-    throw new Error("Chrome/Chromium not found");
+    throw new Error(
+      "Chrome/Chromium not found. Required for WeChat HTML export.\n" +
+      "Install one of:\n" +
+      "  macOS:   brew install --cask chromium\n" +
+      "  Ubuntu:  sudo apt install chromium-browser\n" +
+      "  Or install Google Chrome from https://www.google.com/chrome/\n" +
+      "  Or set CHROME_PATH environment variable to the binary path.",
+    );
   }
 
   const bundle = ensureBundle();

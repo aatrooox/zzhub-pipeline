@@ -64,7 +64,13 @@ src/
   config.ts               # 配置加载，env 覆盖，工作区路径解析
   args.ts                 # 参数解析
   spawn.ts                # 子进程封装，PATH 增强，bun 二进制定位
-  commands/               # 每个 CLI 命令一个文件，共 22 个
+  adapter-types.ts        # 插件接口定义（ImageRenderPlugin / MarkdownRenderPlugin）
+  adapter-loader.ts       # 插件加载器，resolveImageRenderer / resolveMarkdownRenderer
+  runtime-paths.ts        # 资产路径解析（dev/compiled/npm 三种模式），字体缓存
+  adapters/               # 内置适配器实现
+    builtin-image-renderer.ts   # 包装 imgx 的图片渲染适配器
+    builtin-markdown-renderer.ts # 包装 wechat-preview 的 Markdown 渲染适配器
+  commands/               # 每个 CLI 命令一个文件
   imgx/                   # 图片渲染子系统，Chrome headless + @napi-rs/canvas
     runtime.ts            # Chrome 截图，DOM dump，模板工具
     render-article.ts     # longform-3-4 长文渲染器
@@ -75,12 +81,11 @@ src/
     geometry.ts           # 页面几何计算
     longform-theme.ts     # 长文主题定义
     pretext-adapter.ts    # pretext 分页适配器
-    pretext-runtime.ts    # 进程内分页运行时
+    pretext-runtime.ts    # 进程内分页运行时（@napi-rs/canvas 懒加载）
   providers/              # 发布提供者
     index.ts              # 提供者注册表
     wechat.ts             # 微信公众号，文章草稿和图片消息
     cos.ts                # 腾讯云 COS 图片 CDN
-    zotepad.ts            # Zotepad HTML 导出
     blog.ts               # 博客 markdown 同步
   wechat-preview/         # 微信文章 HTML 预览，Milkdown + 主题
     index.ts
@@ -383,6 +388,24 @@ bun run src/cli.ts cos-upload --file /abs/path/image.png --folder notes/note-id 
 - `commands`
 - `wx`，accounts
 - `cos`
+- `plugins`，渲染插件覆盖
+
+### 插件配置
+
+通过 `config.plugins` 可以替换内置渲染实现：
+
+```json
+{
+  "plugins": {
+    "imageRenderer": "./my-image-renderer.js",
+    "markdownRenderer": "./my-md-renderer.js"
+  }
+}
+```
+
+不设置时使用内置适配器（`builtin-imgx` 和 `builtin-wechat-preview`）。
+
+运行 `zzp doctor` 可以检查所有渲染依赖的状态（Chrome、@napi-rs/canvas、字体等）。
 
 ## 输出系统
 
@@ -409,15 +432,36 @@ bun run src/cli.ts cos-upload --file /abs/path/image.png --folder notes/note-id 
 - 构建命令：`bun run build:wechat-preview`
 - `wechat-export` 会直接使用这套预览样式
 
+## 插件系统
+
+渲染通过 adapter 接口实现可插拔：
+
+- `ImageRenderPlugin` — 替换 imgx 图片渲染
+- `MarkdownRenderPlugin` — 替换 wechat-preview HTML 导出
+
+接口定义在 `src/adapter-types.ts`，加载逻辑在 `src/adapter-loader.ts`。
+
+内置适配器：
+- `src/adapters/builtin-image-renderer.ts` — 包装 imgx
+- `src/adapters/builtin-markdown-renderer.ts` — 包装 wechat-preview
+
+每个适配器可实现 `doctor()` 方法，报告运行时依赖状态。
+
+运行时依赖检查：
+- `@napi-rs/canvas` — 图片渲染需要，懒加载，缺失时提示安装命令
+- Chrome — HTML 导出需要，缺失时提示安装命令
+- CJK 字体 — npm 模式下自动从 CDN 下载到 `~/.config/zzhub-pipeline/fonts/`
+
 ## 发布提供者
 
 | 提供者 | 路由 | 说明 |
 | --- | --- | --- |
 | wechat | `wechat-article` | 创建公众号文章草稿 |
 | wechat | `wechat-newspic` | 发送图片消息 |
-| zotepad | `wechat-article` | Markdown → WeChat HTML 转换 |
 | cos | - | 腾讯云 COS 图片 CDN |
 | blog | - | Markdown 同步到博客仓库 |
+
+Markdown → WeChat HTML 转换通过插件系统完成（默认使用内置 `builtin-wechat-preview` 适配器）。
 
 ## newspic 规格
 

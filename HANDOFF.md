@@ -1,180 +1,65 @@
 # zzhub-pipeline Handoff
 
-## Current Focus
+## Status: Plugin System Complete
 
-Next session should focus on making render and markdown export replaceable through user plugins before trying to split official packages or publish npm binaries.
+The adapter-based plugin system described in the previous handoff is fully implemented and wired up.
 
-The immediate goal is:
+### What was done
 
-- Keep existing default behavior unchanged.
-- Add a stable adapter boundary for image rendering and markdown rendering.
-- Allow config to override the default adapters with user-provided local plugins.
-- Keep `zzp` responsible for workflow state, gaps, next action, command routing, and state writeback.
+1. **Adapter interfaces** — `src/adapter-types.ts`
+   - `ImageRenderPlugin` with `render()` + `doctor()`
+   - `MarkdownRenderPlugin` with `render()` + `doctor()`
 
-Do not start by building a full plugin marketplace or splitting packages into separate npm modules.
+2. **Built-in adapters** — `src/adapters/`
+   - `builtin-image-renderer.ts` — wraps imgx (runRenderCardCli + runRenderArticleCli)
+   - `builtin-markdown-renderer.ts` — wraps wechat-preview (exportMarkdownToWechatHtml)
 
-## Product Decision
+3. **Adapter loader** — `src/adapter-loader.ts`
+   - `resolveImageRenderer(config)` — loads user plugin or returns builtin
+   - `resolveMarkdownRenderer(config)` — same for markdown
+   - `runPluginDoctorChecks(config)` — runs doctor on all plugins
 
-`zzhub-pipeline` should move toward:
+4. **Wired into commands**
+   - `render.ts` — calls `resolveImageRenderer(config).render()`
+   - `providers/index.ts` — calls `resolveMarkdownRenderer(config).render()`
+   - `wechat-export.ts` — calls `resolveMarkdownRenderer(config).render()`
+   - `providers/zotepad.ts` — deleted (replaced by adapter)
 
-```text
-zzp core
-  - init / attach / prepare / status / tasks / publish state machine
-  - workflow-state contract
-  - config loading
-  - doctor aggregation
-  - adapter loading and invocation
+5. **Doctor checks** — `doctor` command reports plugin health
+   - `@napi-rs/canvas` availability (image renderer)
+   - Chrome availability (markdown renderer)
 
-default adapters
-  - built-in imgx image renderer
-  - built-in WeChat markdown renderer
+6. **Runtime error guidance**
+   - Chrome missing → install instructions
+   - Canvas missing → install instructions
+   - Fonts missing → auto-download from CDN
 
-user adapters
-  - local plugin path first
-  - npm package support later
+7. **npm distribution** — `@zzhub/pipeline`
+   - `bun run build:npm` → 0.59MB bundle + assets
+   - Fonts downloaded at runtime via `ZZHUB_FONT_CDN_BASE_URL`
+
+### Verification
+
+```bash
+bun x tsc --noEmit    # clean
+bun test               # 328/328 pass
+bun run build:npm      # 0.59MB bundle
+bun src/cli.ts doctor  # reports canvas ✓, chrome ✓
 ```
 
-This keeps the core small enough to distribute independently while leaving render and layout choices replaceable.
-
-## Why
-
-The two largest and most opinionated parts are:
-
-- `src/imgx/` image rendering: deterministic fallback when AI image generation is not desired.
-- `src/wechat-preview/` markdown to WeChat HTML/export rendering: personal layout and account style varies heavily.
-
-Users may want to replace these with AI image generation, ComfyUI, a custom HTML renderer, a SaaS API, or their own WeChat formatting rules.
-
-## Non-Goals For First Pass
-
-- Do not remove built-in imgx.
-- Do not remove built-in WeChat markdown rendering.
-- Do not publish official plugin packages yet.
-- Do not redesign workflow-state broadly.
-- Do not move external app, desktop, or agent runtime concerns into this repo.
-
-## Suggested First Implementation Slice
-
-1. Add internal adapter interfaces.
-   - Image renderer adapter.
-   - Markdown renderer adapter.
-   - Doctor check adapter shape if needed.
-
-2. Wrap existing implementations.
-   - Built-in image adapter delegates to current `render` / `src/imgx` behavior.
-   - Built-in markdown adapter delegates to current `src/wechat-preview` behavior.
-
-3. Add config overrides.
-   - Start with local file paths only.
-   - Example shape:
+### Config override
 
 ```json
 {
   "plugins": {
-    "imageRenderer": "./plugins/my-image-renderer.js",
-    "markdownRenderer": "./plugins/my-wechat-renderer.js"
+    "imageRenderer": "./my-image-renderer.js",
+    "markdownRenderer": "./my-md-renderer.js"
   }
 }
 ```
 
-4. Load configured adapters.
-   - If unset, use built-in adapters.
-   - If configured path fails to load, fail clearly with a doctor/check error.
-   - Avoid silent fallback when a user explicitly configured a plugin.
+### Next possible directions
 
-5. Update `doctor`.
-   - Core doctor should report configured adapter identity.
-   - Adapter doctor checks should report missing runtime dependencies such as Chrome.
-   - Chrome should belong to the built-in imgx adapter check, not the core check.
-
-6. Add focused tests.
-   - Default behavior still uses built-ins.
-   - Configured local image adapter is called.
-   - Configured local markdown adapter is called.
-   - Broken configured adapter surfaces a clear error.
-
-## Possible Interfaces
-
-Keep the contracts small and state-oriented.
-
-```ts
-export interface PipelinePluginDoctorCheck {
-  name: string
-  ok: boolean
-  message?: string
-  detail?: unknown
-}
-
-export interface ImageRenderPlugin {
-  name: string
-  version?: string
-  doctor?: () => Promise<PipelinePluginDoctorCheck[]>
-  render: (input: ImageRenderInput) => Promise<ImageRenderOutput>
-}
-
-export interface MarkdownRenderPlugin {
-  name: string
-  version?: string
-  doctor?: () => Promise<PipelinePluginDoctorCheck[]>
-  render: (input: MarkdownRenderInput) => Promise<MarkdownRenderOutput>
-}
-```
-
-Image output should map cleanly back to existing `state.images.render_assets`.
-Markdown output should map cleanly to current WeChat export results.
-
-## Files To Inspect First
-
-- `src/commands/render.ts` — current image render command and state writeback.
-- `src/imgx/` — built-in image rendering subsystem and asset paths.
-- `src/wechat-preview/index.ts` — current markdown export implementation.
-- `src/commands/wechat-export.ts` — current command entry for markdown export.
-- `src/config.ts` — config shape and file loading.
-- `src/commands/doctor.ts` — environment checks.
-- `src/task-manager.ts` — gaps and next action behavior.
-- `src/state.ts` — workflow-state contract.
-- `src/workflow.test.ts` — broad workflow regression coverage.
-
-## Important Constraints
-
-- Runtime is Bun.
-- Existing commands use `bun run src/cli.ts`.
-- Default output is JSON unless TTY pretty printing is active.
-- `--view agent` is the contract surface for agents.
-- Do not hand-edit `workflow-state.json`; use existing state helpers.
-- Rendering requires Chrome only for the built-in render/export paths.
-- A future compiled `zzp` binary should not imply Chrome is bundled.
-
-## Verification Baseline
-
-Run at least:
-
-```bash
-bun test
-bun x tsc --noEmit
-```
-
-For CLI smoke:
-
-```bash
-bun run src/cli.ts doctor
-bun run src/cli.ts --help
-```
-
-If touching WeChat preview assets:
-
-```bash
-bun run build:wechat-preview
-```
-
-## Distribution Direction After Adapter Boundary
-
-Only after adapter replacement works locally:
-
-- Compile `zzp` core as a standalone binary.
-- Consider publishing npm packages that contain binary artifacts only.
-- Consider splitting official adapters into packages:
-  - `@zzhub-pipeline/render-imgx`
-  - `@zzhub-pipeline/markdown-wechat`
-
-Do this after the adapter contract is stable enough to avoid package churn.
+- Split official adapters into separate npm packages (`@zzhub-pipeline/render-imgx`, `@zzhub-pipeline/markdown-wechat`)
+- Plugin marketplace or registry
+- Compiled standalone binary distribution

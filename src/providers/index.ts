@@ -6,7 +6,7 @@ import {
   injectIllustrationImages,
   prepareBodyForNewspic,
 } from "../text";
-import { exportMarkdownToWechatHtml } from "./zotepad";
+import { resolveMarkdownRenderer } from "../adapter-loader";
 import { createWechatDraft, createWechatNewspic } from "./wechat";
 
 export interface PublishRouteContext {
@@ -65,10 +65,10 @@ async function publishWechatArticleRoute({
   }
 
   try {
-    const { html } = await exportMarkdownToWechatHtml({
-      postPath: exportPostPath,
-      config,
-      workspacePaths,
+    const markdownRenderer = await resolveMarkdownRenderer(config);
+    const { html } = await markdownRenderer.render({
+      markdownPath: exportPostPath,
+      outPath: workspacePaths.zotepadExportHtml,
       account: state.route.account,
       title: state.metadata.title,
     });

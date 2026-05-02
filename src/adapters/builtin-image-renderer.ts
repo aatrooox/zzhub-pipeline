@@ -23,6 +23,7 @@ import type {
   ImageRenderPlugin,
   ImageRenderInput,
   ImageRenderOutput,
+  PipelinePluginDoctorCheck,
 } from "../adapter-types";
 import type {
   NewspicRenderSpec,
@@ -255,6 +256,28 @@ async function renderLongformPages(
 export const builtinImageRenderer: ImageRenderPlugin = {
   name: "builtin-imgx",
   version: "1.0.0",
+
+  async doctor(): Promise<PipelinePluginDoctorCheck[]> {
+    const checks: PipelinePluginDoctorCheck[] = [];
+
+    // Check @napi-rs/canvas
+    try {
+      await import("@napi-rs/canvas");
+      checks.push({ name: "@napi-rs/canvas", ok: true });
+    } catch {
+      checks.push({
+        name: "@napi-rs/canvas",
+        ok: false,
+        message:
+          "@napi-rs/canvas not installed. Install it with:\n" +
+          "  npm install @napi-rs/canvas\n" +
+          "  # or: bun add @napi-rs/canvas\n" +
+          "This is required for image rendering (poster, longform, cover).",
+      });
+    }
+
+    return checks;
+  },
 
   async render(input: ImageRenderInput): Promise<ImageRenderOutput> {
     const { state, bodyText, outputDir, title, route } = input;

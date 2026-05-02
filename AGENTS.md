@@ -112,9 +112,13 @@ src/
   profiles.ts          # authoring rules, rewrite_allowed, style_mode decision tree
   output.ts            # TTY-aware output layer, printResult and pretty renderers
   config.ts            # config loading, env overrides, workspace path resolution
-  commands/            # one file per CLI command, 22 total
+  adapter-types.ts     # ImageRenderPlugin / MarkdownRenderPlugin interfaces
+  adapter-loader.ts    # resolveImageRenderer / resolveMarkdownRenderer / runPluginDoctorChecks
+  runtime-paths.ts     # asset path resolution (dev/compiled/npm modes), font cache
+  adapters/            # built-in adapter implementations
+  commands/            # one file per CLI command
   imgx/                # image rendering subsystem, Chrome headless + @napi-rs/canvas
-  providers/           # publish providers, wechat, cos, zotepad, blog
+  providers/           # publish providers, wechat, cos, blog
   wechat-preview/      # WeChat article HTML preview, Milkdown + themes
 ```
 
@@ -137,9 +141,49 @@ Rendering requires headless Chrome. `findChrome()` in `src/imgx/runtime.ts` prob
 3. `google-chrome` from PATH
 4. `chromium` from PATH
 
-Chrome must be installed for `render` and `wechat-export`.
+Chrome must be installed for `render` and `wechat-export`. Checked by the builtin markdown renderer adapter's `doctor()` method.
 
 Viewport inset quirk: Chrome CLI `--window-size=900,1200` does not guarantee `innerHeight=1200`. The runtime measures the real inset, over-captures, then crops. If a footer looks clipped, check this layer first, not the template CSS.
+
+## Plugin system
+
+Rendering is pluggable via `config.plugins`. Two adapter interfaces exist:
+
+- `ImageRenderPlugin` — replaces imgx for image rendering (poster, longform, cover)
+- `MarkdownRenderPlugin` — replaces wechat-preview for WeChat HTML export
+
+Config override (local file path or npm package):
+
+```json
+{
+  "plugins": {
+    "imageRenderer": "./my-image-renderer.js",
+    "markdownRenderer": "./my-md-renderer.js"
+  }
+}
+```
+
+When unset, built-in adapters (`builtin-imgx`, `builtin-wechat-preview`) are used.
+
+Key files:
+- `src/adapter-types.ts` — interfaces (`ImageRenderPlugin`, `MarkdownRenderPlugin`, `PipelinePluginDoctorCheck`)
+- `src/adapter-loader.ts` — `resolveImageRenderer()`, `resolveMarkdownRenderer()`, `runPluginDoctorChecks()`
+- `src/adapters/builtin-image-renderer.ts` — wraps imgx
+- `src/adapters/builtin-markdown-renderer.ts` — wraps wechat-preview
+
+Runtime dependency checks:
+- `@napi-rs/canvas` — checked by image renderer `doctor()`, lazy-loaded in `pretext-runtime.ts`
+- Chrome — checked by markdown renderer `doctor()`, error includes install guidance
+- CJK fonts — auto-downloaded via `ensureFonts()` in `runtime-paths.ts`
+
+## npm distribution
+
+Published as `@zzhub/pipeline`. Build: `bun run build:npm`.
+
+- CLI entry: `dist/cli.js` (0.59MB bundle, `--external @napi-rs/canvas --external cos-nodejs-sdk-v5`)
+- Static assets: `dist/assets/` (templates, icons, browser-dist, pretext)
+- Fonts: NOT bundled — downloaded at runtime from `ZZHUB_FONT_CDN_BASE_URL` to `~/.config/zzhub-pipeline/fonts/`
+- Usage: `npx zzp <command>` or `npx zzhub-pipeline <command>`
 
 ## Adding a new command
 

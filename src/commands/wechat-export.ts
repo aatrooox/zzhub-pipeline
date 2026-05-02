@@ -1,6 +1,7 @@
 import { optionalArg, parseArgs, requireArg } from "../args";
 import { printResult, renderWechatExport } from "../output";
-import { exportMarkdownToWechatHtml } from "../wechat-preview";
+import { loadConfig } from "../config";
+import { resolveMarkdownRenderer } from "../adapter-loader";
 
 export async function wechatExport(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -25,7 +26,9 @@ Options:
   const title = optionalArg(parsed, "title");
   const previewShellOutPath = optionalArg(parsed, "preview-shell-out");
 
-  const result = await exportMarkdownToWechatHtml({
+  const config = loadConfig();
+  const markdownRenderer = await resolveMarkdownRenderer(config);
+  const result = await markdownRenderer.render({
     markdownPath,
     outPath,
     account,

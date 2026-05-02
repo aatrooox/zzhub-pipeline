@@ -592,6 +592,16 @@ export function renderDoctor(data: unknown): string {
     }
   }
 
+  const pluginChecks = d.plugin_checks as Array<{ name: string; ok: boolean; message?: string }> | undefined;
+  if (pluginChecks && pluginChecks.length > 0) {
+    lines.push(c.gray("  ─────"));
+    for (const check of pluginChecks) {
+      const indicator = check.ok ? c.green("✓") : c.red("✗");
+      const msg = check.message ? `  ${c.dim(check.message)}` : "";
+      lines.push(kv(check.name, `${indicator}${msg}`));
+    }
+  }
+
   return lines.join("\n");
 }
 

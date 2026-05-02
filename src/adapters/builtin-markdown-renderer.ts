@@ -6,15 +6,41 @@
  */
 
 import { exportMarkdownToWechatHtml } from "../wechat-preview";
+import { findChrome } from "../imgx/runtime";
 import type {
   MarkdownRenderPlugin,
   MarkdownRenderInput,
   MarkdownRenderOutput,
+  PipelinePluginDoctorCheck,
 } from "../adapter-types";
 
 export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
   name: "builtin-wechat-preview",
   version: "1.0.0",
+
+  async doctor(): Promise<PipelinePluginDoctorCheck[]> {
+    const checks: PipelinePluginDoctorCheck[] = [];
+
+    // Check Chrome/Chromium
+    const chromePath = findChrome();
+    if (chromePath) {
+      checks.push({ name: "chrome", ok: true, message: chromePath });
+    } else {
+      checks.push({
+        name: "chrome",
+        ok: false,
+        message:
+          "Chrome/Chromium not found. Required for WeChat HTML export.\n" +
+          "Install one of:\n" +
+          "  macOS:   brew install --cask chromium\n" +
+          "  Ubuntu:  sudo apt install chromium-browser\n" +
+          "  Or install Google Chrome from https://www.google.com/chrome/\n" +
+          "  Or set CHROME_PATH environment variable to the binary path.",
+      });
+    }
+
+    return checks;
+  },
 
   async render(input: MarkdownRenderInput): Promise<MarkdownRenderOutput> {
     const result = await exportMarkdownToWechatHtml({

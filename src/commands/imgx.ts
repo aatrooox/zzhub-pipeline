@@ -29,7 +29,20 @@ export async function imgxCommand(args: string[]): Promise<void> {
   }
 
   await ensureFonts();
-  handler(args.slice(1));
+  try {
+    handler(args.slice(1));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("@napi-rs/canvas") || msg.includes("Cannot find package")) {
+      throw new Error(
+        "@napi-rs/canvas not installed. Required for image rendering.\n" +
+        "Install it with:\n" +
+        "  npm install @napi-rs/canvas\n" +
+        "  # or: bun add @napi-rs/canvas",
+      );
+    }
+    throw err;
+  }
 }
 
 function printUsage(): void {

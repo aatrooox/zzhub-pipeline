@@ -1,5 +1,5 @@
 {
-  "name": "@zzhub/pipeline",
+  "name": "@zzclub/pipeline",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -18,7 +18,10 @@
     "build:wechat-preview": "vite build --config vite.wechat-preview.config.ts",
     "prepublishOnly": "bun run scripts/build-npm.ts",
     "test": "bun test",
-    "typecheck": "bun x tsc --noEmit"
+    "typecheck": "bun x tsc --noEmit",
+    "release:patch": "changelogen --release --patch --push",
+    "release:minor": "changelogen --release --minor --push",
+    "release:major": "changelogen --release --major --push"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",
@@ -34,8 +37,9 @@
     "@milkdown/crepe": "^7.18.0",
     "@milkdown/plugin-listener": "^7.18.0",
     "@milkdown/utils": "^7.18.0",
-    "@types/pngjs": "^6.0.5",
     "@types/bun": "latest",
+    "@types/pngjs": "^6.0.5",
+    "changelogen": "^0.6.2",
     "typescript": "^5.7.0",
     "vite": "^7.1.10"
   }
