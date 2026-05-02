@@ -1207,6 +1207,10 @@ describe("config", () => {
         cos: {
           pat: "",
         },
+        plugins: {
+          imageRenderer: null,
+          markdownRenderer: null,
+        },
       },
       {
         date: "2026-04-08",
