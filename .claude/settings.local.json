@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun test *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(bun run *)",
+      "Bash(bun *)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(echo \"---EXIT: $?\")"
+    ]
+  }
+}

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: x-like-posts
+  Width: 900px
+  Height: dynamic
+  用途: 多条帖子转成长图，模仿 X / Twitter 极简分享排版
+  Parameters:
+    {{BG_COLOR}}        — 页面背景色
+    {{CARD_BG}}         — 卡片背景色
+    {{TEXT_COLOR}}      — 正文颜色
+    {{MUTED_COLOR}}     — 次级文字颜色
+    {{BORDER_COLOR}}    — 卡片分隔线颜色
+    {{ACCENT_COLOR}}    — 品牌强调色
+    {{AUTHOR_NAME}}     — 作者名
+    {{AUTHOR_HANDLE}}   — 作者 handle
+    {{AUTHOR_AVATAR}}   — 头像绝对路径
+    {{HEADER_LABEL}}    — 顶部说明
+    {{TIME_RANGE_LABEL}} — 顶部日期
+    {{FOOTER_TEXT}}     — 底部来源
+    {{FONT_PATH}}       — 标题字体
+    {{TWEET_ITEMS}}     — 帖子列表 HTML
+-->
+<style>
+  @font-face {
+    font-family: "AlimamaShuHeiTi";
+    src: url("{{FONT_PATH}}") format("truetype");
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 900px;
+    background: {{BG_COLOR}};
+    color: {{TEXT_COLOR}};
+    padding: 48px;
+    font-family: "TwitterChirp", "SF Pro Display", "Helvetica Neue", "PingFang SC", sans-serif;
+  }
+  .sheet {
+    width: 100%;
+    background: {{CARD_BG}};
+    border: 1px solid {{BORDER_COLOR}};
+    border-radius: 36px;
+    overflow: hidden;
+    box-shadow: 0 28px 60px rgba(15, 20, 25, 0.08);
+  }
+  .hero {
+    padding: 34px 36px 24px;
+    border-bottom: 1px solid {{BORDER_COLOR}};
+    background:
+      radial-gradient(circle at top right, rgba(29, 155, 240, 0.09), transparent 34%),
+      linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,1));
+  }
+  .hero-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    color: {{MUTED_COLOR}};
+    margin-bottom: 18px;
+  }
+  .hero-label .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: {{ACCENT_COLOR}};
+  }
+  .hero-title {
+    font-family: "AlimamaShuHeiTi", "SF Pro Display", sans-serif;
+    font-size: 44px;
+    line-height: 1.12;
+    letter-spacing: -1px;
+    margin-bottom: 18px;
+  }
+  .hero-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .hero-meta img {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #eef3f4;
+  }
+  .hero-meta-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hero-meta-text .name {
+    font-size: 24px;
+    font-weight: 700;
+    color: {{TEXT_COLOR}};
+  }
+  .hero-meta-text .handle {
+    font-size: 20px;
+    color: {{MUTED_COLOR}};
+  }
+  .hero-time {
+    margin-top: 14px;
+    font-size: 18px;
+    color: {{MUTED_COLOR}};
+    letter-spacing: 0.2px;
+  }
+  .thread {
+    padding: 0 36px;
+  }
+  .tweet {
+    display: flex;
+    gap: 18px;
+    padding: 26px 0;
+    border-bottom: 1px solid {{BORDER_COLOR}};
+  }
+  .tweet:last-child {
+    border-bottom: none;
+  }
+  .avatar-wrap {
+    width: 58px;
+    flex-shrink: 0;
+  }
+  .avatar-wrap img {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #eef3f4;
+  }
+  .tweet-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .tweet-top {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+    line-height: 1.25;
+  }
+  .tweet-top .name {
+    font-size: 23px;
+    font-weight: 700;
+  }
+  .tweet-top .handle,
+  .tweet-top .meta {
+    font-size: 20px;
+    color: {{MUTED_COLOR}};
+  }
+  .tweet-text {
+    font-size: 30px;
+    line-height: 1.55;
+    color: {{TEXT_COLOR}};
+    word-break: break-word;
+    white-space: normal;
+  }
+  .tweet-text p + p {
+    margin-top: 16px;
+  }
+  .tweet-text a {
+    color: {{ACCENT_COLOR}};
+    text-decoration: none;
+  }
+  .tweet-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    font-size: 18px;
+    color: {{MUTED_COLOR}};
+  }
+  .tweet-index {
+    color: {{ACCENT_COLOR}};
+    font-weight: 700;
+  }
+  .tweet-stats {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    text-align: right;
+  }
+  .tweet-stats .stat strong {
+    font-weight: 700;
+    color: {{TEXT_COLOR}};
+    margin-right: 4px;
+  }
+  .sheet-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 22px 36px 28px;
+    border-top: 1px solid {{BORDER_COLOR}};
+    color: {{MUTED_COLOR}};
+    font-size: 18px;
+    background: linear-gradient(180deg, rgba(248,250,251,0.86), rgba(255,255,255,1));
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .brand-mark {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: {{ACCENT_COLOR}};
+  }
+</style>
+</head>
+<body>
+  <section class="sheet">
+    <header class="hero">
+      <div class="hero-label">
+        <span class="dot"></span>
+        <span>{{HEADER_LABEL}}</span>
+      </div>
+      <h1 class="hero-title">X-like Posts</h1>
+      <div class="hero-meta">
+        <img src="{{AUTHOR_AVATAR}}" alt="avatar">
+        <div class="hero-meta-text">
+          <span class="name">{{AUTHOR_NAME}}</span>
+          <span class="handle">{{AUTHOR_HANDLE}}</span>
+        </div>
+      </div>
+      <div class="hero-time">{{TIME_RANGE_LABEL}}</div>
+    </header>
+
+    <main class="thread">
+      {{TWEET_ITEMS}}
+    </main>
+
+    <footer class="sheet-footer">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span>{{FOOTER_TEXT}}</span>
+      </div>
+      <span>X-like share export</span>
+    </footer>
+  </section>
+</body>
+</html>

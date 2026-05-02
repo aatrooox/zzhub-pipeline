@@ -1,0 +1,241 @@
+@font-face {
+  font-family: "SweiCurveLeg";
+  src: url("../assets/fonts/SweiCurveLegCJKsc-Regular.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: hsl(var(--background));
+}
+
+body {
+  color: hsl(var(--foreground));
+  font-family: "SweiCurveLeg", ui-sans-serif, system-ui, sans-serif;
+}
+
+.preview-root {
+  min-height: 100vh;
+  padding: 40px 0;
+  background: hsl(var(--background));
+}
+
+.milkdown-container {
+  min-height: 100%;
+  width: 100%;
+  --crepe-color-background: hsl(var(--background));
+  --crepe-color-surface: hsl(var(--card));
+  --crepe-color-surface-low: hsl(var(--muted));
+  --crepe-color-on-background: hsl(var(--foreground));
+  --crepe-color-on-surface: hsl(var(--card-foreground));
+  --crepe-color-outline: hsl(var(--border));
+  --crepe-color-primary: hsl(var(--primary));
+  --crepe-color-on-primary: hsl(var(--primary-foreground));
+}
+
+.milkdown .editor {
+  min-height: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 32px 10vh;
+  font-family: "SweiCurveLeg", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+  background: transparent;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.milkdown .editor,
+.milkdown .editor * {
+  box-sizing: border-box;
+}
+
+.milkdown h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.milkdown .editor h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: hsl(var(--primary));
+  line-height: 1.3;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+.milkdown .editor h3 {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.milkdown h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.milkdown h5,
+.milkdown h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.milkdown .editor p {
+  line-height: 1.9;
+  margin: 1.25rem 0;
+  color: hsl(var(--foreground));
+}
+
+.milkdown .editor p:first-child {
+  margin-top: 0;
+}
+
+.milkdown .editor p:last-child {
+  margin-bottom: 0;
+}
+
+.milkdown .editor strong,
+.milkdown .editor b,
+.milkdown .editor em,
+.milkdown .editor i,
+.milkdown .editor a,
+.milkdown .editor del,
+.milkdown .editor span {
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+
+.milkdown .editor blockquote {
+  margin: 1.35rem 0;
+  padding-left: 1rem;
+  border-left: 4px solid hsl(var(--border));
+  background: color-mix(in srgb, hsl(var(--primary)) 5%, white);
+}
+
+.milkdown .editor blockquote p {
+  font-size: 15px;
+  line-height: 1.85;
+  color: hsl(var(--muted-foreground));
+  margin: 0.45rem 0;
+}
+
+.milkdown .editor ul,
+.milkdown .editor ol {
+  margin: 1rem 0;
+  padding-left: 1.4rem;
+}
+
+.milkdown .editor li {
+  margin: 0.45rem 0;
+  line-height: 1.85;
+}
+
+.milkdown .editor li > p {
+  margin: 0.2rem 0;
+}
+
+.milkdown .editor code {
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", "Monaco", monospace;
+  font-size: 0.875em;
+  background: hsl(var(--primary) / 0.12);
+  color: var(--crepe-color-primary);
+  padding: 1px 2px;
+  border-radius: 4px;
+}
+
+.milkdown pre {
+  background: hsl(var(--muted));
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.milkdown pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+.milkdown .editor a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-underline-offset: 3px;
+}
+
+.milkdown hr {
+  display: block;
+  height: 0;
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1.8rem 0;
+  padding: 0;
+  background: transparent;
+  opacity: 0.72;
+}
+
+.milkdown .editor table {
+  width: 100%;
+  margin: 1.4rem 0;
+  border-collapse: collapse;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.milkdown .editor th,
+.milkdown .editor td {
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--border));
+  text-align: left;
+  vertical-align: top;
+}
+
+.milkdown .editor th {
+  color: hsl(var(--primary));
+  background: color-mix(in srgb, hsl(var(--primary)) 6%, white);
+  font-weight: 700;
+}
+
+.milkdown .editor img {
+  display: block;
+  max-width: 100%;
+  margin: 14px auto;
+}
+
+@media (max-width: 768px) {
+  .preview-root {
+    padding: 20px 0;
+  }
+
+  .milkdown .editor {
+    padding: 0 20px 8vh;
+    font-size: 15px;
+  }
+}

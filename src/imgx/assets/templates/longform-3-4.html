@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: longform-3-4
+  Ratio: 3:4  (900×1200)
+  用途: 长文正文卡片，支持矩形图片障碍物，正文按行绕排
+  Parameters:
+    {{THEME_CSS_VARS}}       — 主题变量
+    {{FOOTER_TEXT}}          — 底部文字
+    {{ICON_PATH}}            — 顶部 logo
+    {{AVATAR_PATH}}          — 底部头像
+    {{FONT_PATH}}            — 顶部/底部字体
+    {{BODY_FONT_PATH}}       — 正文字体
+    {{LONGFORM_STAGE_HTML}}  — 已排版页 HTML
+-->
+<style>
+  @font-face {
+    font-family: "AlimamaShuHeiTi";
+    src: url("{{FONT_PATH}}") format("truetype");
+  }
+  @font-face {
+    font-family: "LXGWNeoZhiSongPlus";
+    src: url("{{BODY_FONT_PATH}}") format("truetype");
+    font-weight: 400;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    position: relative;
+    width: var(--page-width);
+    height: var(--page-height);
+    background-color: var(--page-bg);
+    display: grid;
+    grid-template-rows:
+      calc(var(--body-padding-y) + var(--logo-size) + var(--logo-gap))
+      minmax(0, 1fr)
+      calc(var(--footer-margin-top) + var(--footer-height) + var(--body-padding-y));
+    overflow: hidden;
+    color: var(--body-color);
+    {{THEME_CSS_VARS}}
+  }
+  .header-shell {
+    width: 100%;
+    height: calc(var(--body-padding-y) + var(--logo-size) + var(--logo-gap));
+    padding: var(--body-padding-y) var(--body-padding-x) 0;
+    flex-shrink: 0;
+  }
+  .deco-top {
+    width: 100%;
+    height: var(--logo-size);
+    display: flex;
+    align-items: flex-start;
+  }
+  .deco-top img {
+    width: var(--logo-size);
+    height: var(--logo-size);
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .content {
+    min-height: 0;
+    width: 100%;
+    padding: 0 var(--body-padding-x);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .content-stage {
+    position: relative;
+    width: min(100%, var(--content-width));
+    height: min(100%, calc(var(--content-height) - var(--content-bottom-gap)));
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .body-line {
+    position: absolute;
+    left: 0;
+    font-family: "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif;
+    font-size: 32px;
+    line-height: 1.75;
+    color: var(--body-color);
+    white-space: pre;
+  }
+  .body-heading {
+    position: absolute;
+    left: 0;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    font-size: 38px;
+    line-height: 1.47;
+    color: var(--accent-color);
+    white-space: pre;
+  }
+  .body-quote {
+    position: absolute;
+    left: 0;
+    padding-left: 20px;
+    border-left: 4px solid color-mix(in srgb, var(--accent-color) 38%, white);
+    font-family: "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif;
+    font-size: 30px;
+    line-height: 1.73;
+    color: var(--quote-color);
+    white-space: pre;
+  }
+  .body-list-bullet {
+    position: absolute;
+    min-width: 24px;
+    text-align: left;
+  }
+  .body-image {
+    position: absolute;
+    object-fit: cover;
+    border-radius: var(--image-radius);
+    box-shadow: 0 16px 30px rgb(27 26 24 / 0.12);
+    background: #ebe7de;
+  }
+  .body-caption {
+    position: absolute;
+    left: 0;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    font-size: 20px;
+    line-height: 1.35;
+    color: var(--caption-color);
+    white-space: normal;
+    text-align: center;
+  }
+  .body-line strong, .body-heading strong, .body-quote strong {
+    font-weight: 700;
+  }
+  .body-line em, .body-heading em, .body-quote em {
+    font-style: italic;
+  }
+  .footer-shell {
+    width: 100%;
+    height: 100%;
+    padding: var(--footer-margin-top) var(--body-padding-x) var(--body-padding-y);
+  }
+  .watermark {
+    width: 100%;
+    min-height: var(--footer-height);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: var(--watermark-opacity);
+  }
+  .watermark img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .watermark span {
+    font-size: 24px;
+    color: var(--watermark-color);
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+  <div class="header-shell">
+    <div class="deco-top">
+      <img src="{{ICON_PATH}}" alt="icon">
+    </div>
+  </div>
+
+  <main class="content">
+    <div class="content-stage" id="content-stage">{{LONGFORM_STAGE_HTML}}</div>
+  </main>
+
+  <div class="footer-shell">
+    <div class="watermark">
+      <img src="{{AVATAR_PATH}}" alt="Jinx">
+      <span>{{FOOTER_TEXT}}</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: ascii-portrait-tile
+  用途: 原子 ASCII 头像块，可作为组合式障碍物
+-->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: {{CANVAS_WIDTH}}px;
+    height: {{CANVAS_HEIGHT}}px;
+    background: {{BG_COLOR}};
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: {{CANVAS_WIDTH}}px;
+    height: {{CANVAS_HEIGHT}}px;
+  }
+</style>
+</head>
+<body>
+  <canvas id="portrait-canvas" width="{{CANVAS_WIDTH}}" height="{{CANVAS_HEIGHT}}"></canvas>
+  <script id="ascii-config" type="application/json">{{ASCII_CONFIG_JSON}}</script>
+  <script>
+    const config = JSON.parse(document.getElementById("ascii-config").textContent || "{}");
+    const canvas = document.getElementById("portrait-canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = config.avatarPath;
+
+    function averageRegion(data, width, x0, y0, sampleW, sampleH) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let count = 0;
+      for (let y = y0; y < y0 + sampleH; y++) {
+        for (let x = x0; x < x0 + sampleW; x++) {
+          const idx = (y * width + x) * 4;
+          r += data[idx];
+          g += data[idx + 1];
+          b += data[idx + 2];
+          count += 1;
+        }
+      }
+      return {
+        r: Math.round(r / count),
+        g: Math.round(g / count),
+        b: Math.round(b / count),
+      };
+    }
+
+    function luminance(color) {
+      return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b) / 255;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function resolveColumns() {
+      const requested = Number(config.columns || 0);
+      if (requested > 0) return requested;
+      const sourceMin = Math.min(img.width, img.height);
+      const widthScale = canvas.width / 900;
+      const raw = Math.round((sourceMin / 5) * widthScale);
+      return clamp(raw, 56, 96);
+    }
+
+    function resolveFontSize(cols) {
+      const requested = Number(config.fontSize || 0);
+      if (requested > 0) return requested;
+      const cellWidth = canvas.width / cols;
+      return clamp(Math.round(cellWidth * 0.9), 11, 16);
+    }
+
+    function resolveLineHeight(fontSize) {
+      const requested = Number(config.lineHeight || 0);
+      if (requested > 0) return requested;
+      return clamp(Math.round(fontSize * 1.08), fontSize + 1, fontSize + 3);
+    }
+
+    function drawAsciiPortrait() {
+      const chars = String(config.chars || "@#X$%WM*+=-").split("");
+      const cols = resolveColumns();
+      const fontSize = resolveFontSize(cols);
+      const lineHeight = resolveLineHeight(fontSize);
+      const rows = Math.max(1, Math.floor(canvas.height / lineHeight));
+      const cellWidth = canvas.width / cols;
+      const gridHeight = rows * lineHeight;
+      const offsetY = (canvas.height - gridHeight) / 2;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = cols;
+      offscreen.height = rows;
+      const offctx = offscreen.getContext("2d");
+
+      const srcRatio = img.width / img.height;
+      const dstRatio = canvas.width / gridHeight;
+      let sx = 0;
+      let sy = 0;
+      let sw = img.width;
+      let sh = img.height;
+      if (srcRatio > dstRatio) {
+        sw = img.height * dstRatio;
+        sx = (img.width - sw) / 2;
+      } else {
+        sh = img.width / dstRatio;
+        sy = (img.height - sh) / 2;
+      }
+
+      offctx.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
+      const imageData = offctx.getImageData(0, 0, cols, rows);
+      const { data } = imageData;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = config.bgColor || "#111111";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `700 ${fontSize}px Menlo, Monaco, 'Courier New', monospace`;
+      ctx.textBaseline = "top";
+      ctx.textAlign = "center";
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const color = averageRegion(data, cols, col, row, 1, 1);
+          const light = luminance(color);
+          const index = Math.max(0, Math.min(chars.length - 1, Math.floor((1 - light) * (chars.length - 1))));
+          const char = chars[index] || " ";
+          ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+          ctx.fillText(char, col * cellWidth + cellWidth / 2, offsetY + row * lineHeight);
+        }
+      }
+    }
+
+    img.onload = () => {
+      drawAsciiPortrait();
+      document.body.dataset.ready = "1";
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "active_plan": "/Users/aatrox/.oh-my-zzhub/core/zzhub-pipeline/.sisyphus/plans/rewrite-docs-and-skills.md",
+  "started_at": "2026-04-16T07:37:40.059Z",
+  "session_ids": [
+    "ses_26b00aa77ffebk3U2wyi5R5mU1"
+  ],
+  "session_origins": {
+    "ses_26b00aa77ffebk3U2wyi5R5mU1": "direct"
+  },
+  "plan_name": "rewrite-docs-and-skills",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Rewrite README.md",
+      "session_id": "ses_26ac0f007ffem9YrMDv50trMzd",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-04-16T07:44:38.730Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Create skills/workflow-operation/SKILL.md",
+      "session_id": "ses_26a936b31ffe88OsiQ1rxdfxtL",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-04-16T08:34:51.039Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit -- oracle",
+      "session_id": "ses_26a273055ffeTaegEFCO2CFJwo",
+      "agent": "oracle",
+      "category": "",
+      "updated_at": "2026-04-16T10:32:06.708Z"
+    }
+  }
+}
