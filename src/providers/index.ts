@@ -7,7 +7,7 @@ import {
   prepareBodyForNewspic,
 } from "../text";
 import { resolveMarkdownRenderer } from "../adapter-loader";
-import { createWechatDraft, createWechatNewspic } from "./wechat";
+import { createWechatDraft, createWechatNewspic, extractImageUrls, mergePhotoLists } from "./wechat";
 
 export interface PublishRouteContext {
   state: WorkflowState;
@@ -107,6 +107,7 @@ async function publishWechatNewspicRoute({
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
+  const bodyImageUrls = extractImageUrls(postContent);
   const cleanContent = prepareBodyForNewspic(postContent);
   const cleanPath = join(state.asset_path, "post-clean.md");
   await writeFile(cleanPath, cleanContent, "utf-8");
@@ -119,7 +120,8 @@ async function publishWechatNewspicRoute({
       return (a.index ?? 0) - (b.index ?? 0);
     });
 
-  const photos = assets.map((asset) => asset.path);
+  const renderPhotos = assets.map((asset) => asset.path);
+  const photos = mergePhotoLists(renderPhotos, bodyImageUrls);
 
   if (dryRun) {
     console.error(`[dry-run] Wechat newspic: ${state.metadata.title}`);
