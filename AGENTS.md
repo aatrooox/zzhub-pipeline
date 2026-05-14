@@ -176,14 +176,22 @@ Runtime dependency checks:
 - Chrome — checked by markdown renderer `doctor()`, error includes install guidance
 - CJK fonts — auto-downloaded via `ensureFonts()` in `runtime-paths.ts`
 
-## npm distribution
+## npm 发布流程
 
-Published as `@zzhub/pipeline`. Build: `bun run build:npm`.
+```bash
+# 1. 版本发布（bump 版本号 + changelog + tag + push）
+bun run release:patch   # 或 release:minor / release:major
 
-- CLI entry: `dist/cli.js` (0.59MB bundle, `--external @napi-rs/canvas --external cos-nodejs-sdk-v5`)
-- Static assets: `dist/assets/` (templates, icons, browser-dist, pretext)
-- Fonts: NOT bundled — downloaded at runtime from `ZZHUB_FONT_CDN_BASE_URL` to `~/.config/zzhub-pipeline/fonts/`
-- Usage: `npx zzp <command>` or `npx zzhub-pipeline <command>`
+# 2. npm 发布（prepublishOnly 自动触发 build:npm 编译）
+npm publish
+```
+
+- 包名 `@zzclub/pipeline`，`publishConfig.access` 已设为 `public`，无需每次传 `--access`
+- `files` 仅包含编译产物：`dist/cli.js`、`dist/assets/`、`dist/node_modules/`
+- CLI entry: `dist/cli.js`（0.59MB bundle，`--external @napi-rs/canvas --external cos-nodejs-sdk-v5`）
+- 字体不打包 — 运行时从 `ZZHUB_FONT_CDN_BASE_URL` 下载到 `~/.config/zzhub-pipeline/fonts/`
+- 用户侧更新：`npm install -g @zzclub/pipeline@latest`
+- 使用：`zzp <command>` 或 `zzhub-pipeline <command>`
 
 ## Adding a new command
 
