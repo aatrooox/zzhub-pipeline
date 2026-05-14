@@ -166,11 +166,14 @@ Options:
 
   // Re-derive requires.render and requires.publish based on resolved route.
   // requires.research is intentional (set at init from user request), not touched here.
+  // Same for render/publish: if the orchestrator set them at init, keep that value.
+  // wechat-article always needs render regardless.
   state.intent.requires.render =
-    route.primary === "wechat-article" ||
-    route.primary === "wechat-newspic" ||
-    state.intent.content_form === "newspic";
-  state.intent.requires.publish = state.intent.task_kind === "publish";
+    state.intent.requires.render ||
+    route.primary === "wechat-article";
+  state.intent.requires.publish =
+    state.intent.requires.publish ||
+    state.intent.task_kind === "publish";
 
   // ── Step 2: Author select ──
   const styleRequest =
