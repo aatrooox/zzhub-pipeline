@@ -6,6 +6,9 @@
     "zzp": "./dist/cli.js",
     "zzhub-pipeline": "./dist/cli.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist/cli.js",
     "dist/assets/",
