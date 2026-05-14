@@ -37,6 +37,7 @@ export interface ExportMarkdownToWechatHtmlInput {
   account: string;
   title?: string;
   previewShellOutPath?: string;
+  customCss?: string | null;
 }
 
 export interface ExportMarkdownToWechatHtmlResult {
@@ -237,11 +238,20 @@ export async function exportMarkdownToWechatHtml(
     }),
   );
 
+  let customCssTag = "";
+  if (input.customCss) {
+    const cssContent = await readFile(input.customCss, "utf-8");
+    customCssTag = `<style>${cssContent}</style>`;
+  }
+
   const shellHtml = renderTemplate(shell, {
     "{{PAGE_TITLE}}": escapeHtml(input.title ?? "Wechat Preview Export"),
-    "{{CSS_LINK}}": bundle.cssPath
-      ? `<link rel="stylesheet" href="${pathToFileURL(bundle.cssPath).href}">`
-      : "",
+    "{{CSS_LINK}}": [
+      bundle.cssPath
+        ? `<link rel="stylesheet" href="${pathToFileURL(bundle.cssPath).href}">`
+        : "",
+      customCssTag,
+    ].filter(Boolean).join("\n    "),
     "{{PAYLOAD_JSON}}": payloadJson,
     "{{SCRIPT_URL}}": pathToFileURL(bundle.scriptPath).href,
   });

@@ -66,11 +66,13 @@ async function publishWechatArticleRoute({
 
   try {
     const markdownRenderer = await resolveMarkdownRenderer(config);
+    const wxAccount = config.wx.accounts[state.route.account] ?? config.wx.accounts[config.wx.defaultAccount];
     const { html } = await markdownRenderer.render({
       markdownPath: exportPostPath,
       outPath: workspacePaths.zotepadExportHtml,
       account: state.route.account,
       title: state.metadata.title,
+      customCss: wxAccount?.customCss ?? null,
     });
     await createWechatDraft({
       account: state.route.account,

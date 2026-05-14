@@ -132,6 +132,9 @@ export interface MarkdownRenderInput {
   /** Optional path for preview shell HTML output */
   previewShellOutPath?: string;
 
+  /** Path to custom CSS file for style overrides */
+  customCss?: string | null;
+
   /** Workflow state for context */
   state?: WorkflowState;
 }

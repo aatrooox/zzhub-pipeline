@@ -49,6 +49,7 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
       account: input.account,
       title: input.title,
       previewShellOutPath: input.previewShellOutPath,
+      customCss: input.customCss,
     });
 
     return {

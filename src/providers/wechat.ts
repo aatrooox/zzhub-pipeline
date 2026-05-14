@@ -111,6 +111,7 @@ function fillWxAccountConfig(source?: WxAccountConfig): WxAccountConfig {
     pat: source?.pat ?? "",
     appId: source?.appId ?? "",
     appSecret: source?.appSecret ?? "",
+    customCss: source?.customCss ?? null,
   };
 }
 

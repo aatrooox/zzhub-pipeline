@@ -36,6 +36,7 @@ const WxAccountConfigSchema = z.object({
   pat: z.string().default(""),
   appId: z.string().default(""),
   appSecret: z.string().default(""),
+  customCss: z.string().nullable().default(null),
 });
 
 const WxConfigSchema = withObjectDefault(
@@ -51,7 +52,7 @@ const WxConfigSchema = withObjectDefault(
     defaultAccount: trimmedNonEmptyString("default"),
     accounts: z
       .record(z.string(), WxAccountConfigSchema)
-      .default({ default: { pat: "", appId: "", appSecret: "" } }),
+      .default({ default: { pat: "", appId: "", appSecret: "", customCss: null } }),
   }),
 );
 

@@ -1,8 +1,18 @@
 #!/usr/bin/env bun
 
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { formatUsage, getCommandRegistry } from "./plugins";
 
 const COMMANDS = getCommandRegistry();
+
+function printVersion() {
+  const scriptDir = dirname(fileURLToPath(import.meta.url));
+  const pkgPath = join(scriptDir, "..", "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+  console.log(pkg.version);
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -10,6 +20,11 @@ async function main() {
 
   if (!cmd || cmd === "--help" || cmd === "-h") {
     printUsage();
+    process.exit(0);
+  }
+
+  if (cmd === "--version" || cmd === "-V") {
+    printVersion();
     process.exit(0);
   }
 

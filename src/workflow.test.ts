@@ -1201,6 +1201,7 @@ describe("config", () => {
               pat: "",
               appId: "",
               appSecret: "",
+              customCss: null,
             },
           },
         },
