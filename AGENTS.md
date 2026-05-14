@@ -181,8 +181,8 @@ Runtime dependency checks:
 ```bash
 # 1. 版本发布（bump 版本号 + changelog + tag + push）
 bun run release:patch   # bug 修复，如 0.1.2 → 0.1.3
-bun run release:minor   # 新功能，如 0.1.2 → 0.2.0
-bun run release:major   # 仅 1.x+ 的 breaking change，如 1.2.3 → 2.0.0
+bun run release:major   # 新功能，0.x: 0.1.2 → 0.2.0 / 1.x+: breaking change 1.2.3 → 2.0.0
+bun run release:minor   # 新功能 (仅 1.x+)，如 1.2.3 → 1.3.0
 
 # 2. npm 发布（prepublishOnly 自动触发 build:npm 编译）
 npm publish
@@ -190,14 +190,16 @@ npm publish
 
 ### 版本号规则
 
+changelogen 对 0.x 和 1.x+ 的 bump 语义不同：
+
 | 场景 | 当前版本 | 命令 | 结果 |
 |---|---|---|---|
 | bug 修复 | 任意 | `release:patch` | 0.1.2 → 0.1.3 / 1.2.3 → 1.2.4 |
-| 新功能 (0.x) | 0.1.2 | `release:minor` | 0.1.2 → 0.2.0 |
+| 新功能 (0.x) | 0.1.2 | `release:major` | 0.1.2 → 0.2.0 |
 | 新功能 (1.x+) | 1.2.3 | `release:minor` | 1.2.3 → 1.3.0 |
 | breaking (1.x+) | 1.2.3 | `release:major` | 1.2.3 → 2.0.0 |
 
-0.x 版本遵循 semver 前置发布约定：minor 位承载功能迭代（0.1 → 0.2），major 位始终为 0，不使用 `release:major`。进入 1.x 后，`release:major` 仅用于不兼容的 breaking change。
+0.x 时 `release:major` bump 的是中间位（minor），`release:minor` 行为同 patch。进入 1.x 后恢复标准 semver 语义。
 
 - 包名 `@zzclub/pipeline`，`publishConfig.access` 已设为 `public`，无需每次传 `--access`
 - `files` 仅包含编译产物：`dist/cli.js`、`dist/assets/`、`dist/node_modules/`
