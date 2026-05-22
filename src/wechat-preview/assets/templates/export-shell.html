@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{PAGE_TITLE}}</title>
+    {{CSS_LINK}}
+  </head>
+  <body>
+    <div id="app" class="preview-root">
+      <div id="editor-host" class="milkdown-container"></div>
+      <script id="zzhub-wechat-export-result" type="application/json">{"status":"pending"}</script>
+    </div>
+    <script>
+      window.__ZZHUB_SET_RESULT__ = function (payload) {
+        var el = document.getElementById("zzhub-wechat-export-result");
+        if (el) {
+          el.textContent = JSON.stringify(payload);
+        }
+      };
+      window.addEventListener("error", function (event) {
+        window.__ZZHUB_SET_RESULT__({
+          status: "error",
+          error: (event && event.message) || "window error",
+        });
+      });
+      window.addEventListener("unhandledrejection", function (event) {
+        var reason = event && event.reason;
+        window.__ZZHUB_SET_RESULT__({
+          status: "error",
+          error: reason && reason.message ? reason.message : String(reason),
+        });
+      });
+      window.__ZZHUB_WECHAT_PAYLOAD__ = {{PAYLOAD_JSON}};
+    </script>
+    <script type="module" src="{{SCRIPT_URL}}" onerror="window.__ZZHUB_SET_RESULT__({status:'error', error:'failed to load wechat preview bundle'})"></script>
+  </body>
+</html>

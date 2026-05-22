@@ -1,0 +1,467 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# AGENTS.md — zzhub-pipeline
+
+Agent-oriented content-publishing state machine for WeChat articles and newspic image sets.
+
+## Runtime & toolchain
+
+- Runtime: Bun, not Node. All commands use `bun run src/cli.ts`.
+- TypeScript: strict mode, `noUnusedLocals`, `noUnusedParameters`, so the compiler rejects unused variables.
+- Module resolution: `"bundler"`, use ESM imports only, no CommonJS.
+- Test runner: `bun test`, not Jest or Vitest. Main test file: `src/workflow.test.ts`.
+- Typecheck: `bun x tsc --noEmit`, separate from tests.
+
+## Key commands
+
+```bash
+# Run any CLI command directly from source (always up-to-date)
+bun run src/cli.ts <command> [options]
+# or via linked binary:
+zzhub-pipeline <command> [options]
+zzp <command> [options]
+
+# Rebuild dist after editing source (required for zzp to pick up changes)
+bun run build:npm
+
+# Run all tests
+bun test
+
+# Run a specific test file
+bun test src/workflow.test.ts
+
+# Typecheck without building
+bun x tsc --noEmit
+
+# Build WeChat preview bundle, separate Vite config
+bun run build:wechat-preview
+
+# Release versioning
+bun run release:patch   # bug fix, 0.1.2 → 0.1.3
+bun run release:major   # new feature (0.x: 0.1.2 → 0.2.0 / 1.x+: breaking 1.2.3 → 2.0.0)
+bun run release:minor   # new feature (1.x+ only: 1.2.3 → 1.3.0)
+
+# Publish to npm (prepublishOnly auto-triggers build:npm)
+npm publish
+```
+
+**Important:** `zzp` / `zzhub-pipeline` runs compiled JS from `dist/cli.js` via `bun link`. After editing any source file under `src/`, you must run `bun run build:npm` for the linked binary to reflect the change. `bun run src/cli.ts` always runs the latest source and does not need a rebuild.
+
+## Agent workflow loop
+
+The only correct agent procedure is:
+
+1. Find the active task:
+   `bun run src/cli.ts find-run --workspace {ws} --active --view agent`
+   Or list all active tasks:
+   `bun run src/cli.ts tasks --workspace {ws} --active --view agent`
+2. If no task exists, create one with `init`.
+3. Check current state:
+   `bun run src/cli.ts status --state {state_path} --view agent`
+4. Read `next_action` from the output.
+5. Execute only the action identified by `next_action.action`.
+6. Re-run `status` to confirm progress.
+7. Repeat until `mode` is `done`.
+
+Do not:
+
+- Scan session history to guess the current task.
+- Modify `workflow-state.json` directly.
+- Skip `status` or `reconcile` and assume the next step.
+- Execute multiple steps without checking status between them.
+
+`--view agent` output includes:
+
+- `next_action.action`, the next step/action identifier.
+- `next_action.reason`, why this action is needed.
+- `next_action.params`, which may include `state_path`, `spawn`, `requires_research`, `source_body_path`, and `feedback`.
+- `gaps`, missing materials.
+- `blockers`, blocking issues.
+
+Use `--view agent` for `find-run`, `tasks`, and `status` whenever an agent needs the next step.
+
+### next_action decision tree
+
+`buildTaskStatus()` in `src/task-manager.ts` determines the next action by priority (1→12), each branch mutually exclusive:
+
+1. `mode=done` or `phase=done` → **complete**
+2. `mode=failed` → **reset-or-repair** (checkpoint diagnose → reset)
+3. `mode=handoff` + body_inputs pending → **attach-body-images**
+4. `mode=handoff` + no body_inputs → **resolve-handoff**
+5. Body not mounted (no `source_body_path` or `asset_path`) → **attach-body**
+6. body_inputs pending → **attach-body-images**
+7. Metadata incomplete (title, slug, date) → **prepare**
+8. `content_review=needs_revision` → **revise-content**
+9. `content_review=unchecked` → **review-content**
+10. `content_review=passed` + no `asset_path` → **prepare-finalize**
+11. `asset_path` exists + render needs progress → **render**
+12. `asset_path` exists + publish needs progress → **publish**
+13. Fallback → **prepare** (re-prepare if nothing else matches)
+
+Key invariants:
+- C7 (content_review) only triggers when `asset_path` does not yet exist.
+- C9/C10 enter only after `asset_path` is guaranteed (written by `prepare-finalize`).
+- `attach-newspic-spec` is not in the decision tree — it's an optional command the agent may call before render.
+- `reconcile` is not in the decision tree — it's a manual maintenance command.
+
+### Task entry points: init and ingest-handoff
+
+Tasks are created two ways:
+
+**`init`** — Agent directly initializes a new task:
+```bash
+bun run src/cli.ts init \
+  --workspace {workspace} \
+  --task-kind publish \
+  --content-form article \
+  --targets wechat \
+  --intent-text "发公众号文章给大号"
+```
+
+**`ingest-handoff`** — External system hands off a JSON file:
+```bash
+bun run src/cli.ts ingest-handoff --file handoff.json
+```
+
+Two handoff JSON formats are supported:
+
+```json
+// workflow_handoff — create new task
+{
+  "workflow_handoff": {
+    "mode": "new",
+    "content_form": "article",
+    "body_path": "/abs/path/body.md",
+    "target_account": "default",
+    "title": "文章标题"
+  }
+}
+
+// workflow_handoff — resume existing task
+{
+  "workflow_handoff": {
+    "mode": "resume",
+    "state_path": "/abs/path/workflow-state.json",
+    "body_path": "/abs/path/revised-body.md",
+    "review_policy": "trust_user"
+  }
+}
+
+// publish_handoff — simplified format (always creates new)
+{
+  "publish_handoff": {
+    "content_form": "article",
+    "body_path": "/abs/path/body.md",
+    "target_account": "default",
+    "title": "文章标题"
+  }
+}
+```
+
+Resume mode compares core inputs (body, title, route, intent_text, explicit_constraints). If changed, `resetDerivedState()` resets all phases to pending while preserving `run_id` and `workspace_root`. If only `review_policy` changed to `trust_user` and a `handoff.body_path` exists, content_review is auto-set to `passed`.
+
+## State machine rules
+
+- Prefer `updateState(path, mutate)` for new work. Some existing commands still use `readState` and `writeState` directly.
+- Never write `workflow-state.json` by hand.
+- `content_review.status` must be `"passed"` before `render` or `publish` can proceed.
+- `redo_hint` is set by `reset --mode redo.*` and cleared by `prepare-finalize`, so leave it alone.
+- Body text is never stored in state. It lives in `{workspace}/.zzhub-media/tmp/{run_id}/`.
+
+## State file lifecycle
+
+```
+Temporary (prepare phase)              Canonical (after prepare-finalize)
+{workspace}/.zzhub-media/              {workspace}/posts/{date-slug}/
+  runs/{run_id}.json ←─────────────────── workflow-state.json
+  tmp/{run_id}/source-body.md   ───────→ post.md
+                                         images/wechat/   ← article render images
+                                         images/newspic/  ← newspic render images
+```
+
+`prepare-finalize` solidifies temporary state into the canonical directory. After that, all commands auto-resolve `posts/{date-slug}/workflow-state.json` as the authoritative source.
+
+## Workflow routes and targets
+
+Only two active workflow routes exist:
+
+- `wechat-article`, WeChat public account article, HTML export.
+- `wechat-newspic`, WeChat image message, multi-page PNG set.
+
+`blog` is not a workflow route. It is only a post-hoc sync via `sync-blog`.
+
+## Three-phase pipeline
+
+The active pipeline is: `prepare → render → publish → done` (or `failed`).
+
+### prepare sub-steps (executed sequentially inside `prepare` command)
+
+1. `channel-route` — resolve route and WeChat account
+2. `author-select` — determine rewrite permission and style mode
+3. `format` — text formatting rules
+4. `asset-meta` — extract title/date/summary
+5. `body-inputs` — scan body for illustration markers
+6. `highlight-words` — extract cover highlight words from title (in `prepare-finalize`)
+7. `asset-save` — write final files to `posts/` directory (in `prepare-finalize`)
+
+> `style` polishing is NOT inside `prepare` — it requires an LLM call, done by an external Worker.
+
+### render sub-steps
+
+1. `image-plan` — template selection (wechat-cover-split / poster-3-4 / longform-3-4)
+2. `body-inputs` — collect illustration images (may pause in longform mode for user input)
+3. `adapter-render` — call image render plugin
+4. Record `render_assets`, increment `render_version`
+
+### publish sub-steps
+
+1. Collect publish routes (primary + extras)
+2. Idempotency check (skip if content_version + render_version match)
+3. `provider.publish()` — WeChat / COS / blog
+4. Record publish results, set mode=done if all succeed
+
+## Output and view modes
+
+- Default output is raw JSON, which works well for agents, pipes, and redirects.
+- `--view markdown` renders a structured markdown table.
+- `--view agent` renders agent-optimized markdown with an explicit `next_action.params` block.
+- Agents should use `--view agent` for `find-run`, `tasks`, and `status`.
+- TTY output is pretty-printed when stdout is a terminal, raw JSON otherwise.
+- `NO_COLOR=1` forces raw JSON.
+- `FORCE_COLOR=1` forces pretty output.
+
+## Directory layout
+
+```text
+src/
+  cli.ts               # Entrypoint, dispatches to command registry
+  plugins.ts           # Command registry, workflow and ops plugin groups
+  state.ts             # WorkflowState type + CRUD, authoritative contract
+  schema/
+    state.ts           # Zod schemas for state validation and defaults
+    config.ts          # Zod schema for PipelineConfig
+  task-manager.ts      # listTasks / findTask / getTaskByStatePath / buildTaskStatus
+  task-views.ts        # markdown and agent view renderers
+  workflow-materials.ts# body path resolution, body-input reconciliation
+  routes.ts            # deterministic routing, keyword match + account resolution
+  profiles.ts          # authoring rules, rewrite_allowed, style_mode decision tree
+  text.ts              # text formatting, frontmatter, markdown normalization
+  output.ts            # TTY-aware output layer, printResult and pretty renderers
+  config.ts            # config loading, env overrides, workspace path resolution
+  args.ts              # argument parsing
+  spawn.ts             # subprocess wrapper, PATH enhancement
+  adapter-types.ts     # ImageRenderPlugin / MarkdownRenderPlugin interfaces
+  adapter-loader.ts    # resolveImageRenderer / resolveMarkdownRenderer / runPluginDoctorChecks
+  runtime-paths.ts     # asset path resolution (dev/compiled/npm modes), font cache
+  adapters/            # built-in adapter implementations
+  commands/            # one file per CLI command
+  imgx/                # image rendering subsystem, Chrome headless + @napi-rs/canvas
+  providers/           # publish providers, wechat, cos, blog
+  wechat-preview/      # WeChat article HTML preview, Milkdown + themes
+```
+
+## Commands
+
+### workflow group (17 commands)
+
+| Command | Description |
+|---|---|
+| `init` | Create run state from intent classification |
+| `ingest-handoff` | Create or resume task from handoff JSON |
+| `attach-body` | Attach source body file to task |
+| `attach-body-images` | Attach body image markers to task |
+| `attach-newspic-spec` | Attach or update newspic render intent |
+| `prepare` | Route + author + format + metadata |
+| `prepare-finalize` | Highlight words + asset save |
+| `render` | Image plan + imgx render |
+| `publish` | Execute publish routes |
+| `reconcile` | Reconcile task materials and derived state |
+| `checkpoint` | Read task state and validate current phase |
+| `status` | Read task with gaps and next action |
+| `find-run` | Find the best matching task |
+| `tasks` | List tasks in workspace |
+| `reset` | Reset phases for revision |
+| `review` | Update content review status |
+| `abandon` | Mark tasks as abandoned |
+
+### ops group (7 commands)
+
+| Command | Description |
+|---|---|
+| `sync-blog` | Copy markdown to blog repo and publish |
+| `imgx` | Run bundled imgx renderer subcommands |
+| `wechat-export` | Render markdown to WeChat HTML |
+| `cos-upload` | Upload image to COS CDN |
+| `config` | Read or update pipeline config |
+| `doctor` | Inspect resolved paths and provider health |
+| `hermes-metrics` | Show Hermes execution metrics per task |
+
+### Reset modes
+
+```bash
+bun run src/cli.ts reset --state {state_path} --mode content        # full re-prepare
+bun run src/cli.ts reset --state {state_path} --mode redo.style     # redo style polish only
+bun run src/cli.ts reset --state {state_path} --mode redo.format    # redo formatting only
+bun run src/cli.ts reset --state {state_path} --mode redo.metadata  # redo metadata only
+bun run src/cli.ts reset --state {state_path} --mode redo.route     # redo route parsing only
+bun run src/cli.ts reset --state {state_path} --mode render         # redo render
+bun run src/cli.ts reset --state {state_path} --mode publish        # redo publish
+bun run src/cli.ts reset --state {state_path} --mode full           # abandon task (mode=failed)
+```
+
+Each mode sets `redo_hint` so the agent knows which sub-step to resume from.
+
+## Config
+
+Config file location on macOS: `~/Library/Application Support/zzhub-pipeline/config.json`
+
+Override with `ZZHUB_PIPELINE_CONFIG=/abs/path/config.json`
+
+Other env overrides: `ZZHUB_PIPELINE_WORKSPACE_ROOT`, `ZZHUB_PIPELINE_POSTS_DIR`, `ZZHUB_PIPELINE_BLOG_ROOT`.
+
+Tests isolate config with `process.env.ZZHUB_PIPELINE_CONFIG = <tmp path>`.
+
+Config structure: `paths`, `services`, `commands`, `wx.accounts`, `cos`, `plugins`.
+
+## Chrome dependency
+
+Rendering requires headless Chrome. `findChrome()` in `src/imgx/runtime.ts` probes these paths in order:
+
+1. `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+2. `/Applications/Chromium.app/Contents/MacOS/Chromium`
+3. `google-chrome` from PATH
+4. `chromium` from PATH
+
+Chrome must be installed for `render` and `wechat-export`. Checked by the builtin markdown renderer adapter's `doctor()` method.
+
+Viewport inset quirk: Chrome CLI `--window-size=900,1200` does not guarantee `innerHeight=1200`. The runtime measures the real inset, over-captures, then crops. If a footer looks clipped, check this layer first, not the template CSS.
+
+## Plugin system
+
+Rendering is pluggable via `config.plugins`. Two adapter interfaces exist:
+
+- `ImageRenderPlugin` — replaces imgx for image rendering (poster, longform, cover)
+- `MarkdownRenderPlugin` — replaces wechat-preview for WeChat HTML export
+
+Config override (local file path or npm package):
+
+```json
+{
+  "plugins": {
+    "imageRenderer": "./my-image-renderer.js",
+    "markdownRenderer": "./my-md-renderer.js"
+  }
+}
+```
+
+When unset, built-in adapters (`builtin-imgx`, `builtin-wechat-preview`) are used.
+
+Key files:
+- `src/adapter-types.ts` — interfaces (`ImageRenderPlugin`, `MarkdownRenderPlugin`, `PipelinePluginDoctorCheck`)
+- `src/adapter-loader.ts` — `resolveImageRenderer()`, `resolveMarkdownRenderer()`, `runPluginDoctorChecks()`
+- `src/adapters/builtin-image-renderer.ts` — wraps imgx
+- `src/adapters/builtin-markdown-renderer.ts` — wraps wechat-preview
+
+Runtime dependency checks:
+- `@napi-rs/canvas` — checked by image renderer `doctor()`, lazy-loaded in `pretext-runtime.ts`
+- Chrome — checked by markdown renderer `doctor()`, error includes install guidance
+- CJK fonts — auto-downloaded via `ensureFonts()` in `runtime-paths.ts`
+
+## newspic longform pagination
+
+Two pagination modes coexist:
+
+- Auto-flow, the default, fills pages in order.
+- Spec-driven, enabled when `page_specs` is present in `newspic_render`, follows the spec.
+
+`pagination_mode` values: `single` (poster-3-4 card) or `multi` (longform-3-4 album).
+
+To pin text to a page, add explicit markers in the body and provide `page_specs`:
+
+```text
+【第一页】
+...
+【第二页】
+...
+```
+
+`【Page 1】` is also accepted. Without `page_specs`, these markers are ignored.
+
+`target_fill_ratio` is clamped to `0.35` to `0.95`, with `0.8` as the default. Page-level spec takes priority over the top-level value.
+
+## imgx rendering subsystem
+
+- Based on Chrome headless and `@napi-rs/canvas`
+- Templates: `longform-3-4` (newspic longform), `poster-3-4` (single-page card), `wechat-cover-split` (article cover)
+- Themes: `paper-sage` (default account), `linen-news` (`ancientone` account)
+- Geometry auto-derived from header, footer, padding; can be overridden via CLI flags
+- Pagination done in-process via `@chenglou/pretext`, no Chrome dump needed
+- Both `render` and `wechat-export` require Chrome
+
+## wechat-preview subsystem
+
+- Milkdown-based markdown to WeChat HTML conversion
+- Multi-theme support
+- Build command: `bun run build:wechat-preview`
+- `wechat-export` uses this preview style directly
+
+## Publish providers
+
+| Provider | Route | Description |
+|---|---|---|
+| wechat | `wechat-article` | Create WeChat article draft |
+| wechat | `wechat-newspic` | Send image message |
+| cos | - | Tencent Cloud COS image CDN |
+| blog | - | Markdown sync to blog repo |
+
+## npm release workflow
+
+Package name: `@your-org/pipeline`, `publishConfig.access` is `public`.
+
+`files` includes only compiled artifacts: `dist/cli.js`, `dist/assets/`, `dist/node_modules/`.
+CLI entry: `dist/cli.js` (0.59MB bundle, `--external @napi-rs/canvas --external cos-nodejs-sdk-v5`).
+Fonts not bundled — downloaded at runtime from `ZZHUB_FONT_CDN_BASE_URL` to `~/.config/zzhub-pipeline/fonts/`.
+
+### Version number rules
+
+changelogen bumps differently for 0.x vs 1.x+:
+
+| Scenario | Current | Command | Result |
+|---|---|---|---|
+| Bug fix | any | `release:patch` | 0.1.2 → 0.1.3 / 1.2.3 → 1.2.4 |
+| New feature (0.x) | 0.1.2 | `release:major` | 0.1.2 → 0.2.0 |
+| New feature (1.x+) | 1.2.3 | `release:minor` | 1.2.3 → 1.3.0 |
+| Breaking (1.x+) | 1.2.3 | `release:major` | 1.2.3 → 2.0.0 |
+
+At 0.x, `release:major` bumps the middle digit (minor), `release:minor` behaves like patch. After 1.x, standard semver applies.
+
+## Adding a new command
+
+1. Create `src/commands/<name>.ts` exporting `async function <camelName>(args: string[]): Promise<void>`.
+2. Register it in `src/plugins.ts` under the correct plugin group.
+3. The CLI auto-discovers registered commands, so no other wiring is needed.
+
+Key patterns:
+
+- Parse args with `parseArgs` from `src/args.ts`.
+- Output with `printResult(data, renderer)` from `src/output.ts`, never raw `console.log`.
+- Prefer `updateState(path, mutate)` from `src/state.ts` for new stateful work; existing commands may still use `readState` and `writeState` directly.
+- Load config through `loadConfig()` from `src/config.ts`.
+
+## Code reading order
+
+For understanding the codebase, read in this order:
+
+1. `src/cli.ts` — entrypoint and command dispatch
+2. `src/plugins.ts` — command registry
+3. `src/state.ts` — WorkflowState type and CRUD operations
+4. `src/task-manager.ts` — task listing, finding, status reporting
+5. `src/routes.ts` — deterministic routing
+6. `src/profiles.ts` — authoring rules and style mode decision
+7. `src/workflow-materials.ts` — body path resolution, material reconciliation
+8. `src/commands/prepare.ts` — prepare command implementation
+9. `src/commands/prepare-finalize.ts` — finalize implementation
+10. `src/commands/render.ts` — render command implementation
+11. `src/commands/publish.ts` — publish command implementation

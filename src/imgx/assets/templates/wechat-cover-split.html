@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: wechat-cover-split
+  Ratio: 335:100  Canvas: 1340×400  Left: 940×400  Right: 400×400
+  用途: 公众号文章封面长条图，左文案 + 右 icon，可裁成两张
+
+  Parameters:
+    {{POSTER_CONFIG_JSON}}  — { blocks[]{text,highlight}, highlightWords[], highlightColor }
+    {{PRETEXT_MODULE_URL}}  — pretext ES module 文件 URL
+    {{BG_COLOR}}            — 背景色
+    {{HIGHLIGHT_COLOR}}     — 高亮色（CSS .highlight 类）
+    {{FOOTER_TEXT}}         — 底部版权/来源文字
+    {{ICON_PATH}}           — 右侧 icon 绝对路径
+    {{FONT_PATH}}           — 字体绝对路径
+-->
+<style>
+  @font-face {
+    font-family: "AlimamaShuHeiTi";
+    src: url("{{FONT_PATH}}") format("truetype");
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: {{BG_COLOR}};
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    color: #111;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  body.ready { opacity: 1; }
+  .canvas {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    background: {{BG_COLOR}};
+  }
+  .left {
+    width: 940px;
+    height: 400px;
+    padding: 34px 48px 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    background:
+      radial-gradient(circle at top right, rgba(255,255,255,0.38), transparent 30%),
+      linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0)),
+      {{BG_COLOR}};
+  }
+  .eyebrow {
+    font-size: 18px;
+    letter-spacing: 0.5px;
+    color: rgba(0,0,0,0.38);
+    margin-bottom: 14px;
+    flex-shrink: 0;
+  }
+  .text-block {
+    flex-shrink: 0;
+    max-width: 820px;
+  }
+  .pretext-lines {
+    width: 100%;
+  }
+  .line {
+    font-size: var(--cover-font-size, 72px);
+    font-weight: 900;
+    line-height: var(--cover-line-height, 1.05);
+    color: #111;
+    letter-spacing: var(--cover-letter-spacing, -1.5px);
+    white-space: pre;
+  }
+  .block-text {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  .block + .block {
+    margin-top: var(--cover-block-gap, 10px);
+  }
+  .line.highlight { color: {{HIGHLIGHT_COLOR}}; }
+  .highlight { color: {{HIGHLIGHT_COLOR}}; }
+  .footer {
+    position: absolute;
+    left: 48px;
+    bottom: 24px;
+    font-size: 16px;
+    color: rgba(0,0,0,0.42);
+    letter-spacing: 1px;
+  }
+  .right {
+    width: 400px;
+    height: 400px;
+    border-left: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.06)),
+      radial-gradient(circle at top left, rgba(255,255,255,0.24), transparent 42%),
+      {{BG_COLOR}};
+    position: relative;
+  }
+  .icon-shell {
+    width: 232px;
+    height: 232px;
+    border-radius: 56px;
+    background: rgba(255,255,255,0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 22px 50px rgba(0,0,0,0.08);
+    padding: 24px;
+  }
+  .icon-shell img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 28px;
+  }
+  .grid-mark {
+    position: absolute;
+    inset: 20px;
+    border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 28px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <section class="left">
+      <div class="eyebrow">公众号·早早集市</div>
+      <div class="text-block">
+        <div class="pretext-lines" id="cover-lines" aria-label="cover text"></div>
+      </div>
+      <div class="footer">{{FOOTER_TEXT}}</div>
+    </section>
+
+    <aside class="right">
+      <div class="grid-mark"></div>
+      <div class="icon-shell">
+        <img src="{{ICON_PATH}}" alt="icon">
+      </div>
+    </aside>
+  </div>
+
+  <script id="poster-config" type="application/json">{{POSTER_CONFIG_JSON}}</script>
+  <script type="module">
+    import { prepareWithSegments, layoutWithLines } from "{{PRETEXT_MODULE_URL}}";
+
+    const configNode  = document.getElementById("poster-config");
+    const linesRoot   = document.getElementById("cover-lines");
+    const textBlock   = document.querySelector(".text-block");
+    if (
+      !(configNode instanceof HTMLScriptElement) ||
+      !(linesRoot  instanceof HTMLDivElement)    ||
+      !(textBlock  instanceof HTMLDivElement)
+    ) {
+      throw new Error("cover nodes not found");
+    }
+
+    const config         = JSON.parse(configNode.textContent || "{}");
+    const blocks         = Array.isArray(config.blocks)         ? config.blocks         : [];
+    const highlightWords = Array.isArray(config.highlightWords) ? config.highlightWords.filter(Boolean) : [];
+
+    // ── Preset: wechat-cover-split (3.35:1 横幅) ────────────────────────────
+    // 内容（文字/高亮）来自 POSTER_CONFIG_JSON；
+    // 以下常量是本比例的 layout preset，决定该模板的字号范围与约束。
+    const FONT_FAMILY              = '"AlimamaShuHeiTi", "PingFang SC", sans-serif';
+    const FONT_WEIGHT              = 900;
+    const MIN_FONT_SIZE            = 36;   // 超长标题兜底下限
+    const MAX_FONT_SIZE            = 88;   // 横幅高度决定的上限
+    const MAX_LINES_PER_BLOCK      = 2;    // 每块最多 2 行（render-card 拆分也保证此限制）
+    const MAX_WIDTH                = 820;  // 对应 CSS .text-block max-width
+    const FALLBACK_AVAILABLE_HEIGHT = 248;
+    // ────────────────────────────────────────────────────────────────────────
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function getLineHeight(fontSize) {
+      if (fontSize >= 80) return Math.round(fontSize * 1.06);
+      if (fontSize >= 60) return Math.round(fontSize * 1.05);
+      return Math.round(fontSize * 1.04);
+    }
+
+    function getBlockGap(fontSize) {
+      return fontSize >= 64 ? 12 : fontSize >= 52 ? 10 : 8;
+    }
+
+    function getLetterSpacing(fontSize) {
+      if (fontSize >= 80) return "-2px";
+      if (fontSize >= 64) return "-1.5px";
+      if (fontSize >= 48) return "-1px";
+      return "-0.5px";
+    }
+
+    function measureLayout(fontSize, maxWidth) {
+      const lineHeight = getLineHeight(fontSize);
+      const blockGap   = getBlockGap(fontSize);
+      const font       = `${FONT_WEIGHT} ${fontSize}px ${FONT_FAMILY}`;
+      let totalHeight  = 0;
+      let valid        = true;
+      const renderedBlocks = [];
+
+      for (let i = 0; i < blocks.length; i++) {
+        const block    = blocks[i];
+        const prepared = prepareWithSegments(block.text, font, { whiteSpace: "pre-wrap" });
+        const result   = layoutWithLines(prepared, maxWidth, lineHeight);
+        if (result.lines.length > MAX_LINES_PER_BLOCK) valid = false;
+        renderedBlocks.push({
+          highlight : !!block.highlight,
+          text      : block.text,
+          lineCount : result.lines.length,
+          widths    : result.lines.map(l => l.width),
+        });
+        totalHeight += result.height;
+        if (i > 0) totalHeight += blockGap;
+      }
+
+      return { font, fontSize, lineHeight, blockGap, maxWidth, totalHeight, blocks: renderedBlocks, valid };
+    }
+
+    function highlightHtml(text) {
+      let html = escapeHtml(text);
+      for (const word of highlightWords) {
+        const safe = String(word || "").trim();
+        if (!safe) continue;
+        html = html.replace(
+          new RegExp(escapeRegExp(escapeHtml(safe)), "g"),
+          `<span class="highlight">${escapeHtml(safe)}</span>`,
+        );
+      }
+      return html;
+    }
+
+    function renderLayout(layout) {
+      document.body.style.setProperty("--cover-font-size",      `${layout.fontSize}px`);
+      document.body.style.setProperty("--cover-line-height",    String(layout.lineHeight / layout.fontSize));
+      document.body.style.setProperty("--cover-letter-spacing", getLetterSpacing(layout.fontSize));
+      document.body.style.setProperty("--cover-block-gap",      `${layout.blockGap}px`);
+
+      linesRoot.innerHTML = layout.blocks
+        .map(block => {
+          const cls = block.highlight ? "line block-text highlight" : "line block-text";
+          return `<div class="block"><div class="${cls}">${highlightHtml(block.text)}</div></div>`;
+        })
+        .join("");
+    }
+
+    async function boot() {
+      await document.fonts.ready;
+
+      const maxWidth  = Math.min(MAX_WIDTH, Math.floor(textBlock.clientWidth));
+      const leftEl    = document.querySelector(".left");
+      const eyebrowEl = document.querySelector(".eyebrow");
+      const leftH     = leftEl    ? leftEl.clientHeight                                      : 400;
+      const eyebrowH  = eyebrowEl ? Math.ceil(eyebrowEl.getBoundingClientRect().height) + 14 : 32;
+      const padV      = 34 + 28;  // .left padding-top + padding-bottom
+      const footerRes = 52;       // footer 16px 字 + bottom 24px + buffer
+      const availableHeight = Math.max(
+        FALLBACK_AVAILABLE_HEIGHT,
+        leftH - padV - eyebrowH - footerRes,
+      );
+
+      let chosen = null;
+
+      // Pass 1：最大字号，同时满足行数约束 + 高度约束
+      for (let fs = MAX_FONT_SIZE; fs >= MIN_FONT_SIZE; fs -= 2) {
+        const layout = measureLayout(fs, maxWidth);
+        if (layout.valid && layout.totalHeight <= availableHeight) { chosen = layout; break; }
+      }
+      // Pass 2：放宽高度约束，仍满足行数约束（超长标题兜底）
+      if (!chosen) {
+        for (let fs = MAX_FONT_SIZE; fs >= MIN_FONT_SIZE; fs -= 2) {
+          const layout = measureLayout(fs, maxWidth);
+          if (layout.valid) { chosen = layout; break; }
+        }
+      }
+      // Pass 3：无条件兜底（文字极长时）
+      if (!chosen) chosen = measureLayout(MIN_FONT_SIZE, maxWidth);
+
+      renderLayout(chosen);
+      document.body.classList.add("ready");
+    }
+
+    boot();
+  </script>
+</body>
+</html>

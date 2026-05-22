@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: image-3-4
+  Ratio: 3:4  (900×1200)
+  用途: 3:4 比例通用封面配图
+  Parameters (replaced via script before rendering):
+    {{MAIN_TEXT_LINE1}}     — 第一行文字
+    {{MAIN_TEXT_LINE2}}     — 第二行文字（可为空）
+    {{MAIN_TEXT_LINE3}}     — 第三行文字（可为空）
+    {{LINE1_CLASS}}         — "highlight" 或 "" 
+    {{LINE2_CLASS}}         — "highlight" 或 ""
+    {{LINE3_CLASS}}         — "highlight" 或 ""
+    {{HIGHLIGHT_COLOR}}     — 高亮色 hex，默认 #22a854
+    {{BG_COLOR}}            — 背景色 hex，默认 #e6f5ef
+    {{FOOTER_TEXT}}         — 底部版权/来源文字
+    {{ICON_PATH}}           — 顶部图标绝对路径
+-->
+<style>
+  @font-face {
+    font-family: "AlimamaShuHeiTi";
+    src: url("{{FONT_PATH}}") format("truetype");
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 900px;
+    height: 1200px;
+    background-color: {{BG_COLOR}};
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 90px;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  body.ready { opacity: 1; }
+  .deco-top {
+    margin-bottom: 80px;
+    align-self: flex-start;
+  }
+  .deco-top img {
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .text-block {
+    margin-top: 0;
+    align-self: stretch;
+    width: 100%;
+  }
+  .pretext-lines {
+    width: 100%;
+  }
+  .line {
+    font-size: var(--poster-font-size, 108px);
+    font-weight: 900;
+    line-height: var(--poster-line-height, 1.15);
+    color: #1a1a1a;
+    letter-spacing: var(--poster-letter-spacing, -2px);
+    white-space: pre;
+  }
+  .block-text {
+    max-width: var(--poster-text-width, 100%);
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  .line + .line {
+    margin-top: 0;
+  }
+  .block + .block {
+    margin-top: var(--poster-block-gap, 10px);
+  }
+  .line.highlight { color: {{HIGHLIGHT_COLOR}}; }
+  .highlight { color: {{HIGHLIGHT_COLOR}}; }
+  .watermark {
+    margin-top: 80px;
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.55;
+  }
+  .watermark img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .watermark span {
+    font-size: 24px;
+    color: #555;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+  <div class="deco-top">
+    <img src="{{ICON_PATH}}" alt="icon">
+  </div>
+  <div class="text-block">
+    <div class="pretext-lines" id="poster-lines" aria-label="poster text"></div>
+  </div>
+  <div class="watermark">
+    <img src="{{AVATAR_PATH}}" alt="Jinx">
+    <span>{{FOOTER_TEXT}}</span>
+  </div>
+  <script id="poster-config" type="application/json">{{POSTER_CONFIG_JSON}}</script>
+  <script type="module">
+    import { prepareWithSegments, layoutWithLines } from "{{PRETEXT_MODULE_URL}}";
+
+    const configNode = document.getElementById("poster-config");
+    const linesRoot = document.getElementById("poster-lines");
+    const textBlock = document.querySelector(".text-block");
+    const iconNode = document.querySelector(".deco-top");
+    const watermarkNode = document.querySelector(".watermark");
+    if (!(configNode instanceof HTMLScriptElement) || !(linesRoot instanceof HTMLDivElement) || !(textBlock instanceof HTMLDivElement) || !(iconNode instanceof HTMLDivElement) || !(watermarkNode instanceof HTMLDivElement)) {
+      throw new Error("poster nodes not found");
+    }
+
+    const config = JSON.parse(configNode.textContent || "{}");
+    const blocks = Array.isArray(config.blocks) ? config.blocks : [];
+    const highlightWords = Array.isArray(config.highlightWords) ? config.highlightWords.filter(Boolean) : [];
+
+    const FONT_FAMILY = '"AlimamaShuHeiTi", "PingFang SC", sans-serif';
+    const FONT_WEIGHT = 900;
+    const MIN_FONT_SIZE = 34;
+    const MAX_FONT_SIZE = 132;
+    const FALLBACK_AVAILABLE_HEIGHT = 730;
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function getLineHeight(fontSize) {
+      if (fontSize >= 108) return Math.round(fontSize * 1.1);
+      if (fontSize >= 92) return Math.round(fontSize * 1.08);
+      if (fontSize >= 72) return Math.round(fontSize * 1.06);
+      if (fontSize >= 56) return Math.round(fontSize * 1.05);
+      return Math.round(fontSize * 1.04);
+    }
+
+    function getBlockGap(fontSize) {
+      if (fontSize >= 108) return 18;
+      if (fontSize >= 84) return 14;
+      if (fontSize >= 60) return 10;
+      return 8;
+    }
+
+    function getLetterSpacing(fontSize) {
+      if (fontSize >= 110) return "-2.8px";
+      if (fontSize >= 90) return "-2px";
+      if (fontSize >= 70) return "-1px";
+      return "-0.4px";
+    }
+
+    function measureLayout(fontSize, maxWidth) {
+      const lineHeight = getLineHeight(fontSize);
+      const blockGap = getBlockGap(fontSize);
+      const font = `${FONT_WEIGHT} ${fontSize}px ${FONT_FAMILY}`;
+      let totalHeight = 0;
+      const renderedBlocks = [];
+
+      for (let index = 0; index < blocks.length; index++) {
+        const block = blocks[index];
+        const prepared = prepareWithSegments(block.text, font, { whiteSpace: "pre-wrap" });
+        const result = layoutWithLines(prepared, maxWidth, lineHeight);
+        renderedBlocks.push({
+          highlight: !!block.highlight,
+          text: block.text,
+          lineCount: result.lines.length,
+          widths: result.lines.map(line => line.width),
+        });
+        totalHeight += result.height;
+        if (index > 0) totalHeight += blockGap;
+      }
+
+      return {
+        font,
+        fontSize,
+        lineHeight,
+        blockGap,
+        maxWidth,
+        totalHeight,
+        blocks: renderedBlocks,
+      };
+    }
+
+    function countVisibleChars(text) {
+      let total = 0;
+      total += Array.from(text).filter(ch => ch.trim().length > 0).length;
+      return total;
+    }
+
+    function getDesiredLineRange(chars) {
+      if (chars <= 8) return [1, 2];
+      if (chars <= 16) return [2, 3];
+      if (chars <= 28) return [3, 4];
+      if (chars <= 44) return [4, 6];
+      if (chars <= 64) return [5, 7];
+      return [6, 8];
+    }
+
+    function getBlockMaxWidth(chars) {
+      if (chars <= 10) return Math.floor(textBlock.clientWidth);
+      if (chars <= 22) return Math.floor(textBlock.clientWidth * 0.92);
+      if (chars <= 40) return Math.floor(textBlock.clientWidth * 0.86);
+      if (chars <= 64) return Math.floor(textBlock.clientWidth * 0.8);
+      return Math.floor(textBlock.clientWidth * 0.74);
+    }
+
+    function scoreLayout(layout, availableHeight, maxWidth) {
+      if (layout.totalHeight > availableHeight) return Number.POSITIVE_INFINITY;
+
+      let score = 0;
+      for (const block of layout.blocks) {
+        const charCount = countVisibleChars(block.text);
+        const [minLines, maxLines] = getDesiredLineRange(charCount);
+        const lineCount = block.lineCount;
+        if (lineCount < minLines) score += (minLines - lineCount) * 120;
+        if (lineCount > maxLines) score += (lineCount - maxLines) * 150;
+
+        if (block.widths.length > 1) {
+          const widest = Math.max(...block.widths);
+          const narrowest = Math.min(...block.widths);
+          const fillRatio = widest / Math.max(1, maxWidth);
+          const raggedRatio = narrowest / Math.max(1, widest);
+          score += Math.max(0, 0.78 - fillRatio) * 220;
+          score += Math.max(0, 0.58 - raggedRatio) * 200;
+        } else if (block.widths.length === 1) {
+          const fillRatio = block.widths[0] / Math.max(1, maxWidth);
+          if (charCount > 10) score += Math.max(0, fillRatio - 0.88) * 180;
+        }
+      }
+
+      score += Math.max(0, 0.92 - layout.totalHeight / Math.max(1, availableHeight)) * 30;
+      score += layout.fontSize * 0.015;
+      return score;
+    }
+
+    function fitEllipsisBlock(text, font, maxWidth, lineHeight, maxLines) {
+      const chars = Array.from(text.trimEnd());
+      if (chars.length === 0) return "…";
+      for (let end = chars.length; end >= 0; end--) {
+        const candidate = `${chars.slice(0, end).join("").trimEnd()}…`;
+        const result = layoutWithLines(prepareWithSegments(candidate, font, { whiteSpace: "pre-wrap" }), maxWidth, lineHeight);
+        if (result.lines.length <= maxLines) return candidate;
+      }
+      return "…";
+    }
+
+    function clampLayout(layout, availableHeight, maxWidth) {
+      const output = [];
+      let usedHeight = 0;
+
+      for (let blockIndex = 0; blockIndex < layout.blocks.length; blockIndex++) {
+        const block = layout.blocks[blockIndex];
+        const blockGap = output.length > 0 ? layout.blockGap : 0;
+        const blockHeight = block.lineCount * layout.lineHeight;
+        if (usedHeight + blockGap + blockHeight <= availableHeight) {
+          if (blockGap > 0) usedHeight += blockGap;
+          usedHeight += blockHeight;
+          output.push(block);
+          continue;
+        }
+
+        let remainingHeight = availableHeight - usedHeight - blockGap;
+        if (remainingHeight <= 0) break;
+        const maxLines = Math.max(1, Math.floor(remainingHeight / layout.lineHeight));
+        const needsEllipsis = block.lineCount > maxLines || blockIndex < layout.blocks.length - 1;
+        output.push({
+          highlight: block.highlight,
+          text: needsEllipsis ? fitEllipsisBlock(block.text, layout.font, maxWidth, layout.lineHeight, maxLines) : block.text,
+          lineCount: Math.min(block.lineCount, maxLines),
+          widths: block.widths,
+        });
+        usedHeight = availableHeight;
+        break;
+      }
+
+      return {
+        ...layout,
+        blocks: output,
+      };
+    }
+
+    function highlightHtml(text) {
+      let html = escapeHtml(text);
+      for (const word of highlightWords) {
+        const safeWord = String(word || "").trim();
+        if (!safeWord) continue;
+        const escapedWord = escapeHtml(safeWord);
+        html = html.replace(new RegExp(escapeRegExp(escapedWord), "g"), `<span class="highlight">${escapedWord}</span>`);
+      }
+      return html;
+    }
+
+    function renderLayout(layout) {
+      document.body.style.setProperty("--poster-font-size", `${layout.fontSize}px`);
+      document.body.style.setProperty("--poster-line-height", String(layout.lineHeight / layout.fontSize));
+      document.body.style.setProperty("--poster-letter-spacing", getLetterSpacing(layout.fontSize));
+      document.body.style.setProperty("--poster-block-gap", `${layout.blockGap}px`);
+      document.body.style.setProperty("--poster-text-width", `${layout.maxWidth}px`);
+
+      linesRoot.innerHTML = layout.blocks
+        .map(block => {
+          const lineClass = block.highlight ? "line block-text highlight" : "line block-text";
+          return `<div class="block"><div class="${lineClass}">${highlightHtml(block.text)}</div></div>`;
+        })
+        .join("");
+    }
+
+    async function boot() {
+      await document.fonts.ready;
+      const sourceChars = blocks.reduce((sum, block) => sum + Array.from(block.text).filter(ch => ch.trim().length > 0).length, 0);
+      const maxWidth = getBlockMaxWidth(sourceChars);
+      const iconHeight = Math.ceil(iconNode.getBoundingClientRect().height);
+      const watermarkHeight = Math.ceil(watermarkNode.getBoundingClientRect().height);
+      const availableHeight = Math.max(
+        FALLBACK_AVAILABLE_HEIGHT,
+        Math.floor(window.innerHeight - iconHeight - watermarkHeight - 160),
+      );
+
+      let chosen = null;
+      let bestScore = Number.POSITIVE_INFINITY;
+      for (let fontSize = MAX_FONT_SIZE; fontSize >= MIN_FONT_SIZE; fontSize -= 2) {
+        const layout = measureLayout(fontSize, maxWidth);
+        const score = scoreLayout(layout, availableHeight, maxWidth);
+        if (score < bestScore) {
+          bestScore = score;
+          chosen = layout;
+        }
+      }
+
+      const finalLayout = clampLayout(chosen, availableHeight, maxWidth);
+      renderLayout(finalLayout);
+      document.body.classList.add("ready");
+    }
+
+    boot();
+  </script>
+</body>
+</html>

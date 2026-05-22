@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+dist/
+tmp/
+logs/
+*.log
+.env
+.env.*
+.claude/
+.sisyphus/
+*.local.json
+.idea/
+.vscode/
+*.pem
+*.key

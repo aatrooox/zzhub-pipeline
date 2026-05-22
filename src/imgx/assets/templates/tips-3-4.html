@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: tips-3-4
+  Ratio: 3:4  (900×1200)
+  用途: 小红书风格结构化要点卡，支持 3–5 条带标题和描述的技巧列表
+  Parameters (replaced via script before rendering):
+    {{HIGHLIGHT_COLOR}}     — 强调色 hex，默认 #22a854
+    {{BG_COLOR}}            — 背景色 hex，默认 #e6f5ef
+    {{FOOTER_TEXT}}         — 底部版权/来源文字
+    {{ICON_PATH}}           — 顶部图标绝对路径
+    {{POSTER_CONFIG_JSON}}  — JSON: { blocks, highlightWords, highlightColor, tips }
+    {{PRETEXT_MODULE_URL}}  — pretext layout.js 绝对路径
+-->
+<style>
+  @font-face {
+    font-family: "AlimamaShuHeiTi";
+    src: url("{{FONT_PATH}}") format("truetype");
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 900px;
+    height: 1200px;
+    background-color: {{BG_COLOR}};
+    display: flex;
+    flex-direction: column;
+    padding: 60px 80px 52px;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    position: relative;
+    overflow: hidden;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    margin-bottom: 36px;
+  }
+  .header-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .tips-badge {
+    font-size: 22px;
+    font-weight: 900;
+    color: {{HIGHLIGHT_COLOR}};
+    border: 2.5px solid {{HIGHLIGHT_COLOR}};
+    border-radius: 8px;
+    padding: 4px 16px;
+    letter-spacing: 1px;
+  }
+  .title-section {
+    flex-shrink: 0;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+  }
+  .title-line {
+    font-size: var(--title-font-size, 80px);
+    font-weight: 900;
+    line-height: var(--title-line-height, 1.1);
+    color: #1a1a1a;
+    letter-spacing: var(--title-letter-spacing, -1.5px);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+  .title-highlight { color: {{HIGHLIGHT_COLOR}}; }
+  .divider {
+    flex-shrink: 0;
+    height: 1px;
+    background: #1a1a1a;
+    opacity: 0.15;
+    margin: 24px 0;
+  }
+  .tips-list {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 40px;
+    list-style: none;
+  }
+  .tip-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .tip-number {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: {{HIGHLIGHT_COLOR}};
+    color: #fff;
+    font-size: 19px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .tip-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .tip-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1.25;
+  }
+  .tip-desc {
+    font-size: 20px;
+    font-weight: 400;
+    color: #555;
+    line-height: 1.45;
+  }
+  .watermark {
+    flex-shrink: 0;
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.55;
+  }
+  .watermark img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .watermark span {
+    font-size: 22px;
+    color: #555;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <img class="header-icon" src="{{ICON_PATH}}" alt="icon">
+    <div class="tips-badge" id="tips-badge">TIPS</div>
+  </div>
+  <div class="title-section" id="title-section">
+    <div id="title-root"></div>
+  </div>
+  <div class="divider"></div>
+  <ol class="tips-list" id="tips-list"></ol>
+  <div class="watermark">
+    <img src="{{AVATAR_PATH}}" alt="avatar">
+    <span>{{FOOTER_TEXT}}</span>
+  </div>
+
+  <script id="poster-config" type="application/json">{{POSTER_CONFIG_JSON}}</script>
+  <script type="module">
+    import { prepareWithSegments, layoutWithLines } from "{{PRETEXT_MODULE_URL}}";
+
+    const configNode   = document.getElementById("poster-config");
+    const titleRoot    = document.getElementById("title-root");
+    const titleSection = document.getElementById("title-section");
+    const tipsList     = document.getElementById("tips-list");
+    const tipsBadge    = document.getElementById("tips-badge");
+    const headerEl     = document.querySelector(".header");
+    const watermarkEl  = document.querySelector(".watermark");
+
+    if (!(configNode instanceof HTMLScriptElement)) throw new Error("poster-config not found");
+
+    const config         = JSON.parse(configNode.textContent || "{}");
+    const blocks         = Array.isArray(config.blocks) ? config.blocks : [];
+    const tips           = Array.isArray(config.tips)   ? config.tips   : [];
+
+    const FONT_FAMILY    = '"AlimamaShuHeiTi", "PingFang SC", sans-serif';
+    const FONT_WEIGHT    = 900;
+    const MIN_FONT_SIZE  = 28;
+    const MAX_FONT_SIZE  = 100;
+    const PAD_TOP        = 60;
+    const PAD_BOTTOM     = 52;
+    const HEADER_MB      = 36;
+    const DIVIDER_H      = 1;
+    const DIVIDER_MV     = 48;
+    const WATERMARK_MT   = 28;
+    const MIN_TIPS_RATIO = 0.45;
+    const TITLE_V_PAD    = 40;  /* vertical breathing room above+below title text */
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function getLineHeight(fontSize) {
+      if (fontSize >= 80) return Math.round(fontSize * 1.1);
+      if (fontSize >= 60) return Math.round(fontSize * 1.08);
+      if (fontSize >= 44) return Math.round(fontSize * 1.06);
+      return Math.round(fontSize * 1.05);
+    }
+
+    function getLetterSpacing(fontSize) {
+      if (fontSize >= 90) return "-2px";
+      if (fontSize >= 70) return "-1.5px";
+      if (fontSize >= 50) return "-1px";
+      return "-0.4px";
+    }
+
+    function fillTipsList() {
+      tipsList.innerHTML = tips
+        .map((tip, i) => {
+          const titleHtml = escapeHtml(String(tip.title || ""));
+          const descHtml  = tip.description
+            ? `<div class="tip-desc">${escapeHtml(String(tip.description))}</div>`
+            : "";
+          return `<li class="tip-item"><div class="tip-number">${i + 1}</div><div class="tip-content"><div class="tip-title">${titleHtml}</div>${descHtml}</div></li>`;
+        })
+        .join("");
+    }
+
+    function renderTitle(fontSize) {
+      const lh = getLineHeight(fontSize);
+      document.body.style.setProperty("--title-font-size", `${fontSize}px`);
+      document.body.style.setProperty("--title-line-height", String(lh / fontSize));
+      document.body.style.setProperty("--title-letter-spacing", getLetterSpacing(fontSize));
+
+      const maxWidth = Math.floor(titleSection.clientWidth);
+      const font     = `${FONT_WEIGHT} ${fontSize}px ${FONT_FAMILY}`;
+
+      titleRoot.innerHTML = blocks
+        .map(block => {
+          prepareWithSegments(block.text, font, { whiteSpace: "pre-wrap" });
+          const cls = block.highlight ? "title-line title-highlight" : "title-line";
+          return `<div class="${cls}">${escapeHtml(block.text)}</div>`;
+        })
+        .join("");
+    }
+
+    function pickTitleFontSize(availableHeight) {
+      const maxWidth = Math.floor(titleSection.clientWidth);
+      for (let fs = MAX_FONT_SIZE; fs >= MIN_FONT_SIZE; fs -= 2) {
+        const lh   = getLineHeight(fs);
+        const font = `${FONT_WEIGHT} ${fs}px ${FONT_FAMILY}`;
+        let totalH = 0;
+        for (const block of blocks) {
+          const prepared = prepareWithSegments(block.text, font, { whiteSpace: "pre-wrap" });
+          const result   = layoutWithLines(prepared, maxWidth, lh);
+          totalH += result.height;
+        }
+        if (totalH <= availableHeight) return fs;
+      }
+      return MIN_FONT_SIZE;
+    }
+
+    async function boot() {
+      await document.fonts.ready;
+
+      if (tips.length > 0) tipsBadge.textContent = `${tips.length} TIPS`;
+
+      tipsList.style.flex = "none";
+      fillTipsList();
+
+      await new Promise(r => requestAnimationFrame(r));
+
+      const headerH  = Math.ceil(headerEl.getBoundingClientRect().height);
+      const tipsNatH = Math.ceil(tipsList.getBoundingClientRect().height);
+      const wmH      = Math.ceil(watermarkEl.getBoundingClientRect().height);
+
+      const usableHeight   = 1200 - PAD_TOP - PAD_BOTTOM - headerH - HEADER_MB - DIVIDER_H - DIVIDER_MV - wmH - WATERMARK_MT;
+      const tipsHeight     = Math.max(tipsNatH, Math.round(usableHeight * MIN_TIPS_RATIO));
+      const availableTitle = Math.max(80, usableHeight - tipsHeight);
+
+      tipsList.style.flex   = "";
+      tipsList.style.height = `${tipsHeight}px`;
+
+      const titleSection = document.getElementById("title-section");
+      titleSection.style.height = `${availableTitle}px`;
+
+      const chosenFs = pickTitleFontSize(availableTitle);
+      renderTitle(chosenFs);
+
+      // Snap title-section to actual content height + breathing room
+      await new Promise(r => requestAnimationFrame(r));
+      const titleNatH = Math.ceil(titleRoot.getBoundingClientRect().height);
+      titleSection.style.height = `${titleNatH + TITLE_V_PAD}px`;
+
+      document.body.classList.add("ready");
+    }
+
+    boot();
+  </script>
+</body>
+</html>

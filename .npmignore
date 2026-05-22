@@ -1,0 +1,17 @@
+src/
+scripts/
+skills/
+tmp/
+logs/
+.claude/
+.sisyphus/
+.git/
+.gitignore
+.DS_Store
+*.test.ts
+tsconfig.json
+vite.wechat-preview.config.ts
+AGENTS.md
+HANDOFF.md
+README.md
+bun.lock

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--
+  Template: ascii-portrait-3-4
+  Ratio: 3:4  (900×1200)
+  用途: 多字符头像海报
+  Parameters:
+    {{BG_COLOR}}             — 背景色
+    {{TITLE}}                — 标题
+    {{FOOTER_TEXT}}          — 底部文字
+    {{ICON_PATH}}            — 顶部 logo
+    {{AVATAR_PATH}}          — 头像路径
+    {{ASCII_CONFIG_JSON}}    — 配置
+    {{FONT_PATH}}            — 标题字体
+    {{BODY_FONT_PATH}}       — 正文字体
+-->
+<style>
+  @font-face {
+    font-family: "AlimamaShuHeiTi";
+    src: url("{{FONT_PATH}}") format("truetype");
+  }
+  @font-face {
+    font-family: "LXGWWenKai";
+    src: url("{{BODY_FONT_PATH}}") format("truetype");
+    font-weight: 400;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --page-bg: #141414;
+    --title-color: #f2e7d6;
+    --subtitle-color: rgb(242 231 214 / 0.78);
+    --frame-glow: radial-gradient(circle at top left, rgb(255 255 255 / 0.04), transparent 34%);
+    --frame-fill: linear-gradient(180deg, rgb(255 255 255 / 0.02), rgb(255 255 255 / 0.01));
+    --frame-border: rgb(255 255 255 / 0.08);
+    --frame-inner: rgb(255 255 255 / 0.03);
+    --footer-color: rgb(242 231 214 / 0.72);
+  }
+  body[data-theme="light"] {
+    --page-bg: #f5f0eb;
+    --title-color: #b88a37;
+    --subtitle-color: #8a7763;
+    --frame-glow: radial-gradient(circle at top left, rgb(255 255 255 / 0.14), transparent 36%);
+    --frame-fill: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.04));
+    --frame-border: rgb(71 57 39 / 0.08);
+    --frame-inner: rgb(255 255 255 / 0.08);
+    --footer-color: #8a7763;
+  }
+  body {
+    width: 900px;
+    height: 1200px;
+    background: var(--page-bg);
+    color: var(--title-color);
+    overflow: hidden;
+    position: relative;
+    font-family: "LXGWWenKai", "SF Mono", "Menlo", monospace;
+  }
+  .logo {
+    position: absolute;
+    top: 42px;
+    left: 42px;
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    object-fit: cover;
+    z-index: 3;
+  }
+  .title {
+    position: absolute;
+    top: 124px;
+    left: 42px;
+    right: 42px;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    font-size: 54px;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    color: var(--title-color);
+    z-index: 3;
+  }
+  .subtitle {
+    position: absolute;
+    top: 194px;
+    left: 42px;
+    right: 42px;
+    font-size: 22px;
+    line-height: 1.45;
+    color: var(--subtitle-color);
+    z-index: 3;
+  }
+  .frame {
+    position: absolute;
+    left: 42px;
+    right: 42px;
+    top: 246px;
+    bottom: 96px;
+    border-radius: 30px;
+    background:
+      var(--frame-glow),
+      var(--frame-fill);
+    border: 1px solid var(--frame-border);
+    box-shadow: inset 0 0 0 1px var(--frame-inner);
+    overflow: hidden;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .footer {
+    position: absolute;
+    left: 42px;
+    bottom: 34px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
+    font-size: 24px;
+    color: var(--footer-color);
+    z-index: 3;
+  }
+  .footer img {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+</style>
+</head>
+<body>
+  <img class="logo" src="{{ICON_PATH}}" alt="logo">
+  <div class="title">{{TITLE}}</div>
+  <div class="subtitle">多字符亮度映射头像。不同头像都能自动重建字符轮廓与颜色气质。</div>
+  <div class="frame">
+    <canvas id="portrait-canvas" width="816" height="858"></canvas>
+  </div>
+  <div class="footer">
+    <img src="{{ICON_PATH}}" alt="footer logo">
+    <span>✦ {{FOOTER_TEXT}}</span>
+  </div>
+
+  <script id="ascii-config" type="application/json">{{ASCII_CONFIG_JSON}}</script>
+  <script>
+    const config = JSON.parse(document.getElementById("ascii-config").textContent || "{}");
+    const canvas = document.getElementById("portrait-canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = config.avatarPath;
+
+    function averageRegion(data, width, x0, y0, sampleW, sampleH) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let count = 0;
+      for (let y = y0; y < y0 + sampleH; y++) {
+        for (let x = x0; x < x0 + sampleW; x++) {
+          const idx = (y * width + x) * 4;
+          r += data[idx];
+          g += data[idx + 1];
+          b += data[idx + 2];
+          count += 1;
+        }
+      }
+      return {
+        r: Math.round(r / count),
+        g: Math.round(g / count),
+        b: Math.round(b / count),
+      };
+    }
+
+    function luminance(color) {
+      return (0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b) / 255;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function resolveColumns() {
+      const requested = Number(config.columns || 0);
+      if (requested > 0) return requested;
+      const sourceMin = Math.min(img.width, img.height);
+      const widthScale = canvas.width / 816;
+      const raw = Math.round((sourceMin / 5) * widthScale);
+      return clamp(raw, 54, 84);
+    }
+
+    function resolveFontSize(cols) {
+      const requested = Number(config.fontSize || 0);
+      if (requested > 0) return requested;
+      const cellWidth = canvas.width / cols;
+      return clamp(Math.round(cellWidth * 0.92), 11, 16);
+    }
+
+    function resolveLineHeight(fontSize) {
+      const requested = Number(config.lineHeight || 0);
+      if (requested > 0) return requested;
+      return clamp(Math.round(fontSize * 1.08), fontSize + 1, fontSize + 3);
+    }
+
+    function analyzeTheme() {
+      const offscreen = document.createElement("canvas");
+      offscreen.width = 36;
+      offscreen.height = 36;
+      const offctx = offscreen.getContext("2d");
+
+      const srcRatio = img.width / img.height;
+      const dstRatio = offscreen.width / offscreen.height;
+      let sx = 0;
+      let sy = 0;
+      let sw = img.width;
+      let sh = img.height;
+      if (srcRatio > dstRatio) {
+        sw = img.height * dstRatio;
+        sx = (img.width - sw) / 2;
+      } else {
+        sh = img.width / dstRatio;
+        sy = (img.height - sh) / 2;
+      }
+
+      offctx.drawImage(img, sx, sy, sw, sh, 0, 0, offscreen.width, offscreen.height);
+      const { data } = offctx.getImageData(0, 0, offscreen.width, offscreen.height);
+
+      let centerLum = 0;
+      let edgeLum = 0;
+      let faceCoreLum = 0;
+      let centerCount = 0;
+      let edgeCount = 0;
+      let faceCoreCount = 0;
+      let faceCoreBrightCount = 0;
+      let overallLum = 0;
+
+      for (let y = 0; y < offscreen.height; y++) {
+        for (let x = 0; x < offscreen.width; x++) {
+          const idx = (y * offscreen.width + x) * 4;
+          const color = {
+            r: data[idx],
+            g: data[idx + 1],
+            b: data[idx + 2],
+          };
+          const light = luminance(color);
+          overallLum += light;
+
+          const inCenter = x >= 9 && x <= 26 && y >= 7 && y <= 27;
+          const inEdge = x <= 5 || x >= 30 || y <= 4 || y >= 31;
+          const inFaceCore = x >= 13 && x <= 22 && y >= 11 && y <= 23;
+
+          if (inCenter) {
+            centerLum += light;
+            centerCount += 1;
+          } else if (inEdge) {
+            edgeLum += light;
+            edgeCount += 1;
+          }
+
+          if (inFaceCore) {
+            faceCoreLum += light;
+            faceCoreCount += 1;
+            if (light >= 0.72) faceCoreBrightCount += 1;
+          }
+        }
+      }
+
+      const centerAvg = centerCount > 0 ? centerLum / centerCount : 0.5;
+      const edgeAvg = edgeCount > 0 ? edgeLum / edgeCount : 0.5;
+      const faceCoreAvg = faceCoreCount > 0 ? faceCoreLum / faceCoreCount : centerAvg;
+      const faceCoreBrightRatio = faceCoreCount > 0 ? faceCoreBrightCount / faceCoreCount : 0;
+      const overallAvg = overallLum / (offscreen.width * offscreen.height);
+
+      if (faceCoreBrightRatio >= 0.22 || faceCoreAvg >= 0.62) return "dark";
+      if (centerAvg >= edgeAvg + 0.08) return "dark";
+      if (edgeAvg >= centerAvg + 0.08) return "light";
+      return overallAvg > 0.52 ? "dark" : "light";
+    }
+
+    function resolveCanvasBg(theme) {
+      if (config.bgColor && config.bgColor !== "auto") return config.bgColor;
+      return theme === "dark" ? "#111214" : "#f5f0eb";
+    }
+
+    function drawAsciiPortrait() {
+      const chars = String(config.chars || "@#X$%WM*+=-").split("");
+      const cols = resolveColumns();
+      const fontSize = resolveFontSize(cols);
+      const lineHeight = resolveLineHeight(fontSize);
+      const rows = Math.floor(canvas.height / lineHeight);
+      const cellWidth = canvas.width / cols;
+      const gridHeight = rows * lineHeight;
+      const offsetY = (canvas.height - gridHeight) / 2;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = cols;
+      offscreen.height = rows;
+      const offctx = offscreen.getContext("2d");
+
+      const srcRatio = img.width / img.height;
+      const dstRatio = canvas.width / gridHeight;
+      let sx = 0;
+      let sy = 0;
+      let sw = img.width;
+      let sh = img.height;
+      if (srcRatio > dstRatio) {
+        sw = img.height * dstRatio;
+        sx = (img.width - sw) / 2;
+      } else {
+        sh = img.width / dstRatio;
+        sy = (img.height - sh) / 2;
+      }
+
+      offctx.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
+      const imageData = offctx.getImageData(0, 0, cols, rows);
+      const { data } = imageData;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const theme = analyzeTheme();
+      document.body.dataset.theme = theme;
+      ctx.fillStyle = resolveCanvasBg(theme);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `700 ${fontSize}px Menlo, Monaco, 'Courier New', monospace`;
+      ctx.textBaseline = "top";
+      ctx.textAlign = "center";
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const color = averageRegion(data, cols, col, row, 1, 1);
+          const light = luminance(color);
+          const index = Math.max(0, Math.min(chars.length - 1, Math.floor((1 - light) * (chars.length - 1))));
+          const char = chars[index] || " ";
+          ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+          ctx.fillText(char, col * cellWidth + cellWidth / 2, offsetY + row * lineHeight);
+        }
+      }
+    }
+
+    img.onload = () => {
+      drawAsciiPortrait();
+      document.body.dataset.ready = "1";
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- 四叶草 - 四个圆形叶片 + 茎 -->
+  <!-- 左叶 -->
+  <ellipse cx="35" cy="50" rx="18" ry="13" fill="#22a854" transform="rotate(-45 35 50)"/>
+  <!-- 右叶 -->
+  <ellipse cx="65" cy="50" rx="18" ry="13" fill="#22a854" transform="rotate(45 65 50)"/>
+  <!-- 上叶 -->
+  <ellipse cx="50" cy="35" rx="13" ry="18" fill="#27c25e" transform="rotate(45 50 35)"/>
+  <!-- 下叶 -->
+  <ellipse cx="50" cy="65" rx="13" ry="18" fill="#27c25e" transform="rotate(-45 50 65)"/>
+  <!-- 中心 -->
+  <circle cx="50" cy="50" r="7" fill="#1a8a40"/>
+  <!-- 茎 -->
+  <path d="M50 57 Q55 70 52 82" stroke="#1a8a40" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>
