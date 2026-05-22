@@ -51,17 +51,25 @@ bun install
 
 ### Agent 编排循环
 
-Agent 通过无状态循环驱动流水线，每轮只做一个动作：
+Agent 通过无状态循环驱动流水线，每轮只做一个动作。所有上下文存储在状态文件中，中断后重新执行 `status` 即可精准续接。
 
-```
-1. find-run --workspace {ws} --active --view agent     ← 查找当前活跃任务
-2. 若不存在 → init 创建新任务
-3. status --state {state_path} --view agent            ← 读取状态，获取 next_action
-4. 执行 next_action.action 对应的命令
-5. 回到步骤 3，直到 next_action.action == "complete"
-```
+```mermaid
+flowchart TD
+    START["Agent 启动"] --> FIND["find-run --view agent"]
+    FIND --> HAS{"存在活跃任务?"}
+    HAS -- "否" --> INIT["init 创建新任务"]
+    INIT --> STATUS
+    HAS -- "是" --> STATUS["status --view agent<br/>读取 next_action"]
+    STATUS --> EXEC["执行 next_action.action<br/>对应的命令"]
+    EXEC --> DONE{"action == complete?"}
+    DONE -- "否" --> STATUS
+    DONE -- "是" --> END["任务完成"]
 
-每一步对 Agent 而言都是无状态的 —— 所有上下文存储在状态文件中，中断后重新执行 `status` 即可精准续接。
+    style START fill:#e0e7ff,stroke:#6366f1,color:#3730a3
+    style END fill:#d1fae5,stroke:#10b981,color:#065f46
+    style STATUS fill:#fef3c7,stroke:#f59e0b,color:#92400e
+    style EXEC fill:#fef3c7,stroke:#f59e0b,color:#92400e
+```
 
 ### 如何正确调用 Agent Skill
 
