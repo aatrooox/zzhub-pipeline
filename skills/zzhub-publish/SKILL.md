@@ -48,7 +48,17 @@ zzhub-pipeline 状态机的编排层。CLI 通过 `--view agent` 输出告诉你
 - **worker_mode=write-from-materials**：`source_materials_path` 有上游素材。先读完再写。
 - **worker_mode=research-then-write** / **research-then-write-from-materials**：先调研再写稿。用网络搜索收集事实信息，然后动笔。
 
-写完后，通过以下命令交稿：
+**重要：当 `params.spawn` 为 `true` 时（绝大多数情况），主 Agent 禁止直接写稿。** 主 Agent 的职责是构建写作 Brief，然后 spawn sub-agent 在干净上下文中完成写作：
+
+1. 主 Agent 根据 `intent_text`、`worker_mode` 和用户原始需求构建写作 Brief，包含：
+   - 文章主题、目标读者、字数要求
+   - 需要覆盖的核心要点和角度
+   - 语气和风格要求
+   - Markdown 格式规范（见下方）
+
+2. 使用 `Agent` 工具 spawn sub-agent（类型选择 `general-purpose`），prompt 中只包含写作 Brief 和格式规范。**不要把主对话中的无关上下文、CLI 输出、状态机细节带入 sub-agent。** Sub-agent 只需要知道"写什么"和"怎么写"，不需要知道 zzhub-pipeline 的存在。
+
+3. Sub-agent 完成写作后返回正文。主 Agent 检查正文是否符合格式要求（有无 `##` 标题、段落是否简短等），然后通过以下命令交稿：
 
 ```bash
 zzhub-pipeline attach-body --state {state_path} --body-text "{正文内容}"
@@ -56,22 +66,38 @@ zzhub-pipeline attach-body --state {state_path} --body-text "{正文内容}"
 
 如果正文很长，先写到临时文件，然后用 `--body {file_path}` 代替。
 
+**写稿格式要求（必须在 sub-agent prompt 中明确给出）：**
+- 使用 `## 章节名` 二级标题划分章节（公众号正文不用 `#` 一级标题）
+- 使用 `**粗体**` 强调关键词、关键数据、重点句
+- 使用 `- ` 或 `1. ` 组织列表和要点
+- 使用 `>` 引用重要内容或金句
+- 段落简短，适合手机阅读（每段 2-4 句）
+- 章节之间用空行分隔，适当使用分割线
+
 **写稿质量要求：**
 - 有具体的细节和观点，避免空洞的套话
-- 段落简短，适合手机阅读（每段 2-4 句）
 - 有个人语气和风格，不要写得像教科书或官方通稿
 - 标题要有吸引力但不能标题党
 
 ### worker 执行器 — review-content（审核）
 
-读取 `source_body_path`（或 `formatted_body_path`，如果存在）对应的正文。按以下标准审核：
+**主 Agent 应 spawn sub-agent 进行独立审核**，保持审核的客观性并避免主上下文污染。
+
+1. 主 Agent 构建审核 Brief：读取 `source_body_path`（或 `formatted_body_path`，如果存在）的正文，连同以下审核标准一起交给 sub-agent。
+
+2. 使用 `Agent` 工具 spawn sub-agent（类型选择 `general-purpose`），prompt 中只包含正文内容和审核标准，不包含主对话上下文。
+
+3. Sub-agent 返回审核结论（passed / needs_revision）和具体反馈。
+
+审核标准（写入 sub-agent prompt）：
 
 1. **AI 味检测**：是否读起来像 AI 生成？警惕：过于流畅的过渡句、空洞的总结、无意义的最高级形容词、公式化的结构、缺乏具体细节或个人声音。
 2. **事实准确性**：文章中的说法、日期、人名、技术细节是否准确？标记任何看起来有问题的内容。
 3. **微信适配**：格式是否适合微信阅读？段落是否简短？是否有微信无法渲染的 markdown？字数是否合适（文章 800-3000 字）？
 4. **标题质量**：标题是否准确且有吸引力？是否避免了标题党？
+5. **Markdown 结构**：是否正确使用了 `##` 标题划分章节？是否有 `**粗体**` 强调重点？列表和引用格式是否恰当？
 
-决策：
+主 Agent 根据 sub-agent 返回的结论执行：
 - **通过** → 执行：`zzhub-pipeline review --state {state_path} --status passed`
 - **需要修改** → 执行：`zzhub-pipeline review --state {state_path} --status needs_revision --feedback "具体修改建议..."`
 
@@ -79,7 +105,11 @@ zzhub-pipeline attach-body --state {state_path} --body-text "{正文内容}"
 
 ### worker 执行器 — revise-content（修订）
 
-`next_action.params.feedback` 中包含修改意见。读取 `source_body_path` 的正文，按要求修改后交稿：
+`next_action.params.feedback` 中包含修改意见。主 Agent 构建修订 Brief（原文 + 修改意见 + 格式要求），spawn sub-agent 在干净上下文中执行修订。
+
+1. 主 Agent 读取 `source_body_path` 的正文，与 `feedback` 一起构建修订 Brief。
+2. 使用 `Agent` 工具 spawn sub-agent（类型选择 `general-purpose`），prompt 中只包含原文、修改意见、格式要求。
+3. Sub-agent 返回修改后的正文。主 Agent 检查修改是否覆盖了所有反馈点，然后交稿：
 
 ```bash
 zzhub-pipeline attach-body --state {state_path} --body-text "{修改后的正文}"
