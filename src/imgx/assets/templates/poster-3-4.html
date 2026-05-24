@@ -245,28 +245,51 @@
       if (layout.totalHeight > availableHeight) return Number.POSITIVE_INFINITY;
 
       let score = 0;
+
+      // 1. Optical centering: text block should sit slightly above mathematical center
+      //    (~46% from top, not 50%) — this is a well-established magazine design rule.
+      const opticalCenter = availableHeight * 0.46;
+      const topPadding = (availableHeight - layout.totalHeight) / 2;
+      const centerError = Math.abs(topPadding - opticalCenter) / availableHeight;
+      score += centerError * 400;
+
+      // 2. Per-block line quality
       for (const block of layout.blocks) {
         const visualWidth = estimateVisualWidth(block.text);
         const [minLines, maxLines] = getDesiredLineRange(visualWidth);
         const lineCount = block.lineCount;
-        if (lineCount < minLines) score += (minLines - lineCount) * 120;
-        if (lineCount > maxLines) score += (lineCount - maxLines) * 150;
+
+        if (lineCount < minLines) score += (minLines - lineCount) * 80;
+        if (lineCount > maxLines) score += (lineCount - maxLines) * 120;
 
         if (block.widths.length > 1) {
           const widest = Math.max(...block.widths);
           const narrowest = Math.min(...block.widths);
           const fillRatio = widest / Math.max(1, maxWidth);
           const raggedRatio = narrowest / Math.max(1, widest);
-          score += Math.max(0, 0.78 - fillRatio) * 220;
-          score += Math.max(0, 0.58 - raggedRatio) * 200;
+
+          // Last line sweet spot: 65-85% of widest line
+          const lastLine = block.widths[block.widths.length - 1];
+          const lastRatio = lastLine / Math.max(1, widest);
+          score += Math.abs(lastRatio - 0.75) * 150;
+
+          score += Math.max(0, 0.78 - fillRatio) * 180;
+          score += Math.max(0, 0.55 - raggedRatio) * 170;
         } else if (block.widths.length === 1) {
           const fillRatio = block.widths[0] / Math.max(1, maxWidth);
-          if (visualWidth > 10) score += Math.max(0, fillRatio - 0.88) * 180;
+          if (visualWidth > 12) {
+            score += Math.abs(fillRatio - 0.84) * 200;
+          }
         }
       }
 
-      score += Math.max(0, 0.92 - layout.totalHeight / Math.max(1, availableHeight)) * 30;
-      score += layout.fontSize * 0.015;
+      // 3. Height utilization sweet spot: 80-92%
+      const heightRatio = layout.totalHeight / Math.max(1, availableHeight);
+      score += Math.abs(heightRatio - 0.86) * 80;
+
+      // 4. Slight bias toward larger fonts
+      score -= (layout.fontSize / 132) * 5;
+
       return score;
     }
 
