@@ -203,6 +203,11 @@ async function renderLongformPages(
     pageParts.push("--footer", vp.footer);
   }
 
+  const highlightWords = input.state.route.highlight_words ?? [];
+  if (highlightWords.length > 0) {
+    pageParts.push("--highlight-words", highlightWords.join(","));
+  }
+
   if (explicitPageImageSpec) {
     await writeFile(tempPageImageSpecPath, JSON.stringify(explicitPageImageSpec, null, 2), "utf-8");
     pageParts.push("--page-image-spec-file", tempPageImageSpecPath);

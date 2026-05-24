@@ -553,15 +553,35 @@ function buildAsciiBodyImages(parsed: ReturnType<typeof parseArgs>, chromePath: 
 }
 
 function toFlowBlocks(blocks: ContentBlock[], theme: LongformTheme): FlowBlock[] {
+  let consecutiveParagraphs = 0;
+
+  const RHYTHM_MODIFIER: Record<string, number> = {
+    normal: 1.0,
+    compressed: 0.65,
+  };
+
   return blocks.map(block => {
     const style = theme.bodyStyles[block.kind];
+
+    if (block.kind === "paragraph") {
+      consecutiveParagraphs += 1;
+    } else {
+      consecutiveParagraphs = 0;
+    }
+
+    // Every 3rd consecutive paragraph gets slightly compressed spacing
+    const rhythm = (block.kind === "paragraph" && consecutiveParagraphs > 0 && consecutiveParagraphs % 3 === 0)
+      ? "compressed"
+      : "normal";
+    const modifier = RHYTHM_MODIFIER[rhythm];
+
     return {
       text: block.text,
       font: style.font,
       lineHeight: style.lineHeight,
       className: style.className,
-      gapBefore: style.gapBefore ?? 0,
-      gapAfter: style.gapAfter ?? 0,
+      gapBefore: Math.round((style.gapBefore ?? 0) * modifier),
+      gapAfter: Math.round((style.gapAfter ?? 0) * modifier),
       bullet: block.kind === "list-item" ? block.bullet ?? "•" : undefined,
       // Reserve a stable hanging indent so the bullet never gets wrapped onto its own line.
       textIndent: block.kind === "list-item" ? 34 : 0,
@@ -1093,7 +1113,23 @@ function renderPage(params: {
   page: LongformPageLayout;
   themeCssVars: string;
   theme: LongformTheme;
+  highlightWords?: string[];
 }): void {
+  const words = params.highlightWords ?? [];
+
+  function highlightBodyText(text: string): string {
+    let html = renderInlineMarkdown(text);
+    for (const word of words) {
+      if (!word) continue;
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      html = html.replace(
+        new RegExp(escaped, "g"),
+        `<strong style="color:${params.theme.accentColor}">${word}</strong>`,
+      );
+    }
+    return html;
+  }
+
   const template = readUtf8(join(TEMPLATES_DIR, `${params.templateName}.html`));
   const stageHtml = [
     ...params.page.images.map(image => {
@@ -1110,7 +1146,7 @@ function renderPage(params: {
           ? `<div class="${escapeHtml(line.className)} body-list-bullet" style="left:${line.bulletX}px;top:${line.y}px">${escapeHtml(line.bullet)}</div>`
           : "";
       const maxWidthStyle = line.maxWidth ? `;max-width:${line.maxWidth}px` : "";
-      return `${bulletHtml}<div class="${escapeHtml(line.className)}" style="left:${line.x}px;top:${line.y}px${maxWidthStyle}">${renderInlineMarkdown(line.text)}</div>`;
+      return `${bulletHtml}<div class="${escapeHtml(line.className)}" style="left:${line.x}px;top:${line.y}px${maxWidthStyle}">${highlightBodyText(line.text)}</div>`;
       }),
   ].join("");
   const html = renderTemplate(template, {
@@ -1142,6 +1178,9 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
   const textFile = getArg(parsed, "text-file");
   const text = textFile.length > 0 ? readFileSync(textFile, "utf8") : getArg(parsed, "text");
   if (text.length === 0) throw new Error("需要 --text 或 --text-file");
+
+  const highlightWordsRaw = getArg(parsed, "highlight-words");
+  const highlightWords = highlightWordsRaw.length > 0 ? highlightWordsRaw.split(",").filter(w => w.length > 0) : [];
 
   const chromePath = findChrome();
   if (chromePath === null) throw new Error("Chrome/Chromium not found");
@@ -1286,6 +1325,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
       page,
       themeCssVars,
       theme,
+      highlightWords,
     });
     printSaved(outPath);
     return result;
@@ -1312,6 +1352,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
       page: pages[index]!,
       themeCssVars,
       theme,
+      highlightWords,
     });
     printSaved(pageOut);
   }
