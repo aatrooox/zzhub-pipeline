@@ -158,19 +158,15 @@ function normalizeMixedTextSpacing(text: string): string {
   while (prev !== result) {
     prev = result;
     result = result.replace(
-      new RegExp(`([\\p{Script=Han}])\\s*${asciiToken}\\s+${asciiToken}(?=\\s*[\\p{Script=Han}，。！？；：、）】》」』])`, "gu"),
+      new RegExp(`([\\p{Script=Han}])\\s*${asciiToken}\\s+${asciiToken}(?=\\s*(?:[\\p{Script=Han}，。！？；：、）】》」』]|[A-Za-z0-9]))`, "gu"),
       (_m, cjk: string, t1: string, t2: string) => `${cjk}${t1}${t2}`,
     );
   }
 
-  // After joining tokens, re-run Passes 1-2 to clean up spaces between
-  // the joined phrase and surrounding CJK/punctuation.
+  // After joining tokens, clean up spaces between the joined phrase and following CJK.
+  // Pattern: CJK + ASCIIchain + space + CJK (the space is on the RIGHT of the chain)
   result = result.replace(
-    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}\\s+([\\p{Script=Han}])`, "gu"),
-    "$1$2$3",
-  );
-  result = result.replace(
-    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}(?=[，。！？；：、）】》」』]|$)`, "gu"),
+    new RegExp(`([\\p{Script=Han}]${asciiToken})\\s+([\\p{Script=Han}])`, "gu"),
     "$1$2",
   );
 
