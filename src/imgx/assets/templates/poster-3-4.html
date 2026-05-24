@@ -206,7 +206,7 @@
     // CJK characters are roughly 2x the width of Latin characters in CJK fonts.
     const CJK_RE = /[一-鿿㐀-䶿豈-﫿　-〿＀-￯]/;
     const LATIN_WIDE_RE = /[A-Z0-9@#%&]/;
-    const LATIN_NARROW_RE = /[a-z0-9\s.,;:!?()[\]{}\-+=*/\\|]/;
+    const LATIN_NARROW_RE = /[a-z \t\n\r.,;:!?()[\]{}\-+=*/\\|]/;
 
     function estimateVisualWidth(text) {
       let width = 0;
