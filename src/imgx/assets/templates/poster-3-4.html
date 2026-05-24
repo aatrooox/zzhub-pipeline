@@ -164,10 +164,10 @@
     }
 
     function getLetterSpacing(fontSize) {
-      if (fontSize >= 110) return "-2.8px";
-      if (fontSize >= 90) return "-2px";
-      if (fontSize >= 70) return "-1px";
-      return "-0.4px";
+      const t = (fontSize - 34) / (132 - 34);
+      const clamped = Math.min(1, Math.max(0, t));
+      const spacing = -2.8 + clamped * 2.6;
+      return `${spacing.toFixed(1)}px`;
     }
 
     function measureLayout(fontSize, maxWidth) {
@@ -202,26 +202,42 @@
       };
     }
 
-    function countVisibleChars(text) {
-      let total = 0;
-      total += Array.from(text).filter(ch => ch.trim().length > 0).length;
-      return total;
+    // Character width coefficients for visual estimation.
+    // CJK characters are roughly 2x the width of Latin characters in CJK fonts.
+    const CJK_RE = /[一-鿿㐀-䶿豈-﫿　-〿＀-￯]/;
+    const LATIN_WIDE_RE = /[A-Z0-9@#%&]/;
+    const LATIN_NARROW_RE = /[a-z0-9\s.,;:!?()[\]{}\-+=*/\\|]/;
+
+    function estimateVisualWidth(text) {
+      let width = 0;
+      for (const ch of Array.from(text)) {
+        if (CJK_RE.test(ch)) {
+          width += 2.0;
+        } else if (LATIN_WIDE_RE.test(ch)) {
+          width += 1.0;
+        } else if (LATIN_NARROW_RE.test(ch)) {
+          width += 0.55;
+        } else {
+          width += 1.0;
+        }
+      }
+      return width;
     }
 
-    function getDesiredLineRange(chars) {
-      if (chars <= 8) return [1, 2];
-      if (chars <= 16) return [2, 3];
-      if (chars <= 28) return [3, 4];
-      if (chars <= 44) return [4, 6];
-      if (chars <= 64) return [5, 7];
+    function getDesiredLineRange(visualWidth) {
+      if (visualWidth <= 16) return [1, 2];
+      if (visualWidth <= 32) return [2, 3];
+      if (visualWidth <= 50) return [3, 4];
+      if (visualWidth <= 72) return [4, 6];
+      if (visualWidth <= 100) return [5, 7];
       return [6, 8];
     }
 
-    function getBlockMaxWidth(chars) {
-      if (chars <= 10) return Math.floor(textBlock.clientWidth);
-      if (chars <= 22) return Math.floor(textBlock.clientWidth * 0.92);
-      if (chars <= 40) return Math.floor(textBlock.clientWidth * 0.86);
-      if (chars <= 64) return Math.floor(textBlock.clientWidth * 0.8);
+    function getBlockMaxWidth(visualWidth) {
+      if (visualWidth <= 18) return Math.floor(textBlock.clientWidth);
+      if (visualWidth <= 38) return Math.floor(textBlock.clientWidth * 0.92);
+      if (visualWidth <= 60) return Math.floor(textBlock.clientWidth * 0.86);
+      if (visualWidth <= 90) return Math.floor(textBlock.clientWidth * 0.80);
       return Math.floor(textBlock.clientWidth * 0.74);
     }
 
@@ -230,8 +246,8 @@
 
       let score = 0;
       for (const block of layout.blocks) {
-        const charCount = countVisibleChars(block.text);
-        const [minLines, maxLines] = getDesiredLineRange(charCount);
+        const visualWidth = estimateVisualWidth(block.text);
+        const [minLines, maxLines] = getDesiredLineRange(visualWidth);
         const lineCount = block.lineCount;
         if (lineCount < minLines) score += (minLines - lineCount) * 120;
         if (lineCount > maxLines) score += (lineCount - maxLines) * 150;
@@ -245,7 +261,7 @@
           score += Math.max(0, 0.58 - raggedRatio) * 200;
         } else if (block.widths.length === 1) {
           const fillRatio = block.widths[0] / Math.max(1, maxWidth);
-          if (charCount > 10) score += Math.max(0, fillRatio - 0.88) * 180;
+          if (visualWidth > 10) score += Math.max(0, fillRatio - 0.88) * 180;
         }
       }
 
@@ -328,8 +344,8 @@
 
     async function boot() {
       await document.fonts.ready;
-      const sourceChars = blocks.reduce((sum, block) => sum + Array.from(block.text).filter(ch => ch.trim().length > 0).length, 0);
-      const maxWidth = getBlockMaxWidth(sourceChars);
+      const sourceVisualWidth = blocks.reduce((sum, block) => sum + estimateVisualWidth(block.text), 0);
+      const maxWidth = getBlockMaxWidth(sourceVisualWidth);
       const iconHeight = Math.ceil(iconNode.getBoundingClientRect().height);
       const watermarkHeight = Math.ceil(watermarkNode.getBoundingClientRect().height);
       const availableHeight = Math.max(
