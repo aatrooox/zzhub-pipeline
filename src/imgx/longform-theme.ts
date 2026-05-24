@@ -196,6 +196,9 @@ const THEMES: Record<string, LongformTheme> = {
       heading: {
         ...BASE_THEME.bodyStyles.heading,
         font: `700 36px "AlimamaShuHeiTi", "PingFang SC", sans-serif`,
+        lineHeight: proportionalLineHeight(36),
+        gapBefore: computeSpacing(BODY_FS, 36, 0.85),
+        gapAfter: computeSpacing(36, BODY_FS, 0.45),
       },
       paragraph: {
         ...BASE_THEME.bodyStyles.paragraph,
