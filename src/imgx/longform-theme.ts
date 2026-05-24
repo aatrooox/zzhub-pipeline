@@ -1,3 +1,5 @@
+import { computeSpacing, proportionalLineHeight } from "./typographic-scale";
+
 export type ContentBlockKind = "paragraph" | "heading" | "quote" | "list-item";
 
 export const LONGFORM_PAGE_WIDTH = 900;
@@ -116,45 +118,53 @@ export function getLongformGeometry(theme: LongformTheme): LongformGeometry {
   };
 }
 
+const BODY_FS = 32;
+const HEADING_FS = 50; // 32 * 1.25^2
+const QUOTE_FS = 30;
+
 const BASE_THEME: Omit<LongformTheme, "name" | "bgColor" | "bodyColor" | "accentColor" | "quoteColor" | "captionColor" | "watermarkColor" | "watermarkOpacity"> = {
   pageWidth: LONGFORM_PAGE_WIDTH,
   pageHeight: LONGFORM_PAGE_HEIGHT,
   imageRadius: 22,
-  bodyPaddingX: 90,
-  bodyPaddingY: 48,
+
+  // Proportional geometry: ~4.5% of page height for vertical padding
+  bodyPaddingX: Math.round(LONGFORM_PAGE_WIDTH * 0.10),        // 90
+  bodyPaddingY: Math.round(LONGFORM_PAGE_HEIGHT * 0.045),       // 54 (was 48)
   logoSize: 72,
-  logoGap: 40,
-  footerMarginTop: 28,
-  footerHeight: 32,
-  contentBottomGap: 12,
+  logoGap: Math.round(LONGFORM_PAGE_HEIGHT * 0.045 * 0.78),    // ~42 (was 40)
+  footerMarginTop: Math.round(BODY_FS * 1.2),                   // 38 (was 28)
+  footerHeight: Math.round(BODY_FS * 1.0),                      // 32 (unchanged)
+  contentBottomGap: Math.round(BODY_FS * 0.6),                  // 19 (was 12)
+
   contentWidth: null,
   contentHeight: null,
+
   bodyStyles: {
     paragraph: {
-      font: `400 32px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-      lineHeight: 56,
+      font: `400 ${BODY_FS}px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
+      lineHeight: proportionalLineHeight(BODY_FS),
       className: "body-line",
-      gapAfter: 22,
+      gapAfter: computeSpacing(BODY_FS, BODY_FS, 0.55),
     },
     heading: {
-      font: `700 38px "AlimamaShuHeiTi", "PingFang SC", sans-serif`,
-      lineHeight: 56,
+      font: `700 ${HEADING_FS}px "AlimamaShuHeiTi", "PingFang SC", sans-serif`,
+      lineHeight: proportionalLineHeight(HEADING_FS),
       className: "body-heading",
-      gapBefore: 10,
-      gapAfter: 18,
+      gapBefore: computeSpacing(BODY_FS, HEADING_FS, 0.85),
+      gapAfter: computeSpacing(HEADING_FS, BODY_FS, 0.45),
     },
     quote: {
-      font: `400 30px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-      lineHeight: 52,
+      font: `400 ${QUOTE_FS}px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
+      lineHeight: proportionalLineHeight(QUOTE_FS),
       className: "body-quote",
-      gapBefore: 8,
-      gapAfter: 20,
+      gapBefore: computeSpacing(BODY_FS, QUOTE_FS, 0.6),
+      gapAfter: computeSpacing(QUOTE_FS, BODY_FS, 0.5),
     },
     "list-item": {
-      font: `400 32px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-      lineHeight: 56,
+      font: `400 ${BODY_FS}px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
+      lineHeight: proportionalLineHeight(BODY_FS),
       className: "body-line",
-      gapAfter: 10,
+      gapAfter: computeSpacing(BODY_FS, BODY_FS, 0.3),
     },
   },
 };
