@@ -454,6 +454,15 @@ describe("extractHighlightWords", () => {
       expect(result[i - 1].length).toBeLessThanOrEqual(result[i].length);
     }
   });
+
+  it("excludes short prepositions and single letters (min length rules)", () => {
+    const result = extractHighlightWords("How to use AI in your work at A B C");
+    expect(result).not.toContain("to");
+    expect(result).not.toContain("in");
+    expect(result).not.toContain("A");
+    expect(result).not.toContain("B");
+    expect(result).toContain("AI");
+  });
 });
 
 // ── formatArticle ─────────────────────────────────────────────────

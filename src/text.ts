@@ -561,13 +561,22 @@ export function extractHighlightWords(title: string): string[] {
 
   const filtered = unique.filter((w) => !stopWords.has(w.toLowerCase()));
 
-  if (filtered.length === 0) return [];
+  // Minimum length filter
+  const minLengthFiltered = filtered.filter((w) => {
+    // Single-character words are never meaningful highlights
+    if (w.length < 2) return false;
+    // Lowercase-only words must be at least 3 chars (skip prepositions like "to", "in")
+    if (w === w.toLowerCase() && w.length < 3) return false;
+    return true;
+  });
+
+  if (minLengthFiltered.length === 0) return [];
 
   // Sort: shorter words first (more impactful as highlights)
-  filtered.sort((a, b) => [...a].length - [...b].length);
+  minLengthFiltered.sort((a, b) => [...a].length - [...b].length);
 
   // Take up to 3
-  return filtered.slice(0, 3);
+  return minLengthFiltered.slice(0, 3);
 }
 
 // ── Full format pipeline ──────────────────────────────────────────
