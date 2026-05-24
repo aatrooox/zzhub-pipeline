@@ -148,20 +148,31 @@ function normalizeMixedTextSpacing(text: string): string {
     "$1$2$3",
   );
 
-  // Pass 4 (NEW): Handle consecutive ASCII tokens separated by spaces.
+  // Pass 4: Handle consecutive ASCII tokens separated by spaces.
   // After Pass 1-3, we may still have "使用 AI Agent 管理" where AI and Agent
   // are two tokens with a space between them. This pass joins consecutive
-  // ASCII tokens, removing the space between them, keeping them as a phrase.
+  // ASCII tokens, removing the space between them.
+  // The \\s* before the first asciiToken handles the space between CJK and the first token.
   // Re-run until no more matches (handles 3+ token chains).
   let prev = "";
   while (prev !== result) {
     prev = result;
-    // Join "token1 token2" → "token1token2" when preceded by CJK and followed by CJK/punctuation
     result = result.replace(
-      new RegExp(`([\\p{Script=Han}])${asciiToken}\\s+${asciiToken}(?=\\s*[\\p{Script=Han}，。！？；：、）】》」』])`, "gu"),
+      new RegExp(`([\\p{Script=Han}])\\s*${asciiToken}\\s+${asciiToken}(?=\\s*[\\p{Script=Han}，。！？；：、）】》」』])`, "gu"),
       (_m, cjk: string, t1: string, t2: string) => `${cjk}${t1}${t2}`,
     );
   }
+
+  // After joining tokens, re-run Passes 1-2 to clean up spaces between
+  // the joined phrase and surrounding CJK/punctuation.
+  result = result.replace(
+    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}\\s+([\\p{Script=Han}])`, "gu"),
+    "$1$2$3",
+  );
+  result = result.replace(
+    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}(?=[，。！？；：、）】》」』]|$)`, "gu"),
+    "$1$2",
+  );
 
   return result;
 }
