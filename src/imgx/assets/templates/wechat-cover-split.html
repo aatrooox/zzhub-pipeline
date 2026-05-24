@@ -268,39 +268,67 @@
         .join("");
     }
 
+    function scoreCoverLayout(layout, availableHeight, maxWidth) {
+      let score = 0;
+
+      // 1. Height within sweet zone (75-90%)
+      const heightRatio = layout.totalHeight / Math.max(1, availableHeight);
+      score += Math.abs(heightRatio - 0.82) * 200;
+
+      // 2. Per-block line quality
+      for (const block of layout.blocks) {
+        if (block.widths.length === 1) {
+          const fill = block.widths[0] / maxWidth;
+          score += Math.abs(fill - 0.85) * 150;
+        } else if (block.widths.length === 2) {
+          const line1Fill = block.widths[0] / maxWidth;
+          const line2Fill = block.widths[1] / maxWidth;
+          // Prefer pyramid: line1 wider than line2
+          if (line2Fill > line1Fill) score += 80;
+          // Line2 should be 60-85% of line1
+          const ratio = block.widths[1] / Math.max(1, block.widths[0]);
+          score += Math.abs(ratio - 0.72) * 180;
+        }
+      }
+
+      // 3. Slight bias toward larger fonts
+      score -= (layout.fontSize / 88) * 10;
+
+      return score;
+    }
+
     async function boot() {
       await document.fonts.ready;
 
-      const maxWidth  = Math.min(MAX_WIDTH, Math.floor(textBlock.clientWidth));
-      const leftEl    = document.querySelector(".left");
+      const maxWidth = Math.min(MAX_WIDTH, Math.floor(textBlock.clientWidth));
+      const leftEl = document.querySelector(".left");
       const eyebrowEl = document.querySelector(".eyebrow");
-      const leftH     = leftEl    ? leftEl.clientHeight                                      : 400;
-      const eyebrowH  = eyebrowEl ? Math.ceil(eyebrowEl.getBoundingClientRect().height) + 14 : 32;
-      const padV      = 34 + 28;  // .left padding-top + padding-bottom
-      const footerRes = 52;       // footer 16px 字 + bottom 24px + buffer
+      const leftH = leftEl ? leftEl.clientHeight : 400;
+      const eyebrowH = eyebrowEl ? Math.ceil(eyebrowEl.getBoundingClientRect().height) + 14 : 32;
+      const padV = 34 + 28;
+      const footerRes = 52;
       const availableHeight = Math.max(
         FALLBACK_AVAILABLE_HEIGHT,
         leftH - padV - eyebrowH - footerRes,
       );
 
-      let chosen = null;
+      let best = null;
+      let bestScore = Number.POSITIVE_INFINITY;
 
-      // Pass 1：最大字号，同时满足行数约束 + 高度约束
-      for (let fs = MAX_FONT_SIZE; fs >= MIN_FONT_SIZE; fs -= 2) {
+      for (let fs = MAX_FONT_SIZE; fs >= MIN_FONT_SIZE; fs -= 1) {
         const layout = measureLayout(fs, maxWidth);
-        if (layout.valid && layout.totalHeight <= availableHeight) { chosen = layout; break; }
-      }
-      // Pass 2：放宽高度约束，仍满足行数约束（超长标题兜底）
-      if (!chosen) {
-        for (let fs = MAX_FONT_SIZE; fs >= MIN_FONT_SIZE; fs -= 2) {
-          const layout = measureLayout(fs, maxWidth);
-          if (layout.valid) { chosen = layout; break; }
+        if (!layout.valid) continue;
+
+        const score = scoreCoverLayout(layout, availableHeight, maxWidth);
+        if (score < bestScore) {
+          bestScore = score;
+          best = layout;
         }
       }
-      // Pass 3：无条件兜底（文字极长时）
-      if (!chosen) chosen = measureLayout(MIN_FONT_SIZE, maxWidth);
 
-      renderLayout(chosen);
+      if (!best) best = measureLayout(MIN_FONT_SIZE, maxWidth);
+
+      renderLayout(best);
       document.body.classList.add("ready");
     }
 
