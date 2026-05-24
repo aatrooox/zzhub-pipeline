@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import {
   modularScale,
   proportionalLineHeight,
+  computeSpacing,
   MAJOR_THIRD,
 } from "./typographic-scale";
 
@@ -15,6 +16,25 @@ describe("modularScale", () => {
     expect(modularScale(MAJOR_THIRD, 1)).toBe(20);
     expect(modularScale(MAJOR_THIRD, 2)).toBe(25);
     expect(modularScale(MAJOR_THIRD, 3)).toBe(31);
+  });
+
+  it("handles negative steps", () => {
+    expect(modularScale(MAJOR_THIRD, -1)).toBe(13); // 16 / 1.25 = 12.8 → 13
+    expect(modularScale(MAJOR_THIRD, -2)).toBe(10); // 16 / 1.5625 = 10.24 → 10
+  });
+});
+
+describe("computeSpacing", () => {
+  it("uses the larger font size", () => {
+    expect(computeSpacing(32, 50, 0.5)).toBe(25); // max(32,50) * 0.5 = 25
+  });
+
+  it("scales with multiplier", () => {
+    const tight = computeSpacing(32, 32, 0.3);
+    const normal = computeSpacing(32, 32, 0.5);
+    const loose = computeSpacing(32, 32, 0.7);
+    expect(tight).toBeLessThan(normal);
+    expect(normal).toBeLessThan(loose);
   });
 });
 

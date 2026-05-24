@@ -16,15 +16,16 @@ export function modularScale(scale: TypographicScale, step: number): number {
  * Clamped to [1.05, 1.85].
  */
 export function proportionalLineHeight(fontSizePx: number): number {
+  // Guard against non-positive input (should never happen with real font sizes)
+  if (fontSizePx <= 0) return Math.round(8 * 1.85);
   const logNorm = Math.log(fontSizePx / 8) / Math.log(200 / 8);
   const ratio = 1.85 - logNorm * (1.85 - 1.05);
   const clamped = Math.min(1.85, Math.max(1.05, ratio));
   const exact = fontSizePx * clamped;
-  const rounded = Math.round(exact);
-  // Post-rounding bounds guarantee: the actual ratio (rounded / fontSizePx)
-  // must stay within [1.05, 1.85]. If rounding pushed it over, floor/ceil instead.
-  if (rounded / fontSizePx > 1.85) return Math.floor(exact);
-  if (rounded / fontSizePx < 1.05) return Math.ceil(exact);
+  let rounded = Math.round(exact);
+  // Ensure the rounded value stays within [1.05, 1.85] ratio bounds
+  while (rounded / fontSizePx > 1.85) rounded--;
+  while (rounded / fontSizePx < 1.05) rounded++;
   return rounded;
 }
 
