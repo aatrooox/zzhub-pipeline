@@ -165,9 +165,10 @@ function normalizeMixedTextSpacing(text: string): string {
 
   // After joining tokens, clean up spaces between the joined phrase and following CJK.
   // Pattern: CJK + ASCIIchain + space + CJK (the space is on the RIGHT of the chain)
+  // NOTE: asciiToken introduces a capturing group, so the second CJK capture is group 3, not group 2.
   result = result.replace(
     new RegExp(`([\\p{Script=Han}]${asciiToken})\\s+([\\p{Script=Han}])`, "gu"),
-    "$1$2",
+    "$1$3",
   );
 
   return result;
