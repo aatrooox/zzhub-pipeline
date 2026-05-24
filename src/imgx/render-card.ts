@@ -41,42 +41,66 @@ function detectIcon(template: string, _text: string, _line1: string, _line2: str
 
 function splitWechatTitle(text: string): { line1: string; line2: string } {
   const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized.length === 0) {
-    return { line1: "", line2: "" };
-  }
+  if (normalized.length === 0) return { line1: "", line2: "" };
 
   const chars = Array.from(normalized);
-  if (chars.length <= 16) {
-    return { line1: normalized, line2: "" };
-  }
+  if (chars.length <= 16) return { line1: normalized, line2: "" };
 
-  const midpoint = Math.ceil(chars.length / 2);
-  const minIndex = Math.max(1, Math.min(12, chars.length - 1));
-  const maxIndex = Math.max(minIndex, Math.min(chars.length - 1, 18));
-  const splitHints = new Set(["，", "。", "、", "：", "；", " ", "-", "｜", "|"]);
-  let bestIndex = midpoint;
-  let bestScore = Number.POSITIVE_INFINITY;
+  // Find all word boundaries: any position where adjacent chars cross
+  // script boundaries (CJK↔Latin) or have a space.
+  type Candidate = { index: number; score: number };
+  const candidates: Candidate[] = [];
+  const minIndex = Math.max(2, Math.min(8, chars.length - 2));
+  const maxIndex = Math.min(chars.length - 2, 20);
 
-  for (let index = minIndex; index <= maxIndex; index++) {
-    const prev = chars[index - 1] ?? "";
-    const next = chars[index] ?? "";
-    const left = chars.slice(0, index).join("").trim();
-    const right = chars.slice(index).join("").trim();
+  const CJK_RE = /[一-鿿]/;
+  const splitHints = new Set([" ", "，", "。", "、", "：", "；", "-", "｜", "|", "·"]);
+
+  for (let idx = minIndex; idx <= maxIndex; idx++) {
+    const left = chars.slice(0, idx).join("").trim();
+    const right = chars.slice(idx).join("").trim();
     if (left.length === 0 || right.length === 0) continue;
 
-    let score = Math.abs(left.length - right.length);
-    if (splitHints.has(prev) || splitHints.has(next)) score -= 1.5;
-    if (index > 18 || left.length > 18 || right.length > 18) score += 4;
+    let score = 0;
 
-    if (score < bestScore) {
-      bestScore = score;
-      bestIndex = index;
-    }
+    // 1. Balance penalty (weight reduced — visual balance matters more than
+    //    character-count balance for mixed text)
+    score += Math.abs(left.length - right.length) * 2;
+
+    // 2. Punctuation / word boundary at split point = strong signal
+    const prevChar = chars[idx - 1] ?? "";
+    const nextChar = chars[idx] ?? "";
+
+    if (splitHints.has(prevChar)) score -= 25;  // Strong signal: split after
+    if (splitHints.has(nextChar)) score -= 20;  // Moderate signal: split before
+
+    // 3. Script boundary bonus: splitting between CJK and Latin is natural
+    const prevIsCJK = CJK_RE.test(prevChar);
+    const nextIsCJK = CJK_RE.test(nextChar);
+    if (prevIsCJK !== nextIsCJK) score -= 10;
+
+    // 4. Word-internal penalty: don't split inside an English word
+    const prevIsAlpha = /[A-Za-z]/.test(prevChar);
+    const nextIsAlpha = /[A-Za-z]/.test(nextChar);
+    if (prevIsAlpha && nextIsAlpha) score += 15;
+
+    // 5. Line length caps (visual estimate: CJK ≈ 2 units, Latin ≈ 1 unit)
+    const leftVisual = [...left].reduce((sum, ch) => sum + (CJK_RE.test(ch) ? 2 : 1), 0);
+    const rightVisual = [...right].reduce((sum, ch) => sum + (CJK_RE.test(ch) ? 2 : 1), 0);
+    if (leftVisual > 28 || rightVisual > 28) score += 15;
+
+    // 6. Slight midpoint preference
+    score += Math.abs(idx - chars.length / 2) * 0.5;
+
+    candidates.push({ index: idx, score });
   }
 
+  candidates.sort((a, b) => a.score - b.score);
+  const best = candidates[0] ?? { index: Math.ceil(chars.length / 2) };
+
   return {
-    line1: chars.slice(0, bestIndex).join("").trim(),
-    line2: chars.slice(bestIndex).join("").trim(),
+    line1: chars.slice(0, best.index).join("").trim(),
+    line2: chars.slice(best.index).join("").trim(),
   };
 }
 

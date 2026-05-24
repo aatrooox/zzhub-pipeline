@@ -196,20 +196,23 @@
     }
 
     function getLineHeight(fontSize) {
-      if (fontSize >= 80) return Math.round(fontSize * 1.06);
-      if (fontSize >= 60) return Math.round(fontSize * 1.05);
-      return Math.round(fontSize * 1.04);
+      // Smooth interpolation: 1.04 at 36px → 1.08 at 88px
+      const t = (fontSize - 36) / (88 - 36);
+      const ratio = 1.04 + Math.min(1, Math.max(0, t)) * 0.04;
+      return Math.round(fontSize * ratio);
     }
 
     function getBlockGap(fontSize) {
-      return fontSize >= 64 ? 12 : fontSize >= 52 ? 10 : 8;
+      // Smooth: 8px at 36px → 14px at 88px
+      const t = (fontSize - 36) / (88 - 36);
+      return Math.round(8 + Math.min(1, Math.max(0, t)) * 6);
     }
 
     function getLetterSpacing(fontSize) {
-      if (fontSize >= 80) return "-2px";
-      if (fontSize >= 64) return "-1.5px";
-      if (fontSize >= 48) return "-1px";
-      return "-0.5px";
+      // Smooth: -0.5px at 36px → -2.5px at 88px
+      const t = (fontSize - 36) / (88 - 36);
+      const val = -0.5 + Math.min(1, Math.max(0, t)) * (-2.0);
+      return `${val.toFixed(1)}px`;
     }
 
     function measureLayout(fontSize, maxWidth) {
