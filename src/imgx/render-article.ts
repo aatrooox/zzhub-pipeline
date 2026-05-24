@@ -127,11 +127,43 @@ function parseIntWithFallback(raw: string | undefined, fallback: number): number
 }
 
 function normalizeMixedTextSpacing(text: string): string {
-  const shortAsciiToken = "([A-Za-z0-9][A-Za-z0-9.+-]{0,11})";
-  return text
-    .replace(new RegExp(`([\\p{Script=Han}])\\s+${shortAsciiToken}\\s+([\\p{Script=Han}])`, "gu"), "$1$2$3")
-    .replace(new RegExp(`([\\p{Script=Han}])\\s+${shortAsciiToken}(?=[，。！？；：、）】》」』]|$)`, "gu"), "$1$2")
-    .replace(new RegExp(`(^|[（【《「『])${shortAsciiToken}\\s+([\\p{Script=Han}])`, "gu"), "$1$2$3");
+  // Match any ASCII token regardless of length (removed {0,11} limit)
+  const asciiToken = "([A-Za-z0-9][A-Za-z0-9.+-]*)";
+
+  // Pass 1: CJK + space(s) + ASCII_token + space(s) + CJK → CJK + token + CJK
+  let result = text.replace(
+    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}\\s+([\\p{Script=Han}])`, "gu"),
+    "$1$2$3",
+  );
+
+  // Pass 2: CJK + space(s) + ASCII_token before Chinese punctuation or EOL
+  result = result.replace(
+    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}(?=[，。！？；：、）】》」』]|$)`, "gu"),
+    "$1$2",
+  );
+
+  // Pass 3: Start-of-text or opening bracket + ASCII_token + space(s) + CJK
+  result = result.replace(
+    new RegExp(`(^|[（【《「『])${asciiToken}\\s+([\\p{Script=Han}])`, "gu"),
+    "$1$2$3",
+  );
+
+  // Pass 4 (NEW): Handle consecutive ASCII tokens separated by spaces.
+  // After Pass 1-3, we may still have "使用 AI Agent 管理" where AI and Agent
+  // are two tokens with a space between them. This pass joins consecutive
+  // ASCII tokens, removing the space between them, keeping them as a phrase.
+  // Re-run until no more matches (handles 3+ token chains).
+  let prev = "";
+  while (prev !== result) {
+    prev = result;
+    // Join "token1 token2" → "token1token2" when preceded by CJK and followed by CJK/punctuation
+    result = result.replace(
+      new RegExp(`([\\p{Script=Han}])${asciiToken}\\s+${asciiToken}(?=\\s*[\\p{Script=Han}，。！？；：、）】》」』])`, "gu"),
+      (_m, cjk: string, t1: string, t2: string) => `${cjk}${t1}${t2}`,
+    );
+  }
+
+  return result;
 }
 
 function fitImageToBox(
