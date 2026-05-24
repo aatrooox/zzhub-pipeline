@@ -32,6 +32,24 @@ import { ensurePretextRuntime } from "./pretext-runtime";
 
 const DEFAULT_CONTENT_WIDTH = getLongformGeometry(getLongformTheme("paper-sage")).contentWidth;
 
+function proportionalObstacleGap(imageMinDim: number): number {
+  const gap = Math.round(imageMinDim * 0.10);
+  return Math.min(48, Math.max(16, gap));
+}
+
+function proportionalMinSlotWidth(bodyFontSize: number): number {
+  return Math.round(bodyFontSize * 5.3);
+}
+
+function imageShadowStyle(image: BodyImageSpec): string {
+  const area = image.width * image.height;
+  const maxArea = 720 * 560;
+  const t = Math.min(1, Math.max(0, area / maxArea));
+  const shadowY = Math.round(8 + t * 16);
+  const shadowBlur = Math.round(16 + t * 32);
+  return `--img-shadow-y:${shadowY}px;--img-shadow-blur:${shadowBlur}px`;
+}
+
 type BodyImageSpec = {
   src: string;
   alt: string;
@@ -801,11 +819,18 @@ function measureLongformPages(params: {
 }): LongformPageLayout[] {
   ensurePretextRuntime();
   const geometry = getLongformGeometry(params.theme);
+  const allImages = params.pageImageGroups?.flat() ?? params.bodyImages;
+  const maxImgMinDim = allImages.reduce(
+    (max, img) => Math.max(max, Math.min(img.width, img.height)),
+    210,
+  );
+  const obstacleGap = proportionalObstacleGap(maxImgMinDim);
+  const minSlotWidth = proportionalMinSlotWidth(32);
   const flow = createObstacleFlowRuntime({
     prepareWithSegments,
     layoutNextLineRange,
-    obstacleGap: 24,
-    minSlotWidth: 170,
+    obstacleGap,
+    minSlotWidth,
     renderLine() {},
     renderImage() {},
   });
@@ -1075,7 +1100,7 @@ function renderPage(params: {
       const captionHtml = image.caption
         ? `<div class="body-caption" style="left:${image.x}px;top:${image.y + image.height + 10}px;width:${image.width}px">${escapeHtml(image.caption)}</div>`
         : "";
-      return `<img class="body-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" style="left:${image.x}px;top:${image.y}px;width:${image.width}px;height:${image.height}px">${captionHtml}`;
+      return `<img class="body-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" style="left:${image.x}px;top:${image.y}px;width:${image.width}px;height:${image.height}px;${imageShadowStyle(image)}">${captionHtml}`;
     }),
     ...params.page.lines
       .filter(line => line.className !== "body-caption")
