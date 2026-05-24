@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, it } from "bun:test";
 import {
   stripFrontmatter,
   extractFrontmatter,
@@ -417,43 +417,42 @@ describe("generateCoverTitle", () => {
 // ── extractHighlightWords ─────────────────────────────────────────
 
 describe("extractHighlightWords", () => {
-  test("extracts English words", () => {
-    const result = extractHighlightWords("OpenClaw Release Notes");
-    expect(result).toContain("OpenClaw");
-    expect(result).toContain("Release");
-    expect(result).toContain("Notes");
+  it("extracts English acronyms like AI, API, GPU", () => {
+    expect(extractHighlightWords("AI Agent 时代的 API 设计")).toContain("AI");
+    expect(extractHighlightWords("AI Agent 时代的 API 设计")).toContain("API");
   });
 
-  test("extracts CJK words (2-4 chars)", () => {
-    const result = extractHighlightWords("功能发布与版本更新");
-    expect(result.length).toBeGreaterThan(0);
-    expect(result.length).toBeLessThanOrEqual(3);
+  it("extracts camelCase and capitalized English terms", () => {
+    expect(extractHighlightWords("OpenClaw 集群管理实战")).toContain("OpenClaw");
+    expect(extractHighlightWords("ChatGPT 与 Agent 开发")).toContain("Agent");
   });
 
-  test("filters stop words", () => {
-    const result = extractHighlightWords("the and for with");
-    expect(result).toEqual([]);
+  it("does NOT extract CJK fragments", () => {
+    const result = extractHighlightWords("深度学习框架对比指南");
+    for (const word of result) {
+      expect(/^[A-Za-z]/.test(word)).toBe(true);
+    }
   });
 
-  test("returns max 3 words", () => {
-    const result = extractHighlightWords(
-      "Alpha Beta Gamma Delta Epsilon Zeta",
-    );
-    expect(result.length).toBeLessThanOrEqual(3);
+  it("filters common English stopwords", () => {
+    const result = extractHighlightWords("the and for with this that have");
+    expect(result.length).toBe(0);
   });
 
-  test("handles empty string", () => {
+  it("returns empty array for pure CJK title with no English terms", () => {
+    expect(extractHighlightWords("深度学习框架对比指南")).toEqual([]);
+  });
+
+  it("returns empty array for empty title", () => {
     expect(extractHighlightWords("")).toEqual([]);
   });
 
-  test("prefers shorter words", () => {
-    const result = extractHighlightWords("AI Development Framework");
-    expect(result[0]).toBe("AI");
-  });
-
-  test("handles version numbers", () => {
-    const result = extractHighlightWords("v3.0 Release");
-    expect(result.some((w) => w.includes("v3") || w.includes("3.0") || w === "Release")).toBe(true);
+  it("returns at most 3 words, sorted shortest first", () => {
+    const result = extractHighlightWords("AI Agent Framework OpenClaw API Gateway");
+    expect(result.length).toBeLessThanOrEqual(3);
+    for (let i = 1; i < result.length; i++) {
+      expect(result[i - 1].length).toBeLessThanOrEqual(result[i].length);
+    }
   });
 });
 

@@ -536,84 +536,27 @@ export function extractHighlightWords(title: string): string[] {
     tokens.push(...englishWords);
   }
 
-  // Extract CJK word-like sequences (2-4 chars)
-  const cjkChars = title.match(
-    /[\u4e00-\u9fff]{2,4}/g,
-  );
-  if (cjkChars) {
-    tokens.push(...cjkChars);
-  }
-
   if (tokens.length === 0) return [];
 
-  // Deduplicate
-  const unique = [...new Set(tokens)];
+  // Deduplicate (case-insensitive)
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const t of tokens) {
+    const key = t.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(t);
+    }
+  }
 
-  // Filter out very common/boring words
+  // Filter common stopwords
   const stopWords = new Set([
-    "the",
-    "and",
-    "for",
-    "with",
-    "from",
-    "this",
-    "that",
-    "have",
-    "been",
-    "will",
-    "your",
-    "what",
-    "how",
-    "why",
-    "can",
-    "not",
-    "are",
-    "was",
-    "were",
-    "的",
-    "了",
-    "是",
-    "在",
-    "和",
-    "有",
-    "个",
-    "我",
-    "你",
-    "他",
-    "她",
-    "它",
-    "们",
-    "这",
-    "那",
-    "也",
-    "就",
-    "都",
-    "会",
-    "要",
-    "到",
-    "说",
-    "为",
-    "不",
-    "与",
-    "及",
-    "但",
-    "而",
-    "如",
-    "或",
-    "之",
-    "从",
-    "一个",
-    "如何",
-    "什么",
-    "为什么",
-    "怎么",
-    "介绍",
-    "解读",
-    "盘点",
-    "更新",
-    "亮点",
-    "发布",
-    "公告",
+    "the", "and", "for", "with", "from", "this", "that",
+    "have", "been", "will", "your", "what", "how", "why",
+    "can", "not", "are", "was", "were", "has", "had",
+    "its", "his", "her", "our", "their", "you", "all",
+    "but", "also", "just", "only", "very", "too", "over",
+    "into", "more", "some", "such", "than", "then", "when",
   ]);
 
   const filtered = unique.filter((w) => !stopWords.has(w.toLowerCase()));
