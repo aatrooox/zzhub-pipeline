@@ -1154,7 +1154,7 @@ function renderPage(params: {
     "{{THEME_CSS_VARS}}": params.themeCssVars,
     "{{FOOTER_TEXT}}": escapeHtml(params.footer),
     "{{ICON_PATH}}": params.iconPath,
-    "{{AVATAR_PATH}}": join(ICONS_DIR, "logo.svg"),
+    "{{AVATAR_PATH}}": join(ICONS_DIR, "logo.png"),
     "{{FONT_PATH}}": join(FONTS_DIR, "AlimamaShuHeiTi-Bold.ttf"),
     "{{BODY_FONT_PATH}}": join(FONTS_DIR, "LXGWNeoZhiSongPlus.ttf"),
     "{{LONGFORM_STAGE_HTML}}": stageHtml,
@@ -1186,7 +1186,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
   if (chromePath === null) throw new Error("Chrome/Chromium not found");
 
   const footer = getArg(parsed, "footer", "公众号 · 早早集市");
-  const iconPath = resolveInputPath(getArg(parsed, "icon") || join(ICONS_DIR, "logo.svg"));
+  const iconPath = resolveInputPath(getArg(parsed, "icon") || join(ICONS_DIR, "logo.png"));
   const templateName = getArg(parsed, "template", "longform-3-4");
   const themeName = getArg(parsed, "theme", "paper-sage");
   let theme = getLongformTheme(themeName);

@@ -97,6 +97,12 @@ const PluginsConfigSchema = withObjectDefault(
   }),
 );
 
+const ImgxConfigSchema = withObjectDefault(
+  z.object({
+    icon: z.string().nullable().default(null),
+  }),
+);
+
 // ── Top-level schema ──────────────────────────────────────────────
 
 export const PipelineConfigSchema = z.object({
@@ -106,6 +112,7 @@ export const PipelineConfigSchema = z.object({
   wx: WxConfigSchema,
   cos: CosConfigSchema,
   plugins: PluginsConfigSchema,
+  imgx: ImgxConfigSchema,
 });
 
 export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
@@ -119,6 +126,7 @@ export type PipelineServiceConfig = z.infer<typeof PipelineServiceConfigSchema>;
 export type PipelineCommandConfig = z.infer<typeof PipelineCommandConfigSchema>;
 export type CosConfig = z.infer<typeof CosConfigSchema>;
 export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
+export type ImgxConfig = z.infer<typeof ImgxConfigSchema>;
 
 // ── Schema instances for reuse ────────────────────────────────────
 

@@ -199,7 +199,7 @@ export function runRenderXLikePostsCli(argv: string[]): void {
   const posts = loadPosts(parsed);
   const author = getArg(parsed, "author", "Unknown Author");
   const handle = getArg(parsed, "handle", "@twitter");
-  const avatarPath = resolveInputPath(getArg(parsed, "avatar") || join(ICONS_DIR, "logo.svg"));
+  const avatarPath = resolveInputPath(getArg(parsed, "avatar") || join(ICONS_DIR, "logo.png"));
   const template = readUtf8(join(TEMPLATES_DIR, "x-like-posts.html"));
   const html = renderTemplate(template, {
     "{{BG_COLOR}}": getArg(parsed, "bg", "#f5f8fa"),

@@ -774,7 +774,7 @@ describe("render", () => {
       footer: "公众号 · 早早集市",
       bg: "#e6f5ef",
       highlight: "#22a854",
-      fallback_icon: "assets/icons/logo.svg",
+      fallback_icon: "assets/icons/logo.png",
     };
     state.metadata.title = "Recordly：开源跨平台录屏与演示视频编辑工具";
     await writeState(statePath, state);
@@ -1222,6 +1222,9 @@ describe("config", () => {
         plugins: {
           imageRenderer: null,
           markdownRenderer: null,
+        },
+        imgx: {
+          icon: null,
         },
       },
       {

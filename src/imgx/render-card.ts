@@ -32,11 +32,11 @@ const PRETEXT_SCREENSHOT_VIRTUAL_TIME_BUDGET_MS = 6_000;
 
 function detectIcon(template: string, _text: string, _line1: string, _line2: string, _line3: string, fallbackIcon: string): string {
   if (template === "wechat-cover-split") {
-    return join(ICONS_DIR, "logo.svg");
+    return join(ICONS_DIR, "logo.png");
   }
 
   if (fallbackIcon.length > 0) return fallbackIcon;
-  return join(ICONS_DIR, "logo.svg");
+  return join(ICONS_DIR, "logo.png");
 }
 
 function splitWechatTitle(text: string): { line1: string; line2: string } {
@@ -172,7 +172,7 @@ export function runRenderCardCli(argv: string[]): void {
     "{{FOOTER_TEXT}}": escapeHtml(footer),
     "{{ICON_PATH}}": iconPath,
     "{{FONT_PATH}}": join(FONTS_DIR, "AlimamaShuHeiTi-Bold.ttf"),
-    "{{AVATAR_PATH}}": join(ICONS_DIR, "logo.svg"),
+    "{{AVATAR_PATH}}": join(ICONS_DIR, "logo.png"),
     "{{POSTER_CONFIG_JSON}}": serializePosterConfig(
       buildPosterConfig({
         text,

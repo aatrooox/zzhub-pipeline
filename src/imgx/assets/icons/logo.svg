@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
-  <rect width="120" height="120" rx="16" fill="#e8f4f0"/>
-  <text x="60" y="78" text-anchor="middle" font-family="Georgia, serif" font-size="56" font-weight="bold" fill="#2d8a56">P</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Zigzag S logo - top chevron -->
+  <path d="M72 20 L30 44" stroke="#22a854" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <!-- Zigzag S logo - bottom chevron -->
+  <path d="M30 56 L72 80" stroke="#22a854" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <!-- Small connecting gap indicator -->
+  <line x1="30" y1="44" x2="30" y2="56" stroke="#22a854" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.5"/>
 </svg>

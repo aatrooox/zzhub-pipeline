@@ -12,6 +12,8 @@ import type {
   Route,
   Target,
 } from "./state";
+import type { PipelineConfig } from "./config";
+import { loadConfig } from "./config";
 
 // ── Route keyword matching ────────────────────────────────────────
 
@@ -140,24 +142,31 @@ const VISUAL_PARAMS: Record<string, AccountVisualParams> = {
     footer: "公众号 · 早早集市",
     bg: "#e6f5ef",
     highlight: "#22a854",
-    fallback_icon: "assets/icons/logo.svg",
+    fallback_icon: "assets/icons/logo.png",
   },
   ancientone: {
     footer: "公众号 · 古一软件",
     bg: "#faf5f8",
     highlight: "#ca6093",
-    fallback_icon: "assets/icons/logo.svg",
+    fallback_icon: "assets/icons/logo.png",
   },
 };
 
 /**
  * Get visual params for an account.
+ * If config.imgx.icon is set, it overrides the default fallback_icon.
  * Returns null if account not found.
  */
 export function getVisualParams(
   account: string,
+  config?: PipelineConfig,
 ): AccountVisualParams | null {
-  return VISUAL_PARAMS[account] ?? null;
+  const base = VISUAL_PARAMS[account] ?? null;
+  if (!base) return null;
+  if (config?.imgx?.icon) {
+    return { ...base, fallback_icon: config.imgx.icon };
+  }
+  return base;
 }
 
 // ── Theme registry (for longform-3-4) ─────────────────────────────
@@ -237,7 +246,9 @@ export function resolveFullRoute(
     contentForm?: ContentForm;
     targets?: Target[];
   },
+  config?: PipelineConfig,
 ): Route {
+  const resolvedConfig = config ?? loadConfig();
   const routeFromIntent = resolveRoute(intentText);
   const routePlan = overrides?.contentForm && overrides?.targets
     ? routePlanFromTargets(overrides.contentForm, overrides.targets)
@@ -263,7 +274,7 @@ export function resolveFullRoute(
   }
   const account = overrides?.account ?? resolveAccount(intentText);
   const contentProfile = getContentProfile(account);
-  const visualParams = getVisualParams(account);
+  const visualParams = getVisualParams(account, resolvedConfig);
 
   return {
     primary,

@@ -50,7 +50,7 @@ export function buildAsciiPortraitHtml(options: AsciiPortraitOptions): string {
     "{{BG_COLOR}}": options.bg,
     "{{TITLE}}": escapeHtml(options.title ?? "ASCII Portrait"),
     "{{FOOTER_TEXT}}": escapeHtml(options.footer ?? "公众号 · 早早集市"),
-    "{{ICON_PATH}}": resolveInputPath(options.iconPath ?? join(ICONS_DIR, "logo.svg")),
+    "{{ICON_PATH}}": resolveInputPath(options.iconPath ?? join(ICONS_DIR, "logo.png")),
     "{{AVATAR_PATH}}": resolveInputPath(options.avatarPath),
     "{{ASCII_CONFIG_JSON}}": serializeConfig(options),
     "{{FONT_PATH}}": join(FONTS_DIR, "AlimamaShuHeiTi-Bold.ttf"),
