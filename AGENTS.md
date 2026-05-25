@@ -49,6 +49,8 @@ npm publish
 
 **Important:** `zzp` / `zzhub-pipeline` runs compiled JS from `dist/cli.js` via `bun link`. After editing any source file under `src/`, you must run `bun run build:npm` for the linked binary to reflect the change. `bun run src/cli.ts` always runs the latest source and does not need a rebuild.
 
+**After completing any code changes (including this edit session):** Always run `bun run build:npm` followed by `bun install --global .` to ensure the global `zzp` binary reflects the latest compiled output.
+
 ## Agent workflow loop
 
 The only correct agent procedure is:
@@ -323,7 +325,7 @@ Other env overrides: `ZZHUB_PIPELINE_WORKSPACE_ROOT`, `ZZHUB_PIPELINE_POSTS_DIR`
 
 Tests isolate config with `process.env.ZZHUB_PIPELINE_CONFIG = <tmp path>`.
 
-Config structure: `paths`, `services`, `commands`, `wx.accounts`, `cos`, `plugins`.
+Config structure: `paths`, `services`, `commands`, `wx.accounts`, `cos`, `plugins`, `imgx`.
 
 ## Chrome dependency
 
