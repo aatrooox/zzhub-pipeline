@@ -3,23 +3,20 @@
   "version": "0.3.0",
   "type": "module",
   "bin": {
-    "zzp": "./dist/cli.js",
-    "zzhub-pipeline": "./dist/cli.js"
+    "zzp": "./src/cli.ts",
+    "zzhub-pipeline": "./src/cli.ts"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": [
-    "dist/cli.js",
-    "dist/assets/",
-    "dist/node_modules/"
+    "src/"
   ],
   "scripts": {
     "dev": "bun run src/cli.ts",
     "build": "bun run scripts/build.ts",
     "build:npm": "bun run scripts/build-npm.ts",
     "build:wechat-preview": "vite build --config vite.wechat-preview.config.ts",
-    "prepublishOnly": "bun run scripts/build-npm.ts",
     "test": "bun test",
     "typecheck": "bun x tsc --noEmit",
     "release:patch": "changelogen --release --patch --push",

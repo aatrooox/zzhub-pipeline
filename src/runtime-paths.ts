@@ -1,9 +1,8 @@
 /**
- * Centralized asset path resolution for dev, compiled, and npm modes.
+ * Centralized asset path resolution for dev and compiled modes.
  *
  * Dev mode:     running via `bun run src/cli.ts` — assets in source tree
  * Compiled mode: running a `bun build --compile` binary — assets next to binary
- * npm mode:     running via `npx zzp` — assets in dist/ within package
  *
  * Override: set ZZHUB_PIPELINE_ROOT env var to force a specific root.
  */
@@ -37,12 +36,6 @@ function isCompiledMode(): boolean {
   return existsSync(join(binDir, "assets")) && !existsSync(join(binDir, "cli.js"));
 }
 
-function isNpmMode(): boolean {
-  // In npm mode, all code is bundled into dist/cli.js.
-  // _dirname points to dist/ and dist/assets/ exists.
-  return existsSync(join(_dirname, "assets")) && !isCompiledMode();
-}
-
 // ── Root resolution ─────────────────────────────────────────────
 
 function resolveRoot(): string {
@@ -55,19 +48,15 @@ function resolveRoot(): string {
     return getBinaryDir()!;
   }
 
-  if (isNpmMode()) {
-    return _dirname; // dist/ directory
-  }
-
   return DEV_PACKAGE_ROOT;
 }
 
 const _root = resolveRoot();
-const _isDistMode = isCompiledMode() || isNpmMode();
+const _isDistMode = isCompiledMode();
 
 // ── Path exports ────────────────────────────────────────────────
 
-/** Project root (source tree in dev, dist/ in npm, binary dir in compiled) */
+/** Project root (source tree in dev, binary dir in compiled) */
 export const PACKAGE_ROOT = _root;
 
 /** imgx module directory */
@@ -127,17 +116,15 @@ function getFontCacheDir(): string {
 }
 
 function resolveFontsDir(): string {
-  // 1. Dev/compiled mode: fonts in assets
+  // Fonts in assets/ (dev/compiled mode) or cache
   const assetsFonts = join(ASSETS_DIR, "fonts");
   if (existsSync(join(assetsFonts, "AlimamaShuHeiTi-Bold.ttf"))) {
     return assetsFonts;
   }
-  // 2. npm mode: fonts downloaded to cache
   const cacheDir = getFontCacheDir();
   if (existsSync(join(cacheDir, "AlimamaShuHeiTi-Bold.ttf"))) {
     return cacheDir;
   }
-  // 3. Not found — return cache dir (caller should use ensureFonts first)
   return cacheDir;
 }
 
@@ -146,8 +133,7 @@ export const FONTS_DIR = resolveFontsDir();
 
 /**
  * Ensure CJK fonts are available locally.
- * In dev/compiled mode: fonts are in assets/, always available.
- * In npm mode: downloads from CDN if not cached.
+ * Fonts are in assets/ by default; downloads from CDN if not present and env is set.
  *
  * @returns The fonts directory path
  */

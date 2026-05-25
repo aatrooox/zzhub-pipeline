@@ -16,10 +16,15 @@
 - Bun 运行时
 - Chrome，用于 `render` 和 `wechat-export`
 
-安装依赖：
+安装：
 
 ```bash
+# 从 npm
+npm install -g @zzclub/pipeline
+
+# 或从源码
 bun install
+bun install --global .
 ```
 
 二进制别名：

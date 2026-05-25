@@ -23,9 +23,6 @@ bun run src/cli.ts <command> [options]
 zzhub-pipeline <command> [options]
 zzp <command> [options]
 
-# Rebuild dist after editing source (required for zzp to pick up changes)
-bun run build:npm
-
 # Run all tests
 bun test
 
@@ -43,13 +40,13 @@ bun run release:patch   # bug fix, 0.1.2 → 0.1.3
 bun run release:major   # new feature (0.x: 0.1.2 → 0.2.0 / 1.x+: breaking 1.2.3 → 2.0.0)
 bun run release:minor   # new feature (1.x+ only: 1.2.3 → 1.3.0)
 
-# Publish to npm (prepublishOnly auto-triggers build:npm)
+# Publish to npm
 npm publish
 ```
 
-**Important:** `zzp` / `zzhub-pipeline` runs compiled JS from `dist/cli.js` via `bun link`. After editing any source file under `src/`, you must run `bun run build:npm` for the linked binary to reflect the change. `bun run src/cli.ts` always runs the latest source and does not need a rebuild.
+**Important:** `zzp` / `zzhub-pipeline` runs source from `src/cli.ts` via `bun link`. `bun run src/cli.ts` always runs the latest source.
 
-**After completing any code changes (including this edit session):** Always run `bun run build:npm` followed by `bun install --global .` to ensure the global `zzp` binary reflects the latest compiled output.
+**After completing any code changes (including this edit session):** Always run `bun install --global .` to ensure the global `zzp` binary reflects the latest source.
 
 ## Agent workflow loop
 
@@ -256,7 +253,7 @@ src/
   spawn.ts             # subprocess wrapper, PATH enhancement
   adapter-types.ts     # ImageRenderPlugin / MarkdownRenderPlugin interfaces
   adapter-loader.ts    # resolveImageRenderer / resolveMarkdownRenderer / runPluginDoctorChecks
-  runtime-paths.ts     # asset path resolution (dev/compiled/npm modes), font cache
+  runtime-paths.ts     # asset path resolution (dev/compiled modes), font cache
   adapters/            # built-in adapter implementations
   commands/            # one file per CLI command
   imgx/                # image rendering subsystem, Chrome headless + @napi-rs/canvas
@@ -420,11 +417,11 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 
 ## npm release workflow
 
-Package name: `@your-org/pipeline`, `publishConfig.access` is `public`.
+Package name: `@zzclub/pipeline`, `publishConfig.access` is `public`.
 
-`files` includes only compiled artifacts: `dist/cli.js`, `dist/assets/`, `dist/node_modules/`.
-CLI entry: `dist/cli.js` (0.59MB bundle, `--external @napi-rs/canvas --external cos-nodejs-sdk-v5`).
-Fonts not bundled — downloaded at runtime from `ZZHUB_FONT_CDN_BASE_URL` to `~/.config/zzhub-pipeline/fonts/`.
+`files` includes the source tree: `src/`.
+CLI entry: `src/cli.ts` (runs directly via Bun shebang).
+Assets are resolved from the source tree at runtime via `runtime-paths.ts`.
 
 ### Version number rules
 
