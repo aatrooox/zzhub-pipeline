@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.4.0...v0.5.0)
+
 ## v0.4.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.3.0...v0.4.0)
