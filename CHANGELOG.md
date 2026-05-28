@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.1
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.5.0...v0.5.1)
+
+### Features
+
+- Wx-drafts/wx-draft-delete commands, draft update, and Nezus publish callback ([c91d14a](https://github.com/aatrooox/zzhub-pipeline/commit/c91d14a))
+
+### ❤️ Contributors
+
+- Aatrox3 ([@aatrooox](https://github.com/aatrooox))
+
 ## v0.5.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.4.0...v0.5.0)
