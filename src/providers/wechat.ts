@@ -4,7 +4,11 @@ import { PipelineConfig, WxAccountConfig } from "../config";
 
 const TOKEN_PATH = "/api/v1/wx/cgi-bin/token";
 const MATERIAL_PATH = "/api/v1/wx/cgi-bin/material/add_material";
-const DRAFT_PATH = "/api/v1/wx/cgi-bin/draft/add";
+const DRAFT_ADD_PATH = "/api/v1/wx/cgi-bin/draft/add";
+const DRAFT_UPDATE_PATH = "/api/v1/wx/cgi-bin/draft/update";
+const DRAFT_GET_PATH = "/api/v1/wx/cgi-bin/draft/get";
+const DRAFT_DELETE_PATH = "/api/v1/wx/cgi-bin/draft/delete";
+const BATCH_GET_PATH = "/api/v1/wx/cgi-bin/draft/batchget";
 const TOKEN_TIMEOUT = 10000;
 const UPLOAD_TIMEOUT = 60000;
 const DRAFT_TIMEOUT = 30000;
@@ -78,14 +82,19 @@ interface BaseWechatPublishInput {
   photos?: string[];
   timeout?: number;
   config: PipelineConfig;
+  noteId?: string | null;
+  nezusBaseUrl?: string | null;
+  nezusPat?: string | null;
 }
 
 export interface WechatDraftInput extends BaseWechatPublishInput {
   html: string;
+  existingDraftMediaId?: string | null;
 }
 
 export interface WechatNewspicInput extends BaseWechatPublishInput {
   content: string;
+  existingDraftMediaId?: string | null;
 }
 
 function requireValue(name: string, value: string | undefined): string {
@@ -459,15 +468,21 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
   const uploadResult = await uploadPhotos(runtime, accessToken, finalPhotos, uploadTimeout);
   const replacedHtml = replaceImageUrls(input.html, uploadResult.imageUrlMap);
 
-  const response = await requestJson(
-    `${runtime.baseUrl}${DRAFT_PATH}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${runtime.pat}`,
-      },
-      body: {
+  const isUpdate = !!input.existingDraftMediaId;
+  const draftPath = isUpdate ? DRAFT_UPDATE_PATH : DRAFT_ADD_PATH;
+  const draftBody = isUpdate
+    ? {
+        access_token: accessToken,
+        media_id: input.existingDraftMediaId,
+        index: 0,
+        articles: {
+          article_type: "news",
+          title: input.title,
+          content: replacedHtml,
+          thumb_media_id: uploadResult.coverMediaId,
+        },
+      }
+    : {
         access_token: accessToken,
         articles: [
           {
@@ -477,10 +492,33 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
             thumb_media_id: uploadResult.coverMediaId,
           },
         ],
+      };
+
+  const response = await requestJson(
+    `${runtime.baseUrl}${draftPath}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${runtime.pat}`,
       },
+      body: draftBody,
     },
     draftTimeout,
   );
+
+  const draftMediaId = isUpdate ? input.existingDraftMediaId : (response as any)?.data?.media_id || (response as any)?.media_id || null;
+
+  // ── Callback to Nezus to persist media_id ──
+  if (draftMediaId && input.noteId && input.nezusBaseUrl && input.nezusPat) {
+    await notifyNezusPublishResult({
+      nezusBaseUrl: input.nezusBaseUrl,
+      nezusPat: input.nezusPat,
+      noteId: input.noteId,
+      wechatMediaId: draftMediaId,
+      publishType: "article",
+    });
+  }
 
   return {
     account: runtime.accountName,
@@ -489,6 +527,8 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
     photosCount: finalPhotos.length,
     totalUploaded: uploadResult.totalUploaded,
     coverMediaId: uploadResult.coverMediaId,
+    isUpdate,
+    draftMediaId,
     response,
   };
 }
@@ -512,15 +552,22 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
     image_list: uploadResult.uploadedMedia.map((item) => ({ image_media_id: item.mediaId })),
   };
 
-  const response = await requestJson(
-    `${runtime.baseUrl}${DRAFT_PATH}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${runtime.pat}`,
-      },
-      body: {
+  const isUpdate = !!input.existingDraftMediaId;
+  const draftPath = isUpdate ? DRAFT_UPDATE_PATH : DRAFT_ADD_PATH;
+  const draftBody = isUpdate
+    ? {
+        access_token: accessToken,
+        media_id: input.existingDraftMediaId,
+        index: 0,
+        articles: {
+          article_type: "newspic",
+          title: input.title,
+          content: input.content,
+          thumb_media_id: uploadResult.coverMediaId,
+          image_info: imageInfo,
+        },
+      }
+    : {
         access_token: accessToken,
         articles: [
           {
@@ -531,10 +578,33 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
             image_info: imageInfo,
           },
         ],
+      };
+
+  const response = await requestJson(
+    `${runtime.baseUrl}${draftPath}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${runtime.pat}`,
       },
+      body: draftBody,
     },
     draftTimeout,
   );
+
+  const draftMediaId = isUpdate ? input.existingDraftMediaId : (response as any)?.data?.media_id || (response as any)?.media_id || null;
+
+  // ── Callback to Nezus to persist media_id ──
+  if (draftMediaId && input.noteId && input.nezusBaseUrl && input.nezusPat) {
+    await notifyNezusPublishResult({
+      nezusBaseUrl: input.nezusBaseUrl,
+      nezusPat: input.nezusPat,
+      noteId: input.noteId,
+      wechatMediaId: draftMediaId,
+      publishType: "newspic",
+    });
+  }
 
   return {
     account: runtime.accountName,
@@ -543,6 +613,146 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
     photosCount: finalPhotos.length,
     totalUploaded: uploadResult.totalUploaded,
     coverMediaId: uploadResult.coverMediaId,
+    isUpdate,
+    draftMediaId,
+    response,
+  };
+}
+
+// ── Nezus callback ────────────────────────────────────────────────
+
+async function notifyNezusPublishResult(params: {
+  nezusBaseUrl: string;
+  nezusPat: string;
+  noteId: string;
+  wechatMediaId: string;
+  publishType: string;
+}): Promise<void> {
+  try {
+    await requestJson(
+      `${params.nezusBaseUrl}/api/v1/notes/${params.noteId}/publish-result`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${params.nezusPat}`,
+        },
+        body: {
+          wechatMediaId: params.wechatMediaId,
+          publishType: params.publishType,
+        },
+      },
+      10000,
+    );
+    console.error(`[nezus] publish-result callback OK for note ${params.noteId}`);
+  } catch (err) {
+    // Non-fatal: the draft was created successfully even if the callback failed
+    console.error(`[nezus] publish-result callback failed for note ${params.noteId}:`, err);
+  }
+}
+
+// ── Draft management ──────────────────────────────────────────────
+
+export interface WxDraftListInput {
+  account?: string;
+  limit?: number;
+  offset?: number;
+  config: PipelineConfig;
+}
+
+export interface WxDraftGetInput {
+  account?: string;
+  mediaId: string;
+  config: PipelineConfig;
+}
+
+export interface WxDraftDeleteInput {
+  account?: string;
+  mediaId: string;
+  config: PipelineConfig;
+}
+
+export async function getWxDraftList(input: WxDraftListInput): Promise<Record<string, unknown>> {
+  const runtime = getWxRuntimeConfig(input.config, input.account);
+  const tokenTimeout = resolveTimeout(TOKEN_TIMEOUT, runtime.timeout);
+  const accessToken = await fetchAccessToken(runtime, tokenTimeout);
+
+  const response = await requestJson(
+    `${runtime.baseUrl}${BATCH_GET_PATH}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${runtime.pat}`,
+      },
+      body: {
+        access_token: accessToken,
+        offset: input.offset ?? 0,
+        count: input.limit ?? 20,
+        no_content: true,
+      },
+    },
+    resolveTimeout(30000, runtime.timeout),
+  );
+
+  return {
+    account: runtime.accountName,
+    response,
+  };
+}
+
+export async function getWxDraft(input: WxDraftGetInput): Promise<Record<string, unknown>> {
+  const runtime = getWxRuntimeConfig(input.config, input.account);
+  const tokenTimeout = resolveTimeout(TOKEN_TIMEOUT, runtime.timeout);
+  const accessToken = await fetchAccessToken(runtime, tokenTimeout);
+
+  const response = await requestJson(
+    `${runtime.baseUrl}${DRAFT_GET_PATH}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${runtime.pat}`,
+      },
+      body: {
+        access_token: accessToken,
+        media_id: input.mediaId,
+      },
+    },
+    resolveTimeout(30000, runtime.timeout),
+  );
+
+  return {
+    account: runtime.accountName,
+    mediaId: input.mediaId,
+    response,
+  };
+}
+
+export async function deleteWxDraft(input: WxDraftDeleteInput): Promise<Record<string, unknown>> {
+  const runtime = getWxRuntimeConfig(input.config, input.account);
+  const tokenTimeout = resolveTimeout(TOKEN_TIMEOUT, runtime.timeout);
+  const accessToken = await fetchAccessToken(runtime, tokenTimeout);
+
+  const response = await requestJson(
+    `${runtime.baseUrl}${DRAFT_DELETE_PATH}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${runtime.pat}`,
+      },
+      body: {
+        access_token: accessToken,
+        media_id: input.mediaId,
+      },
+    },
+    resolveTimeout(30000, runtime.timeout),
+  );
+
+  return {
+    account: runtime.accountName,
+    mediaId: input.mediaId,
     response,
   };
 }

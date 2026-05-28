@@ -303,6 +303,8 @@ const IntentSchema = withObjectDefault(
     style_hint: z.string().nullable().default(null),
     newspic_render: NewspicRenderSpecSchema.nullable().default(null),
     requires: IntentRequiresSchema,
+    existing_draft_media_id: z.string().nullable().default(null),
+    note_id: z.string().nullable().default(null),
   }),
 );
 

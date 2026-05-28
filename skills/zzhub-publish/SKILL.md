@@ -169,6 +169,10 @@ zzhub-pipeline init \
 
 图文消息（图片合集）用 `--content-form newspic --requires-render`。
 
+可选参数：
+- `--existing-draft-media-id MEDIA_ID` — 更新已有草稿而非新建
+- `--note-id NOTE_ID` — 关联 Nezus note，发布成功后自动回调通知
+
 `init` 执行后 CLI 会输出 `state_path`。将其传给 `status --view agent` 继续循环。
 
 ### Handoff 入口（ingest-handoff）
@@ -204,3 +208,22 @@ CLI 命令失败时：
 3. 修复问题后重新执行同一命令
 4. 如果错误持续或含义不明，运行 `zzhub-pipeline checkpoint --state {state_path}` 诊断
 5. **绝对不要**直接修改 `workflow-state.json`
+
+## 草稿箱管理
+
+任务创建或发布前，可以用以下命令查看或删除微信草稿箱中的草稿：
+
+```bash
+# 列出最近 20 篇草稿（账号不传时使用 wx.defaultAccount 默认值）
+zzhub-pipeline wx-drafts --limit 10
+
+# 获取某篇草稿的完整内容（含 HTML）
+zzhub-pipeline wx-drafts --media-id MEDIA_ID
+
+# 删除一篇草稿
+zzhub-pipeline wx-draft-delete --media-id MEDIA_ID
+```
+
+`--account` 参数可选，默认使用配置中的 `wx.defaultAccount`。指定账号：`--account ancientone`。
+
+发布完成后，如果需要清理草稿箱（例如更新已有草稿后想删掉旧版本），用 `wx-drafts` 查到旧版 `media_id`，然后 `wx-draft-delete` 删除。

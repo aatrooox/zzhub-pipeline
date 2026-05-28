@@ -80,6 +80,10 @@ async function publishWechatArticleRoute({
       html,
       photos,
       config,
+      existingDraftMediaId: state.intent.existing_draft_media_id,
+      noteId: state.intent.note_id,
+      nezusBaseUrl: process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl,
+      nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[state.route.account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
     });
   } catch (error) {
     return {
@@ -145,6 +149,10 @@ async function publishWechatNewspicRoute({
       content: cleanContent,
       photos,
       config,
+      existingDraftMediaId: state.intent.existing_draft_media_id,
+      noteId: state.intent.note_id,
+      nezusBaseUrl: process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl,
+      nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[state.route.account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
     });
   } catch (error) {
     return {

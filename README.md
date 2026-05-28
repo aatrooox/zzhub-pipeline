@@ -409,7 +409,7 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark one or more tasks as abandoned |
 
-`ops` 组，7 个命令：
+`ops` 组，9 个命令：
 
 | 命令 | 说明 |
 | --- | --- |
@@ -420,6 +420,8 @@ src/
 | `config` | Read or update pipeline config |
 | `doctor` | Inspect resolved paths and provider health |
 | `hermes-metrics` | Show Hermes execution metrics per task |
+| `wx-drafts` | List or get drafts from WeChat draft box |
+| `wx-draft-delete` | Delete a draft from WeChat draft box |
 
 ## 常用命令
 
@@ -551,6 +553,31 @@ bun run src/cli.ts wechat-export --body /abs/path/body.md --account default
 
 ```bash
 bun run src/cli.ts cos-upload --file /abs/path/image.png --folder notes/note-id --alt image
+```
+
+### 草稿箱管理
+
+```bash
+# 列出草稿（账号不传时使用 wx.defaultAccount）
+bun run src/cli.ts wx-drafts --limit 10
+
+# 获取某篇草稿的完整内容（含 HTML）
+bun run src/cli.ts wx-drafts --media-id MEDIA_ID
+
+# 删除一篇草稿
+bun run src/cli.ts wx-draft-delete --media-id MEDIA_ID
+```
+
+`--account` 参数可选，默认使用配置中的 `wx.defaultAccount`。
+
+### init 可选参数
+
+```bash
+# 更新已有草稿而非新建（配合 --existing-draft-media-id）
+bun run src/cli.ts init ... --existing-draft-media-id MEDIA_ID
+
+# 关联 Nezus note 用于发布结果回调
+bun run src/cli.ts init ... --note-id NOTE_ID
 ```
 
 ## 状态文件

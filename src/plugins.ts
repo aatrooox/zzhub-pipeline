@@ -22,6 +22,8 @@ import { status } from "./commands/status";
 import { syncBlog } from "./commands/sync-blog";
 import { tasks } from "./commands/tasks";
 import { wechatExport } from "./commands/wechat-export";
+import { wxDrafts } from "./commands/wx-drafts";
+import { wxDraftDelete } from "./commands/wx-draft-delete";
 
 export interface CommandDefinition {
   name: string;
@@ -69,6 +71,8 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "config", summary: "Read or update pipeline config", plugin: "ops", handler: configCommand },
         { name: "doctor", summary: "Inspect resolved paths and provider health", plugin: "ops", handler: doctor },
         { name: "hermes-metrics", summary: "Show Hermes execution metrics per task", plugin: "ops", handler: hermesMetrics },
+        { name: "wx-drafts", summary: "List or get drafts from WeChat draft box", plugin: "ops", handler: wxDrafts },
+        { name: "wx-draft-delete", summary: "Delete a draft from WeChat draft box", plugin: "ops", handler: wxDraftDelete },
       ],
     },
   ];

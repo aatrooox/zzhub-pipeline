@@ -46,7 +46,9 @@ npm publish
 
 **Important:** `zzp` / `zzhub-pipeline` runs source from `src/cli.ts` via `bun link`. `bun run src/cli.ts` always runs the latest source.
 
-**After completing any code changes (including this edit session):** Always run `bun install --global .` to ensure the global `zzp` binary reflects the latest source.
+> **强制性规则：任何代码修改完成后，必须立即执行 `bun install --global .`**
+>
+> 这是不可跳过的硬性步骤。不执行会导致全局 `zzp` 二进制使用过期代码，所有后续 CLI 操作都基于旧逻辑运行。即使是改一行代码、加一个字段、修一个 typo 也必须执行。编辑 .md 文档文件除外。
 
 ## Agent workflow loop
 
@@ -118,6 +120,10 @@ bun run src/cli.ts init \
   --targets wechat \
   --intent-text "发公众号文章给大号"
 ```
+
+Optional init flags:
+- `--existing-draft-media-id MEDIA_ID` — update an existing WeChat draft instead of creating a new one
+- `--note-id NOTE_ID` — link to a Nezus note for publish result callback
 
 **`ingest-handoff`** — External system hands off a JSON file:
 ```bash
@@ -285,7 +291,7 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark tasks as abandoned |
 
-### ops group (7 commands)
+### ops group (9 commands)
 
 | Command | Description |
 |---|---|
@@ -296,6 +302,8 @@ src/
 | `config` | Read or update pipeline config |
 | `doctor` | Inspect resolved paths and provider health |
 | `hermes-metrics` | Show Hermes execution metrics per task |
+| `wx-drafts` | List or get drafts from WeChat draft box |
+| `wx-draft-delete` | Delete a draft from WeChat draft box |
 
 ### Reset modes
 

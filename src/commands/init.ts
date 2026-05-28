@@ -16,7 +16,8 @@
  *     [--requires-research] \
  *     [--requires-style] \
  *     [--requires-render] \
- *     [--requires-publish]
+ *     [--requires-publish] \
+ *     [--existing-draft-media-id MEDIA_ID]
  *
  * Output: JSON state written to {workspace}/.zzhub-media/runs/{run_id}.json
  *         Prints the state path to stdout.
@@ -60,6 +61,7 @@ Options:
   --requires-style     Flag
   --requires-render    Flag
   --requires-publish   Flag
+  --existing-draft-media-id  Update existing WeChat draft instead of creating new one (optional)
 `.trim());
     return;
   }
@@ -72,6 +74,8 @@ Options:
   const accountOverride = optionalArg(parsed, "account");
   const styleHint = optionalArg(parsed, "style-hint") ?? null;
   const newspicRenderSpecFile = optionalArg(parsed, "newspic-render-spec-file");
+  const existingDraftMediaId = optionalArg(parsed, "existing-draft-media-id") ?? null;
+  const noteId = optionalArg(parsed, "note-id") ?? null;
   const config = loadConfig();
   const workspace = resolveWorkspaceRoot(optionalArg(parsed, "workspace"), config);
 
@@ -112,6 +116,8 @@ Options:
       render: flagArg(parsed, "requires-render"),
       publish: flagArg(parsed, "requires-publish"),
     },
+    existing_draft_media_id: existingDraftMediaId,
+    note_id: noteId,
   };
 
   await writeState(statePath, state);
