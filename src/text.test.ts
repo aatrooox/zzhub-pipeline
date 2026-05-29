@@ -518,13 +518,12 @@ describe("prepareBodyForNewspic", () => {
     expect(result).toContain("Body text");
   });
 
-  test("strips bold/italic/links/images/headings/blockquotes/code", () => {
+  test("strips bold/italic/images/headings/blockquotes/code, keeps links intact", () => {
     const input =
       "**Bold** *italic* [link](url) ![img](img.png)\n## Heading\n> Quote\n`code`\n```\nblock\n```";
     const result = prepareBodyForNewspic(input);
     expect(result).not.toContain("**");
     expect(result).not.toContain("*");
-    expect(result).not.toContain("[link]");
     expect(result).not.toContain("![");
     expect(result).not.toContain("##");
     expect(result).not.toContain(">");
@@ -532,7 +531,7 @@ describe("prepareBodyForNewspic", () => {
     expect(result).not.toContain("```");
     expect(result).toContain("Bold");
     expect(result).toContain("italic");
-    expect(result).toContain("link");
+    expect(result).toContain("[link](url)");
     expect(result).toContain("Heading");
     expect(result).toContain("Quote");
     expect(result).toContain("code");

@@ -634,10 +634,8 @@ export function prepareBodyForNewspic(content: string): string {
   result = result.replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1");
   // Remove inline code (keep text)
   result = result.replace(/`([^`]+)`/g, "$1");
-  // Remove images first (before link regex can partially match ![...](...)
+  // Remove images
   result = result.replace(/!\[.*?\]\(.*?\)/g, "");
-  // Remove links (keep text)
-  result = result.replace(/\[([^\]]*)\]\(.*?\)/g, "$1");
   // Remove heading markers (keep text)
   result = result.replace(/^#{1,6}\s+/gm, "");
   // Remove blockquote markers (keep text)

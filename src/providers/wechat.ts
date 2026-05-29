@@ -549,7 +549,7 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
   const uploadResult = await uploadPhotos(runtime, accessToken, finalPhotos, uploadTimeout);
 
   const imageInfo = {
-    image_list: uploadResult.uploadedMedia.map((item) => ({ image_media_id: item.mediaId })),
+    image_list: uploadResult.uploadedMedia.slice(1).map((item) => ({ image_media_id: item.mediaId })),
   };
 
   const isUpdate = !!input.existingDraftMediaId;
