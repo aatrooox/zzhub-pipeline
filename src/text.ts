@@ -350,9 +350,13 @@ export function removeIllustrationMarkers(text: string): string {
   // Matches standalone 插图1, 配图1, [插图1], [插图 1], etc.
   // Strip the marker and any surrounding whitespace on the same line,
   // so "驻扎，[插图 1] 风" → "驻扎，风" (no stray space left behind)
-  // Negative lookbehind: do NOT match when preceded by path chars (/, ., alphanumeric)
-  // to avoid eating "插图1" inside image paths like ![](/path/插图1.png)
-  return text.replace(/(?<![/.\w])[ \t]*\[?[插配]图\s*\d+\]?[ \t]*/g, "");
+  //
+  // Two-step approach to avoid corrupting markdown image alt text:
+  // 1. Bracketed [配图1] — only when NOT preceded by ! (skip ![配图1] inside images)
+  // 2. Unbracketed 配图1 — only when NOT preceded by [, !, /, ., or word chars
+  let result = text.replace(/(?<!!)[ \t]*\[([插配]图\s*\d+)\][ \t]*/g, "");
+  result = result.replace(/(?<![!\[\/.\w])[ \t]*[插配]图\s*\d+[ \t]*/g, "");
+  return result;
 }
 
 /**
@@ -646,6 +650,9 @@ export function prepareBodyForNewspic(content: string): string {
   result = removePageMarkers(result);
   // Remove illustration markers ([插图1], [插图 1], 插图1, etc.)
   result = removeIllustrationMarkers(result);
+  // Strip angle brackets from autolinks (<https://...> → https://...).
+  // WeChat newpic treats <...> as HTML and strips it.
+  result = result.replace(/<(https?:\/\/[^>]+)>/g, "$1");
   // Compress blank lines
   result = compressBlankLines(result);
   return result.trim() + "\n";

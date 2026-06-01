@@ -187,12 +187,15 @@ export function mergePhotoLists(...lists: string[][]): string[] {
 
 export function extractImageUrls(input: string): string[] {
   const urls = new Set<string>();
-  const markdownImageRegex = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  // Handle both standard ![alt](url) and angle-bracket ![alt](<url>) syntax.
+  // Angle brackets allow URLs with spaces per CommonMark spec.
+  const markdownImageRegex = /!\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))(?:\s+"[^"]*")?\)/g;
   const htmlImageRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/g;
   let match = markdownImageRegex.exec(input);
   while (match) {
-    if (match[1]) {
-      urls.add(match[1]);
+    const url = match[1] || match[2];
+    if (url) {
+      urls.add(url);
     }
     match = markdownImageRegex.exec(input);
   }
@@ -335,7 +338,8 @@ async function resolvePhotoPayload(
   }
 
   if (photoUrl.startsWith("http://") || photoUrl.startsWith("https://")) {
-    const response = await fetch(photoUrl);
+    const safeUrl = photoUrl.includes(" ") ? photoUrl.replace(/ /g, "%20") : photoUrl;
+    const response = await fetch(safeUrl);
     if (!response.ok) {
       throw new Error(`Failed to download image: HTTP ${response.status}`);
     }
@@ -549,7 +553,8 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
   const uploadResult = await uploadPhotos(runtime, accessToken, finalPhotos, uploadTimeout);
 
   const imageInfo = {
-    image_list: uploadResult.uploadedMedia.slice(1).map((item) => ({ image_media_id: item.mediaId })),
+    image_list: uploadResult.uploadedMedia
+      .map((item) => ({ image_media_id: item.mediaId })),
   };
 
   const isUpdate = !!input.existingDraftMediaId;
