@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.6.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.5.1...v0.6.0)
+
+### Fixes
+
+- **newspic:** Exclude cover from image_info and preserve markdown links in body ([0c8e6ce](https://github.com/aatrooox/zzhub-pipeline/commit/0c8e6ce))
+- **newspic:** Include cover in image_list and handle angle-bracket URLs with spaces ([c5dc2a7](https://github.com/aatrooox/zzhub-pipeline/commit/c5dc2a7))
+
+### ❤️ Contributors
+
+- Aatrox3 ([@aatrooox](https://github.com/aatrooox))
+
 ## v0.5.1
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.5.0...v0.5.1)
