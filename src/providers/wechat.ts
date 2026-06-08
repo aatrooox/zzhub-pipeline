@@ -189,7 +189,9 @@ export function extractImageUrls(input: string): string[] {
   const urls = new Set<string>();
   // Handle both standard ![alt](url) and angle-bracket ![alt](<url>) syntax.
   // Angle brackets allow URLs with spaces per CommonMark spec.
-  const markdownImageRegex = /!\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))(?:\s+"[^"]*")?\)/g;
+  // Match markdown images: ![alt](url) and ![alt](<url with spaces>)
+  // Second alternative uses lazy match so titles like ![alt](url "title") still work.
+  const markdownImageRegex = /!\[[^\]]*\]\((?:<([^>]+)>|([^)]+?))(?:\s+"[^"]*")?\)/g;
   const htmlImageRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/g;
   let match = markdownImageRegex.exec(input);
   while (match) {
@@ -206,7 +208,12 @@ export function extractImageUrls(input: string): string[] {
     }
     match = htmlImageRegex.exec(input);
   }
-  return [...urls];
+  // Filter out URLs that look like HTML fragments (unescaped code block content
+  // that was incorrectly matched by the image regex patterns).
+  return [...urls].filter((url) => {
+    if (url.startsWith('<') || url.includes('/>')) return false;
+    return true;
+  });
 }
 
 export function replaceImageUrls(html: string, imageUrlMap: Record<string, string>): string {
@@ -352,8 +359,9 @@ async function resolvePhotoPayload(
   }
 
   if (photoUrl.startsWith("file://")) {
-    const url = new URL(photoUrl);
-    return resolveFilePayload(url.pathname, index);
+    const safeUrl = photoUrl.replace(/ /g, "%20");
+    const url = new URL(safeUrl);
+    return resolveFilePayload(decodeURIComponent(url.pathname), index);
   }
 
   return resolveFilePayload(photoUrl, index);
@@ -363,6 +371,14 @@ function resolveFilePayload(
   filePath: string,
   index: number,
 ): { blob: Blob; filename: string } {
+  // Detect HTML fragments incorrectly extracted as image URLs (defense-in-depth)
+  if (filePath.startsWith("<") && (filePath.includes("style=") || filePath.includes("</") || filePath.includes("/>"))) {
+    throw new Error(
+      `Image URL appears to be HTML content, not a valid file path or URL. ` +
+      `This usually means extractImageUrls matched unescaped HTML from a code block. ` +
+      `Got: ${filePath.slice(0, 120)}`,
+    );
+  }
   if (!existsSync(filePath)) {
     throw new Error(`File not found: ${filePath}`);
   }

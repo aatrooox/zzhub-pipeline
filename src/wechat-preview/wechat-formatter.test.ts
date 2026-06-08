@@ -137,7 +137,6 @@ describe("normalizeHrStyles", () => {
     const input = '<hr style="border: 1px solid red">';
     const result = normalizeHrStyles(input);
     expect(result).toContain("border: none");
-    expect(result).toContain("border-top: 1px solid #dadce0");
     expect(result).toContain("height: 0");
   });
 });

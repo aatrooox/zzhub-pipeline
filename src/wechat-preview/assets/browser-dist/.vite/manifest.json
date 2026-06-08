@@ -235,10 +235,6 @@
     "file": "assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
     "src": "node_modules/katex/dist/fonts/KaTeX_Typewriter-Regular.woff2"
   },
-  "src/wechat-preview/assets/fonts/SweiCurveLegCJKsc-Regular.woff": {
-    "file": "assets/SweiCurveLegCJKsc-Regular-B3Ut5bwH.woff",
-    "src": "src/wechat-preview/assets/fonts/SweiCurveLegCJKsc-Regular.woff"
-  },
   "src/wechat-preview/browser/editor-export.ts": {
     "file": "editor-export.js",
     "name": "editor-export",
@@ -303,12 +299,11 @@
       "assets/KaTeX_Size4-Regular-DWFBv043.ttf",
       "assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
       "assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff",
-      "assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf",
-      "assets/SweiCurveLegCJKsc-Regular-B3Ut5bwH.woff"
+      "assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf"
     ]
   },
   "style.css": {
-    "file": "assets/style-BYNXnUvc.css",
+    "file": "assets/style-B-ZAw__P.css",
     "src": "style.css"
   }
 }

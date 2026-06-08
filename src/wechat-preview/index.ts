@@ -103,12 +103,17 @@ export function resolveMarkdownAsset(rawPath: string, baseDir: string): string {
 
 export function rewriteRelativeImagePaths(markdown: string, baseDir: string): string {
   return markdown
-    .replace(/!\[([^\]]*)\]\((<)?([^)]+?)(>)?\)/g, (_match, alt, open, src) => {
-      const resolved = resolveMarkdownAsset(String(src ?? ""), baseDir);
+    .replace(/!\[([^\]]*)\]\((?:<([^>]+)>|([^)]+?))(?:\s+(["'])([^"']*)\4)?\)/g, (_match, alt, angleUrl, plainUrl, _quote, title) => {
+      const src = angleUrl ?? plainUrl ?? "";
+      const hasAngleBrackets = angleUrl !== undefined;
+      const resolved = resolveMarkdownAsset(src, baseDir);
+      const needsBrackets = resolved ? resolved.includes(" ") : src.includes(" ");
+      const titleStr = title ? ` "${title}"` : "";
       if (!resolved || resolved === src) {
-        return `![${alt}](${open ? "<" : ""}${src}${open ? ">" : ""})`;
+        const wrap = !!(hasAngleBrackets || needsBrackets);
+        return `![${alt}](${wrap ? "<" : ""}${src}${wrap ? ">" : ""}${titleStr})`;
       }
-      return `![${alt}](<${resolved}>)`;
+      return `![${alt}](${needsBrackets ? "<" : ""}${resolved}${needsBrackets ? ">" : ""}${titleStr})`;
     })
     .replace(/(<img\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi, (_match, prefix, src, suffix) => {
       const resolved = resolveMarkdownAsset(String(src ?? ""), baseDir);
@@ -118,18 +123,26 @@ export function rewriteRelativeImagePaths(markdown: string, baseDir: string): st
 
 function rewriteRelativeImagePathsForPreview(markdown: string, baseDir: string, previewDir: string): string {
   return markdown
-    .replace(/!\[([^\]]*)\]\((<)?([^)]+?)(>)?\)/g, (_match, alt, open, src) => {
-      const raw = String(src ?? "").trim();
+    .replace(/!\[([^\]]*)\]\((?:<([^>]+)>|([^)]+?))(?:\s+(["'])([^"']*)\4)?\)/g, (_match, alt, angleUrl, plainUrl, _quote, title) => {
+      const src = angleUrl ?? plainUrl ?? "";
+      const hasAngleBrackets = angleUrl !== undefined;
+      const raw = src.trim();
       if (!raw || isExternalUrl(raw)) {
-        return `![${alt}](${open ? "<" : ""}${src}${open ? ">" : ""})`;
+        const wrap = !!(hasAngleBrackets || raw.includes(" "));
+        const titleStr = title ? ` "${title}"` : "";
+        return `![${alt}](${wrap ? "<" : ""}${src}${wrap ? ">" : ""}${titleStr})`;
       }
       const resolved = resolveMarkdownAsset(raw, baseDir);
       if (!resolved) {
-        return `![${alt}](${open ? "<" : ""}${src}${open ? ">" : ""})`;
+        const wrap = !!(hasAngleBrackets || raw.includes(" "));
+        const titleStr = title ? ` "${title}"` : "";
+        return `![${alt}](${wrap ? "<" : ""}${src}${wrap ? ">" : ""}${titleStr})`;
       }
       const previewRelative = relative(previewDir, resolved).replaceAll("\\", "/");
       const normalized = previewRelative.startsWith(".") ? previewRelative : `./${previewRelative}`;
-      return `![${alt}](${open ? "<" : ""}${normalized}${open ? ">" : ""})`;
+      const wrap = !!(hasAngleBrackets || normalized.includes(" "));
+      const titleStr = title ? ` "${title}"` : "";
+      return `![${alt}](${wrap ? "<" : ""}${normalized}${wrap ? ">" : ""}${titleStr})`;
     })
     .replace(/(<img\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi, (_match, prefix, src, suffix) => {
       const raw = String(src ?? "").trim();

@@ -276,7 +276,6 @@ export function normalizeHrStyles(html: string): string {
         'background-color': 'transparent',
         'background-image': 'none',
         'border': 'none',
-        'border-top': '1px solid #dadce0',
         'overflow-x': 'visible',
         'font-size': '0',
         'line-height': '0',
@@ -486,32 +485,42 @@ function normalizeTypography(
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(originalTagName)) {
     clearTextFrame()
     setStyle(styles, 'font-family', fontFamily)
-    setStyle(styles, 'font-weight', originalTagName === 'h3' ? '600' : '700')
-    setStyle(styles, 'color', originalTagName === 'h1' ? bodyColor : primaryColor)
 
     if (originalTagName === 'h1') {
-      setStyle(styles, 'font-size', '2.1em')
-      setStyle(styles, 'line-height', '1.32')
-      setStyle(styles, 'letter-spacing', '-0.02em')
-      setStyle(styles, 'margin', '1.6em 0 0.7em')
+      setStyle(styles, 'font-weight', '700')
+      setStyle(styles, 'color', bodyColor)
+      setStyle(styles, 'font-size', '1.625rem')
+      setStyle(styles, 'line-height', '1.3')
+      setStyle(styles, 'letter-spacing', '-0.01em')
+      setStyle(styles, 'margin', '3em 0 1em')
     }
     else if (originalTagName === 'h2') {
-      setStyle(styles, 'font-size', '18px')
-      setStyle(styles, 'line-height', '1.4')
-      setStyle(styles, 'letter-spacing', '-0.01em')
-      setStyle(styles, 'margin', '1.45em 0 0.62em')
+      setStyle(styles, 'font-weight', '700')
+      setStyle(styles, 'color', primaryColor)
+      setStyle(styles, 'font-size', '1.25rem')
+      setStyle(styles, 'line-height', '1.35')
+      setStyle(styles, 'letter-spacing', '0.02em')
+      setStyle(styles, 'margin', '2.4em 0 0.9em')
+      setStyle(styles, 'padding-left', '14px')
+      setStyle(styles, 'border-left', `4px solid ${primaryColor}`)
     }
     else if (originalTagName === 'h3') {
-      setStyle(styles, 'font-size', '1.14em')
-      setStyle(styles, 'line-height', '1.58')
-      setStyle(styles, 'letter-spacing', '0.01em')
-      setStyle(styles, 'margin', '1.28em 0 0.52em')
+      setStyle(styles, 'font-weight', '600')
+      setStyle(styles, 'color', bodyColor)
+      setStyle(styles, 'font-size', '1.125rem')
+      setStyle(styles, 'line-height', '1.45')
+      setStyle(styles, 'letter-spacing', '0.015em')
+      setStyle(styles, 'margin', '2em 0 0.65em')
+      setStyle(styles, 'padding-bottom', '0.5em')
+      setStyle(styles, 'border-bottom', `1px solid ${dividerColor}`)
     }
     else {
-      setStyle(styles, 'font-size', '1em')
-      setStyle(styles, 'line-height', '1.65')
+      setStyle(styles, 'font-weight', '600')
+      setStyle(styles, 'color', bodyColor)
+      setStyle(styles, 'font-size', '1rem')
+      setStyle(styles, 'line-height', '1.5')
       setStyle(styles, 'letter-spacing', '0.02em')
-      setStyle(styles, 'margin', '1.15em 0 0.45em')
+      setStyle(styles, 'margin', '1.25em 0 0.5em')
     }
     return
   }
@@ -557,6 +566,17 @@ function normalizeTypography(
     return
   }
 
+  if (outTagName === 'figcaption') {
+    clearTextFrame()
+    setStyle(styles, 'font-family', fontFamily)
+    setStyle(styles, 'font-size', '12px')
+    setStyle(styles, 'line-height', '1.6')
+    setStyle(styles, 'color', mutedColor)
+    setStyle(styles, 'text-align', 'center')
+    setStyle(styles, 'margin', '8px 0 0 0')
+    return
+  }
+
   if (outTagName === 'span' || outTagName === 'strong' || outTagName === 'em' || outTagName === 'b' || outTagName === 'i' || outTagName === 'u' || outTagName === 's' || outTagName === 'del') {
     clearTextFrame()
     setStyle(styles, 'font-family', fontFamily)
@@ -565,7 +585,7 @@ function normalizeTypography(
     setStyle(styles, 'letter-spacing', bodyLetterSpacing)
     if (outTagName === 'strong' || outTagName === 'b') {
       setStyle(styles, 'font-weight', '700')
-      setStyle(styles, 'color', bodyColor)
+      setStyle(styles, 'color', primaryColor)
     }
     if (outTagName === 'em' || outTagName === 'i') {
       setStyle(styles, 'font-style', 'italic')
@@ -662,13 +682,20 @@ function getOneDomCssStyle(
     const textParent = node.parentElement
     const shouldPreserveWhitespace = isInCodeBlock || hasBlockCodeAncestor(textParent)
     // 在代码块内,保留所有空格和换行
-    // 将所有空格转换为 &nbsp; 以防止被 HTML 合并
+    // 先转义 HTML 特殊字符，防止代码块内的 <img>, ![ ]( ) 等被下游正则误匹配
     if (shouldPreserveWhitespace && text) {
       return text
-        .replace(/ /g, '\u00A0') // 所有空格转为 &nbsp;
-        .replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0') // 制表符转为 4 个 &nbsp;
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/ /g, '\u00A0')
+        .replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0')
     }
     return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
   }
 
   // 注释节点
@@ -874,8 +901,8 @@ function getOneDomCssStyle(
       const val = (el as HTMLInputElement).value
       if (!val)
         return ''
-      // 返回居中的 figcaption
-      return `<figcaption style="margin-top: 6px; text-align: center; color: #888; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">${val}</figcaption>`
+      // 返回居中的 figcaption（小号文字，无装饰符号）
+      return `<figcaption style="margin-top: 8px; text-align: center; color: #8c8c8c; font-size: 12px; line-height: 1.6;">${val}</figcaption>`
     }
     return ''
   }
