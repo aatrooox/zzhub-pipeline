@@ -501,8 +501,6 @@ function normalizeTypography(
       setStyle(styles, 'line-height', '1.35')
       setStyle(styles, 'letter-spacing', '0.02em')
       setStyle(styles, 'margin', '2.4em 0 0.9em')
-      setStyle(styles, 'padding-left', '14px')
-      setStyle(styles, 'border-left', `4px solid ${primaryColor}`)
     }
     else if (originalTagName === 'h3') {
       setStyle(styles, 'font-weight', '600')
@@ -585,7 +583,7 @@ function normalizeTypography(
     setStyle(styles, 'letter-spacing', bodyLetterSpacing)
     if (outTagName === 'strong' || outTagName === 'b') {
       setStyle(styles, 'font-weight', '700')
-      setStyle(styles, 'color', primaryColor)
+      setStyle(styles, 'color', bodyColor)
     }
     if (outTagName === 'em' || outTagName === 'i') {
       setStyle(styles, 'font-style', 'italic')

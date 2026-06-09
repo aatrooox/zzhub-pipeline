@@ -94,28 +94,15 @@
   letter-spacing: -0.01em;
 }
 
-/* ── h2: brand color + left accent bar ── */
+/* ── h2: brand color, clean style ── */
 
 .milkdown .editor h2 {
-  position: relative;
   font-size: 1.25rem;           /* 20px */
   font-weight: 700;
   line-height: 1.35;
   margin: 2.4em 0 0.9em 0;
-  padding-left: 14px;
   color: var(--brand);
   letter-spacing: 0.02em;
-}
-
-.milkdown .editor h2::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.12em;
-  bottom: 0.12em;
-  width: 4px;
-  border-radius: 2px;
-  background: var(--brand);
 }
 
 /* ── h3: warm black, semi-bold, underlined by a thin rule ── */
@@ -138,7 +125,7 @@
 .milkdown .editor strong,
 .milkdown .editor b {
   font-weight: 700;
-  color: var(--brand);
+  color: var(--text);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
