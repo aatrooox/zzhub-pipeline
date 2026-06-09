@@ -152,8 +152,34 @@ const THEMES: Record<string, WechatPreviewTheme> = {
   },
 };
 
-export function getWechatPreviewTheme(account: string): WechatPreviewTheme {
-  return THEMES[account] ?? THEMES.default;
+function definedValues<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  }
+  return result as Partial<T>;
+}
+
+export function getWechatPreviewTheme(
+  account: string,
+  overrides?: {
+    editorVars?: Record<string, string>;
+    exportTheme?: Partial<WechatExportTheme>;
+  },
+): WechatPreviewTheme {
+  const base = THEMES[account] ?? THEMES.default;
+  if (!overrides) return base;
+
+  const hasEditorVars = overrides.editorVars && Object.keys(overrides.editorVars).length > 0;
+  const hasExportTheme = overrides.exportTheme && Object.keys(definedValues(overrides.exportTheme)).length > 0;
+
+  return {
+    ...base,
+    editorVars: hasEditorVars ? { ...base.editorVars, ...overrides.editorVars } : base.editorVars,
+    exportTheme: hasExportTheme ? { ...base.exportTheme, ...definedValues(overrides.exportTheme) } : base.exportTheme,
+  };
 }
 
 export function getWechatPreviewStyleName(account: string): string {

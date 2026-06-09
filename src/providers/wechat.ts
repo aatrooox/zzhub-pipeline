@@ -121,7 +121,8 @@ function fillWxAccountConfig(source?: WxAccountConfig): WxAccountConfig {
     appId: source?.appId ?? "",
     appSecret: source?.appSecret ?? "",
     customCss: source?.customCss ?? null,
-  };
+    theme: source?.theme ?? { editorVars: {}, exportTheme: {} },
+  } as WxAccountConfig;
 }
 
 function trimTrailingSlash(value: string): string {

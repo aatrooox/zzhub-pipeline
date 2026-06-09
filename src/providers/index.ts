@@ -73,6 +73,7 @@ async function publishWechatArticleRoute({
       account: state.route.account,
       title: state.metadata.title,
       customCss: wxAccount?.customCss ?? null,
+      themeOverrides: wxAccount?.theme,
     });
     await createWechatDraft({
       account: state.route.account,

@@ -50,6 +50,7 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
       title: input.title,
       previewShellOutPath: input.previewShellOutPath,
       customCss: input.customCss,
+      themeOverrides: input.themeOverrides,
     });
 
     return {

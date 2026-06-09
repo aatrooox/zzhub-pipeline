@@ -54,6 +54,7 @@ ${CSS_DEMO}
   const customCss = optionalArg(parsed, "custom-css");
 
   const config = loadConfig();
+  const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
   const markdownRenderer = await resolveMarkdownRenderer(config);
   const result = await markdownRenderer.render({
     markdownPath,
@@ -62,6 +63,7 @@ ${CSS_DEMO}
     title,
     previewShellOutPath,
     customCss,
+    themeOverrides: wxAccount?.theme,
   });
 
   printResult(result, renderWechatExport);

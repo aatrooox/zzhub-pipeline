@@ -38,6 +38,10 @@ export interface ExportMarkdownToWechatHtmlInput {
   title?: string;
   previewShellOutPath?: string;
   customCss?: string | null;
+  themeOverrides?: {
+    editorVars?: Record<string, string>;
+    exportTheme?: Record<string, string>;
+  };
 }
 
 export interface ExportMarkdownToWechatHtmlResult {
@@ -241,7 +245,7 @@ export async function exportMarkdownToWechatHtml(
   const stripped = extractFrontmatter(sourceMarkdown).content;
   const bodyMarkdown = stripLeadingH1(stripped);
   const markdown = rewriteRelativeImagePaths(bodyMarkdown, dirname(input.markdownPath));
-  const theme = getWechatPreviewTheme(input.account);
+  const theme = getWechatPreviewTheme(input.account, input.themeOverrides);
   const shell = readUtf8(TEMPLATE_PATH);
   const payloadJson = escapeInlineJson(
     JSON.stringify({
