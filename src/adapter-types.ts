@@ -137,6 +137,12 @@ export interface MarkdownRenderInput {
 
   /** Workflow state for context */
   state?: WorkflowState;
+
+  /** Per-account theme overrides from config. Deep-merged onto hardcoded defaults. */
+  themeOverrides?: {
+    editorVars?: Record<string, string>;
+    exportTheme?: Record<string, string>;
+  };
 }
 
 /**

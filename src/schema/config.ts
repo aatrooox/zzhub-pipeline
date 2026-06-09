@@ -32,11 +32,33 @@ function withObjectDefault<T extends z.ZodObject<any>>(schema: T) {
 
 // ── Sub-schemas ───────────────────────────────────────────────────
 
+const WechatExportThemeOverridesSchema = z.object({
+  containerStyle: z.string().optional(),
+  footerText: z.string().optional(),
+  footerStyle: z.string().optional(),
+  fontFamily: z.string().optional(),
+  bodyColor: z.string().optional(),
+  mutedColor: z.string().optional(),
+  primaryColor: z.string().optional(),
+  dividerColor: z.string().optional(),
+  blockquoteBorderColor: z.string().optional(),
+  bodyLineHeight: z.string().optional(),
+  bodyLetterSpacing: z.string().optional(),
+});
+
+const WechatThemeOverridesSchema = withObjectDefault(
+  z.object({
+    editorVars: z.record(z.string(), z.string()).default({}),
+    exportTheme: withObjectDefault(WechatExportThemeOverridesSchema),
+  }),
+);
+
 const WxAccountConfigSchema = z.object({
   pat: z.string().default(""),
   appId: z.string().default(""),
   appSecret: z.string().default(""),
   customCss: z.string().nullable().default(null),
+  theme: WechatThemeOverridesSchema,
 });
 
 const WxConfigSchema = withObjectDefault(
@@ -52,7 +74,7 @@ const WxConfigSchema = withObjectDefault(
     defaultAccount: trimmedNonEmptyString("default"),
     accounts: z
       .record(z.string(), WxAccountConfigSchema)
-      .default({ default: { pat: "", appId: "", appSecret: "", customCss: null } }),
+      .default({ default: { pat: "", appId: "", appSecret: "", customCss: null, theme: { editorVars: {}, exportTheme: {} } } }),
   }),
 );
 
@@ -127,6 +149,8 @@ export type PipelineCommandConfig = z.infer<typeof PipelineCommandConfigSchema>;
 export type CosConfig = z.infer<typeof CosConfigSchema>;
 export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
 export type ImgxConfig = z.infer<typeof ImgxConfigSchema>;
+export type WechatExportThemeOverrides = z.infer<typeof WechatExportThemeOverridesSchema>;
+export type WechatThemeOverrides = z.infer<typeof WechatThemeOverridesSchema>;
 
 // ── Schema instances for reuse ────────────────────────────────────
 

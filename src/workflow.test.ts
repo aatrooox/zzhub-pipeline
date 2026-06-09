@@ -1211,6 +1211,7 @@ describe("config", () => {
               appId: "",
               appSecret: "",
               customCss: null,
+              theme: { editorVars: {}, exportTheme: {} },
             },
           },
         },
