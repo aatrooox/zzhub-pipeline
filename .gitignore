@@ -13,3 +13,4 @@ logs/
 .vscode/
 *.pem
 *.key
+docs/
