@@ -92,10 +92,9 @@ zzp topic list --workspace {workspace} --limit 20
 对选题进行 AI 评估和打分：
 
 ```bash
-zzp topic update \
+zzp topic evaluate \
   --workspace {workspace} \
   --topic {topic_id} \
-  --status evaluating \
   --ai-score 85 \
   --ai-reason "基于热点趋势、受众匹配度和竞争分析，该选题有较高潜力"
 ```
@@ -208,7 +207,7 @@ zzp topic add --workspace ./ws --title "AI 工具推荐" --priority high --tags 
 zzp topic list --workspace ./ws --status backlog
 
 # 3. AI 评估
-zzp topic update --workspace ./ws --topic topic_xxx --status evaluating --ai-score 85 --ai-reason "..."
+zzp topic evaluate --workspace ./ws --topic topic_xxx --ai-score 85 --ai-reason "..."
 
 # 4. 排期
 zzp topic schedule --workspace ./ws --topic topic_xxx --scheduled-date 2026-06-15
@@ -240,8 +239,8 @@ zzp topic retro --workspace ./ws --topic $TOPIC_ID --performance good --lessons 
 zzp topic list --workspace ./ws --status backlog --view markdown > backlog.md
 
 # 2. 会议中逐个评估
-zzp topic update --workspace ./ws --topic topic_1 --ai-score 90 --ai-reason "..."
-zzp topic update --workspace ./ws --topic topic_2 --ai-score 65 --ai-reason "..."
+zzp topic evaluate --workspace ./ws --topic topic_1 --ai-score 90 --ai-reason "..."
+zzp topic evaluate --workspace ./ws --topic topic_2 --ai-score 65 --ai-reason "..."
 
 # 3. 为高优先级选题排期
 zzp topic schedule --workspace ./ws --topic topic_1 --scheduled-date 2026-06-20

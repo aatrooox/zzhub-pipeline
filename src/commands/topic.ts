@@ -273,6 +273,45 @@ export async function abandonTopic(
   }
 }
 
+export interface EvaluateTopicInput {
+  ai_score: number;
+  ai_reason?: string;
+}
+
+export async function evaluateTopic(
+  workspace: string,
+  topicId: string,
+  input: EvaluateTopicInput,
+): Promise<Topic> {
+  const db = ensureDb(workspace);
+
+  try {
+    const existing = db
+      .prepare("SELECT * FROM topics WHERE topic_id = ?")
+      .get(topicId);
+    if (!existing) {
+      throw new Error(`Topic not found: ${topicId}`);
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(
+      `UPDATE topics
+       SET status = 'evaluating',
+           ai_score = ?,
+           ai_reason = ?,
+           updated_at = ?
+       WHERE topic_id = ?`,
+    ).run(input.ai_score, input.ai_reason ?? null, now, topicId);
+
+    const row = db
+      .prepare("SELECT * FROM topics WHERE topic_id = ?")
+      .get(topicId) as Record<string, unknown>;
+    return rowToTopic(row);
+  } finally {
+    db.close();
+  }
+}
+
 export async function listTopics(
   workspace: string,
   filter: ListTopicsFilter,
@@ -325,6 +364,7 @@ Subcommands:
   add        Add a new topic
   list       List topics with filters
   update     Update topic fields
+  evaluate   Evaluate topic with AI score
   schedule   Schedule topic for publishing
   retro      Add retrospective to topic
   abandon    Abandon a topic
@@ -344,6 +384,8 @@ Run 'zzhub-pipeline topic <subcommand> --help' for details.
       return topicList(subArgs);
     case "update":
       return topicUpdate(subArgs);
+    case "evaluate":
+      return topicEvaluate(subArgs);
     case "schedule":
       return topicSchedule(subArgs);
     case "retro":
@@ -462,6 +504,36 @@ Options:
     ai_reason: aiReason,
     tags,
     notes,
+  });
+
+  printResult(result);
+}
+
+async function topicEvaluate(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic evaluate [options]
+
+Options:
+  --workspace   Workspace path (required)
+  --topic       Topic ID (required)
+  --ai-score    AI score 0-100 (required)
+  --ai-reason   AI evaluation reason
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const topicId = requireArg(parsed, "topic", "Topic ID");
+  const aiScoreStr = requireArg(parsed, "ai-score", "AI score (0-100)");
+  const aiScore = parseInt(aiScoreStr, 10);
+  const aiReason = optionalArg(parsed, "ai-reason");
+
+  const result = await evaluateTopic(workspace, topicId, {
+    ai_score: aiScore,
+    ai_reason: aiReason,
   });
 
   printResult(result);
