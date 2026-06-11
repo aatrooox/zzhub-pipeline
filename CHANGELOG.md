@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.8.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.7.0...v0.8.0)
+
+### Features
+
+- **wechat:** Add per-account theme overrides to config schema ([dbf5748](https://github.com/aatrooox/zzhub-pipeline/commit/dbf5748))
+- **wechat:** Wire theme overrides through export and publish pipeline ([7f0088d](https://github.com/aatrooox/zzhub-pipeline/commit/7f0088d))
+- **db:** Add SQLite database infrastructure ([f388a7c](https://github.com/aatrooox/zzhub-pipeline/commit/f388a7c))
+- **schema:** Add Analytics schema with Zod validation ([b78d91e](https://github.com/aatrooox/zzhub-pipeline/commit/b78d91e))
+- **schema:** Add Topic schema with Zod validation ([5bd289f](https://github.com/aatrooox/zzhub-pipeline/commit/5bd289f))
+- **topic:** Implement add and list commands ([1720537](https://github.com/aatrooox/zzhub-pipeline/commit/1720537))
+- **topic:** Implement update, schedule, retro, abandon commands ([ad15d5d](https://github.com/aatrooox/zzhub-pipeline/commit/ad15d5d))
+- **topic:** Add CLI command handler ([5835eb6](https://github.com/aatrooox/zzhub-pipeline/commit/5835eb6))
+- **analytics:** Implement analytics commands ([b8ddc24](https://github.com/aatrooox/zzhub-pipeline/commit/b8ddc24))
+- **skills:** Add topic and analytics skills ([704b7d2](https://github.com/aatrooox/zzhub-pipeline/commit/704b7d2))
+
+### Fixes
+
+- **wechat:** Remove h2 left accent bar and strong brand color ([ecea182](https://github.com/aatrooox/zzhub-pipeline/commit/ecea182))
+
+### Documentation
+
+- Document wechat-preview CSS rebuild requirement ([a7f9afd](https://github.com/aatrooox/zzhub-pipeline/commit/a7f9afd))
+- Add design spec for topic and analytics features ([6c11b31](https://github.com/aatrooox/zzhub-pipeline/commit/6c11b31))
+- Add implementation plan for topic and analytics features ([0860079](https://github.com/aatrooox/zzhub-pipeline/commit/0860079))
+- Add topic and analytics commands to README ([ffe9910](https://github.com/aatrooox/zzhub-pipeline/commit/ffe9910))
+
+### Chore
+
+- Add docs/ to .gitignore ([51d612d](https://github.com/aatrooox/zzhub-pipeline/commit/51d612d))
+
+### ❤️ Contributors
+
+- Aatrox3 ([@aatrooox](https://github.com/aatrooox))
+
 ## v0.6.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.5.1...v0.6.0)
