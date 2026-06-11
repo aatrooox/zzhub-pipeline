@@ -291,7 +291,7 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark tasks as abandoned |
 
-### ops group (9 commands)
+### ops group (11 commands)
 
 | Command | Description |
 |---|---|
@@ -304,6 +304,8 @@ src/
 | `hermes-metrics` | Show Hermes execution metrics per task |
 | `wx-drafts` | List or get drafts from WeChat draft box |
 | `wx-draft-delete` | Delete a draft from WeChat draft box |
+| `topic` | Manage content topics (add, list, update, schedule, retro, abandon) |
+| `analytics` | Record and analyze post-publish metrics |
 
 ### Reset modes
 
