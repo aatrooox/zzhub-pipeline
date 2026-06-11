@@ -1,4 +1,5 @@
 import { abandon } from "./commands/abandon";
+import { analytics } from "./commands/analytics";
 import { attachBody } from "./commands/attach-body";
 import { attachBodyImages } from "./commands/attach-body-images";
 import { attachNewspicSpec } from "./commands/attach-newspic-spec";
@@ -75,6 +76,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "wx-drafts", summary: "List or get drafts from WeChat draft box", plugin: "ops", handler: wxDrafts },
         { name: "wx-draft-delete", summary: "Delete a draft from WeChat draft box", plugin: "ops", handler: wxDraftDelete },
         { name: "topic", summary: "Manage topics (add, list, update, schedule, retro, abandon)", plugin: "ops", handler: topic },
+        { name: "analytics", summary: "Record and analyze post-publish metrics", plugin: "ops", handler: analytics },
       ],
     },
   ];
