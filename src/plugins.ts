@@ -21,6 +21,7 @@ import { review } from "./commands/review";
 import { status } from "./commands/status";
 import { syncBlog } from "./commands/sync-blog";
 import { tasks } from "./commands/tasks";
+import { topic } from "./commands/topic";
 import { wechatExport } from "./commands/wechat-export";
 import { wxDrafts } from "./commands/wx-drafts";
 import { wxDraftDelete } from "./commands/wx-draft-delete";
@@ -64,7 +65,7 @@ export function getCommandPlugins(): CommandPlugin[] {
     {
       name: "ops",
       commands: [
-        { name: "sync-blog", summary: "Copy canonical markdown to the blog repo and publish there", plugin: "ops", handler: syncBlog },
+        { name: "sync-blog", summary: "Copy post.md to blog repo, publish, and record result in state JSON", plugin: "ops", handler: syncBlog },
         { name: "imgx", summary: "Run bundled imgx renderer subcommands", plugin: "ops", handler: imgxCommand },
         { name: "wechat-export", summary: "Render markdown to WeChat HTML with bundled preview styles", plugin: "ops", handler: wechatExport },
         { name: "cos-upload", summary: "Upload a local image to configured COS CDN", plugin: "ops", handler: cosUpload },
@@ -73,6 +74,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "hermes-metrics", summary: "Show Hermes execution metrics per task", plugin: "ops", handler: hermesMetrics },
         { name: "wx-drafts", summary: "List or get drafts from WeChat draft box", plugin: "ops", handler: wxDrafts },
         { name: "wx-draft-delete", summary: "Delete a draft from WeChat draft box", plugin: "ops", handler: wxDraftDelete },
+        { name: "topic", summary: "Manage topics (add, list, update, schedule, retro, abandon)", plugin: "ops", handler: topic },
       ],
     },
   ];

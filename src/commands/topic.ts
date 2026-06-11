@@ -5,6 +5,8 @@ import {
   type TopicStatus,
   type TopicPriority,
 } from "../schema/topic";
+import { parseArgs, requireArg, optionalArg } from "../args";
+import { printResult } from "../output";
 
 function generateTopicId(): string {
   const timestamp = Date.now();
@@ -310,4 +312,249 @@ export async function listTopics(
   } finally {
     db.close();
   }
+}
+
+export async function topic(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help || args.length === 0) {
+    console.log(`
+Usage: zzhub-pipeline topic <subcommand> [options]
+
+Subcommands:
+  add        Add a new topic
+  list       List topics with filters
+  update     Update topic fields
+  schedule   Schedule topic for publishing
+  retro      Add retrospective to topic
+  abandon    Abandon a topic
+
+Run 'zzhub-pipeline topic <subcommand> --help' for details.
+`.trim());
+    return;
+  }
+
+  const subcommand = args[0];
+  const subArgs = args.slice(1);
+
+  switch (subcommand) {
+    case "add":
+      return topicAdd(subArgs);
+    case "list":
+      return topicList(subArgs);
+    case "update":
+      return topicUpdate(subArgs);
+    case "schedule":
+      return topicSchedule(subArgs);
+    case "retro":
+      return topicRetro(subArgs);
+    case "abandon":
+      return topicAbandon(subArgs);
+    default:
+      throw new Error(`Unknown topic subcommand: ${subcommand}`);
+  }
+}
+
+async function topicAdd(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic add [options]
+
+Options:
+  --workspace    Workspace path (required)
+  --title        Topic title (required)
+  --description  Topic description
+  --priority     Priority: high/medium/low (default: medium)
+  --tags         Comma-separated tags
+  --notes        Notes
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const title = requireArg(parsed, "title", "Topic title");
+  const description = optionalArg(parsed, "description");
+  const priority = optionalArg(parsed, "priority") as TopicPriority | undefined;
+  const tagsRaw = optionalArg(parsed, "tags");
+  const notes = optionalArg(parsed, "notes");
+
+  const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()) : undefined;
+
+  const result = await addTopic(workspace, {
+    title,
+    description,
+    priority,
+    tags,
+    notes,
+  });
+
+  printResult(result);
+}
+
+async function topicList(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic list [options]
+
+Options:
+  --workspace  Workspace path (required)
+  --status     Filter by status
+  --priority   Filter by priority
+  --tag        Filter by tag
+  --sort       Sort field: priority/created_at/scheduled_date/ai_score
+  --limit      Max results (default: 50)
+  --view       Output format: json/markdown/agent (default: json)
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const status = optionalArg(parsed, "status") as TopicStatus | undefined;
+  const priority = optionalArg(parsed, "priority") as TopicPriority | undefined;
+  const tag = optionalArg(parsed, "tag");
+  const limitStr = optionalArg(parsed, "limit");
+  const limit = limitStr ? parseInt(limitStr, 10) : undefined;
+
+  const topics = await listTopics(workspace, { status, priority, tag, limit });
+
+  printResult(topics);
+}
+
+async function topicUpdate(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic update [options]
+
+Options:
+  --workspace   Workspace path (required)
+  --topic       Topic ID (required)
+  --status      New status
+  --priority    New priority
+  --ai-score    AI score (0-100)
+  --ai-reason   AI evaluation reason
+  --tags        Comma-separated tags
+  --notes       Notes
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const topicId = requireArg(parsed, "topic", "Topic ID");
+  const status = optionalArg(parsed, "status") as TopicStatus | undefined;
+  const priority = optionalArg(parsed, "priority") as TopicPriority | undefined;
+  const aiScoreStr = optionalArg(parsed, "ai-score");
+  const aiScore = aiScoreStr ? parseInt(aiScoreStr, 10) : undefined;
+  const aiReason = optionalArg(parsed, "ai-reason");
+  const tagsRaw = optionalArg(parsed, "tags");
+  const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()) : undefined;
+  const notes = optionalArg(parsed, "notes");
+
+  const result = await updateTopic(workspace, topicId, {
+    status,
+    priority,
+    ai_score: aiScore,
+    ai_reason: aiReason,
+    tags,
+    notes,
+  });
+
+  printResult(result);
+}
+
+async function topicSchedule(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic schedule [options]
+
+Options:
+  --workspace        Workspace path (required)
+  --topic            Topic ID (required)
+  --scheduled-date   Scheduled date YYYY-MM-DD (required)
+  --target-account   Target account
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const topicId = requireArg(parsed, "topic", "Topic ID");
+  const scheduledDate = requireArg(parsed, "scheduled-date", "Scheduled date");
+  const targetAccount = optionalArg(parsed, "target-account");
+
+  const result = await scheduleTopic(workspace, topicId, {
+    scheduled_date: scheduledDate,
+    target_account: targetAccount,
+  });
+
+  printResult(result);
+}
+
+async function topicRetro(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic retro [options]
+
+Options:
+  --workspace         Workspace path (required)
+  --topic             Topic ID (required)
+  --performance       Performance: excellent/good/average/poor (required)
+  --lessons           Lessons learned
+  --metrics-snapshot  Metrics snapshot as JSON string
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const topicId = requireArg(parsed, "topic", "Topic ID");
+  const performance = requireArg(parsed, "performance", "Performance rating") as
+    | "excellent"
+    | "good"
+    | "average"
+    | "poor";
+  const lessons = optionalArg(parsed, "lessons");
+  const metricsSnapshotRaw = optionalArg(parsed, "metrics-snapshot");
+  const metricsSnapshot = metricsSnapshotRaw
+    ? JSON.parse(metricsSnapshotRaw)
+    : undefined;
+
+  const result = await retroTopic(workspace, topicId, {
+    performance,
+    lessons,
+    metrics_snapshot: metricsSnapshot,
+  });
+
+  printResult(result);
+}
+
+async function topicAbandon(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic abandon [options]
+
+Options:
+  --workspace  Workspace path (required)
+  --topic      Topic ID (required)
+  --reason     Reason for abandonment
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const topicId = requireArg(parsed, "topic", "Topic ID");
+  const reason = optionalArg(parsed, "reason");
+
+  const result = await abandonTopic(workspace, topicId, { reason });
+
+  printResult(result);
 }
