@@ -426,6 +426,17 @@ export function stripMarkdown(text: string): string {
 // ── Slug generation ───────────────────────────────────────────────
 
 /**
+ * Simple deterministic hash (djb2) for title disambiguation.
+ */
+function hashString(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  }
+  return h >>> 0;
+}
+
+/**
  * Generate a kebab-case slug from a title.
  * Handles CJK by pinyin-free approach: transliterate common chars, keep ASCII.
  * For CJK-heavy titles, uses a simplified approach.
@@ -445,10 +456,12 @@ export function generateSlug(title: string): string {
     // Remove leading/trailing dashes
     .replace(/^-+|-+$/g, "");
 
-  // If slug is empty (all CJK), fall back to date-based
+  // If slug is empty (all CJK), fall back to date-based with short hash
   if (!slug) {
     const now = new Date();
-    slug = `post-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const h = hashString(title).toString(16).padStart(6, "0").slice(0, 6);
+    slug = `post-${datePart}-${h}`;
   }
 
   return slug;
@@ -607,7 +620,7 @@ export function formatArticle(body: string): string {
   result = removePageMarkers(result);
   result = removeIllustrationMarkers(result);
   result = compressBlankLines(result);
-  return result;
+  return result.trim();
 }
 
 /**

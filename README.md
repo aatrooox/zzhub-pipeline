@@ -43,7 +43,7 @@ bun install --global .
 - `wechat-article` — 公众号文章草稿（HTML）
 - `wechat-newspic` — 公众号图片消息（PNG 卡片/图集）
 
-`blog` 只做事后同步（`sync-blog`），不参与主工作流分支。
+`blog` 只做事后同步（`sync-blog`），不参与主工作流分支，但同步结果会写回 `workflow-state.json` 的 `publish.results`。
 
 状态文件分两类：
 
@@ -409,11 +409,11 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark one or more tasks as abandoned |
 
-`ops` 组，9 个命令：
+`ops` 组，11 个命令：
 
 | 命令 | 说明 |
 | --- | --- |
-| `sync-blog` | Copy canonical markdown to the blog repo and publish there |
+| `sync-blog` | Copy post.md to blog repo, publish, and record result in state JSON |
 | `imgx` | Run bundled imgx renderer subcommands |
 | `wechat-export` | Render markdown to WeChat HTML with bundled preview styles |
 | `cos-upload` | Upload a local image to configured COS CDN |
@@ -422,6 +422,8 @@ src/
 | `hermes-metrics` | Show Hermes execution metrics per task |
 | `wx-drafts` | List or get drafts from WeChat draft box |
 | `wx-draft-delete` | Delete a draft from WeChat draft box |
+| `topic` | 选题管理（添加、列表、更新、排期、复盘、放弃） |
+| `analytics` | 发布数据录入和分析 |
 
 ## 常用命令
 
@@ -516,6 +518,75 @@ bun run src/cli.ts reset --state {state_path} --mode full         # 完全放弃
 
 每种模式均会设置 `redo_hint`，确保 Agent 恢复时知道从哪个子步骤开始。
 
+### 选题管理
+
+使用 `topic` 命令管理内容选题的完整生命周期：
+
+```bash
+# 添加选题
+bun run src/cli.ts topic add \
+  --workspace {workspace} \
+  --title "AI 工具推荐" \
+  --priority high \
+  --tags "AI,工具"
+
+# 列出选题
+bun run src/cli.ts topic list --workspace {workspace}
+bun run src/cli.ts topic list --workspace {workspace} --status backlog --priority high
+
+# 更新选题（AI 评估）
+bun run src/cli.ts topic update \
+  --workspace {workspace} \
+  --topic {topic_id} \
+  --ai-score 85 \
+  --ai-reason "基于热点趋势和受众匹配度"
+
+# 排期
+bun run src/cli.ts topic schedule \
+  --workspace {workspace} \
+  --topic {topic_id} \
+  --scheduled-date 2026-06-15 \
+  --target-account default
+
+# 复盘（发布后）
+bun run src/cli.ts topic retro \
+  --workspace {workspace} \
+  --topic {topic_id} \
+  --performance good \
+  --lessons "标题悬念效果好" \
+  --metrics-snapshot '{"reads": 1500, "likes": 45}'
+
+# 放弃选题
+bun run src/cli.ts topic abandon \
+  --workspace {workspace} \
+  --topic {topic_id} \
+  --reason "话题过时"
+```
+
+选题状态流转：`backlog` → `evaluating` → `scheduled` → `in_progress` → `published`（或 `abandoned`）
+
+### 数据分析
+
+使用 `analytics` 命令录入和分析发布后的数据：
+
+```bash
+# 录入发布数据
+bun run src/cli.ts analytics record \
+  --state {workspace}/posts/{date-slug}/workflow-state.json \
+  --reads 1500 \
+  --likes 45 \
+  --favorites 23 \
+  --shares 12 \
+  --comments 8 \
+  --notes "标题效果好，转化率高"
+
+# 列出历史数据
+bun run src/cli.ts analytics list --workspace {workspace}
+bun run src/cli.ts analytics list --workspace {workspace} --days 30 --sort reads
+```
+
+数据存储在 `{workspace}/zzhub.db`（SQLite 数据库），支持复杂查询和统计分析。
+
 ### Blog 同步
 
 ```bash
@@ -527,6 +598,7 @@ bun run src/cli.ts sync-blog --state {workspace}/posts/{date-slug}/workflow-stat
 - 读取 canonical `post.md`
 - 复制到博客仓库 `content/posts/<slug>.md`
 - 执行博客发布命令
+- 将 blog publish result 写回 `workflow-state.json`，方便筛查是否遗漏同步
 
 ### 配置管理
 

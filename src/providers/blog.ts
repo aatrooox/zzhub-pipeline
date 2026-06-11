@@ -84,9 +84,12 @@ export async function publishBlogRoute({
 }: BlogPublishContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
-  const category = "posts";
+  const category = "nezus";
   const blogRoot = workspacePaths.blogRoot;
-  const blogPostPath = join(blogRoot, "content", category, `${state.metadata.slug}.md`);
+
+  const [year, month] = state.metadata.date.split("-");
+  const blogPostDir = join(blogRoot, "content", category, year, month);
+  const blogPostPath = join(blogPostDir, `${state.metadata.slug}.md`);
 
   const lines = ["---"];
   lines.push(`title: "${state.metadata.title.replace(/"/g, '\\"')}"`);
@@ -128,7 +131,7 @@ export async function publishBlogRoute({
     };
   }
 
-  await mkdir(join(blogRoot, "content", category), { recursive: true });
+  await mkdir(blogPostDir, { recursive: true });
   await writeFile(blogPostPath, blogContent, "utf-8");
   const result = spawnSync(config.commands.blogPublish, { cwd: blogRoot });
 

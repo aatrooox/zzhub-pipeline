@@ -243,7 +243,7 @@ export async function exportMarkdownToWechatHtml(
   const bundle = ensureBundle();
   const sourceMarkdown = await readFile(input.markdownPath, "utf-8");
   const stripped = extractFrontmatter(sourceMarkdown).content;
-  const bodyMarkdown = stripLeadingH1(stripped);
+  const bodyMarkdown = stripLeadingH1(stripped).trimStart();
   const markdown = rewriteRelativeImagePaths(bodyMarkdown, dirname(input.markdownPath));
   const theme = getWechatPreviewTheme(input.account, input.themeOverrides);
   const shell = readUtf8(TEMPLATE_PATH);

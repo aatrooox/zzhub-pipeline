@@ -195,7 +195,7 @@ Only two active workflow routes exist:
 - `wechat-article`, WeChat public account article, HTML export.
 - `wechat-newspic`, WeChat image message, multi-page PNG set.
 
-`blog` is not a workflow route. It is only a post-hoc sync via `sync-blog`.
+`blog` is not a workflow route. It is only a post-hoc sync via `sync-blog`; sync results are written back to `publish.results` in state JSON.
 
 ## Three-phase pipeline
 
@@ -295,7 +295,7 @@ src/
 
 | Command | Description |
 |---|---|
-| `sync-blog` | Copy markdown to blog repo and publish |
+| `sync-blog` | Copy post.md to blog repo, publish, and record result in state JSON |
 | `imgx` | Run bundled imgx renderer subcommands |
 | `wechat-export` | Render markdown to WeChat HTML |
 | `cos-upload` | Upload image to COS CDN |

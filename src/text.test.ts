@@ -343,14 +343,14 @@ describe("generateSlug", () => {
     expect(generateSlug("Hello, World!")).toBe("hello-world");
   });
 
-  test("falls back to date for pure CJK", () => {
+  test("falls back to date+hash for pure CJK", () => {
     const slug = generateSlug("你好世界");
-    expect(slug).toMatch(/^post-\d{8}$/);
+    expect(slug).toMatch(/^post-\d{8}-[0-9a-f]{6}$/);
   });
 
   test("handles empty string", () => {
     const slug = generateSlug("");
-    expect(slug).toMatch(/^post-\d{8}$/);
+    expect(slug).toMatch(/^post-\d{8}-[0-9a-f]{6}$/);
   });
 
   test("no leading/trailing dashes", () => {
@@ -487,6 +487,12 @@ describe("formatArticle", () => {
   test("is idempotent", () => {
     const input = "## 标题\n\n正文内容\n\n更多内容";
     expect(formatArticle(formatArticle(input))).toBe(formatArticle(input));
+  });
+
+  test("trims leading and trailing whitespace", () => {
+    const input = "\n\n\n## 标题\n\n正文内容\n\n\n";
+    const result = formatArticle(input);
+    expect(result).toBe("## 标题\n\n正文内容");
   });
 });
 
