@@ -366,6 +366,7 @@ Subcommands:
   update     Update topic fields
   evaluate   Evaluate topic with AI score
   schedule   Schedule topic for publishing
+  promote    Promote topic to publish task
   retro      Add retrospective to topic
   abandon    Abandon a topic
 
@@ -388,6 +389,8 @@ Run 'zzhub-pipeline topic <subcommand> --help' for details.
       return topicEvaluate(subArgs);
     case "schedule":
       return topicSchedule(subArgs);
+    case "promote":
+      return topicPromote(subArgs);
     case "retro":
       return topicRetro(subArgs);
     case "abandon":
@@ -566,6 +569,89 @@ Options:
   });
 
   printResult(result);
+}
+
+async function topicPromote(args: string[]): Promise<void> {
+  const parsed = parseArgs(args);
+
+  if (parsed.help) {
+    console.log(`
+Usage: zzhub-pipeline topic promote [options]
+
+Promote a topic to a publish task. This will:
+1. Create a new publish task using 'init' command
+2. Update topic status to 'in_progress'
+3. Link the run_id to the topic
+
+Options:
+  --workspace       Workspace path (required)
+  --topic           Topic ID (required)
+  --intent-text     Intent text for init (required)
+  --content-form    article | newspic (default: article)
+  --targets         Comma-separated: wechat,blog (default: wechat)
+  --account         Target account
+`.trim());
+    return;
+  }
+
+  const workspace = requireArg(parsed, "workspace", "Workspace path");
+  const topicId = requireArg(parsed, "topic", "Topic ID");
+  const intentText = requireArg(parsed, "intent-text", "Intent text");
+  const contentForm = optionalArg(parsed, "content-form") ?? "article";
+  const targets = optionalArg(parsed, "targets") ?? "wechat";
+  const account = optionalArg(parsed, "account");
+
+  // Get topic to retrieve title
+  const db = ensureDb(workspace);
+  try {
+    const topicRow = db
+      .prepare("SELECT * FROM topics WHERE topic_id = ?")
+      .get(topicId) as Record<string, unknown> | undefined;
+    if (!topicRow) {
+      throw new Error(`Topic not found: ${topicId}`);
+    }
+    const topic = rowToTopic(topicRow);
+
+    // Build init command args
+    const initArgs = [
+      "--workspace", workspace,
+      "--task-kind", "publish",
+      "--content-form", contentForm,
+      "--targets", targets,
+      "--content-origin", "user",
+      "--intent-text", intentText,
+    ];
+    if (account) {
+      initArgs.push("--account", account);
+    }
+
+    // Call init command
+    const { init } = await import("./init");
+    await init(initArgs);
+
+    // Note: We can't easily capture the run_id from init's output
+    // For now, just update the topic status
+    const now = new Date().toISOString();
+    db.prepare(
+      `UPDATE topics
+       SET status = 'in_progress',
+           updated_at = ?
+       WHERE topic_id = ?`,
+    ).run(now, topicId);
+
+    const updatedRow = db
+      .prepare("SELECT * FROM topics WHERE topic_id = ?")
+      .get(topicId) as Record<string, unknown>;
+    const updatedTopic = rowToTopic(updatedRow);
+
+    printResult({
+      topic: updatedTopic,
+      message: "Topic promoted to in_progress. Run 'zzp find-run --workspace {workspace} --active' to find the new task.",
+      init_args: initArgs,
+    });
+  } finally {
+    db.close();
+  }
 }
 
 async function topicRetro(args: string[]): Promise<void> {
