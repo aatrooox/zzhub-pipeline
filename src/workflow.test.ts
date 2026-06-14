@@ -25,6 +25,7 @@ import { resolveAuthoring } from "./profiles";
 import { WorkflowStateSchema } from "./schema/state";
 import { defaultState, readState, validateForPhase, writeState } from "./state";
 import { getTaskByStatePath } from "./task-manager";
+import { dedupeTargets, filterIdempotent } from "./providers/publish-core";
 import { getPublishProvider, listPublishProviders } from "./providers";
 import { stripLeadingH1, stripLeadingTitleHeading } from "./text";
 
@@ -2171,5 +2172,38 @@ describe("PUBLISH_PROVIDERS", () => {
   test("listPublishProviders includes blog", () => {
     const providers = listPublishProviders();
     expect(providers).toContain("blog");
+  });
+});
+
+describe("executePublishTargets helpers", () => {
+  test("dedupeTargets deduplicates by route+account", () => {
+    const targets = [
+      { route: "wechat-article", account: "default" },
+      { route: "wechat-article", account: "default" },  // duplicate
+      { route: "blog", account: "default" },
+    ];
+    const deduped = dedupeTargets(targets);
+    expect(deduped).toHaveLength(2);
+  });
+
+  test("filterIdempotent filters out already-published targets", () => {
+    const targets = [
+      { route: "wechat-article", account: "default" },
+      { route: "blog", account: "default" },
+    ];
+    const existingResults = [
+      {
+        route: "wechat-article",
+        account: "default",
+        status: "success" as const,
+        detail: null,
+        published_at: "2026-06-14T10:00:00Z",
+        content_version: 1,
+        render_version: 1,
+      },
+    ];
+    const filtered = filterIdempotent(targets, existingResults, 1, 1);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].route).toBe("blog");
   });
 });
