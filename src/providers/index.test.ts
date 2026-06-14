@@ -21,6 +21,6 @@ describe("getPublishProvider", () => {
   });
 
   test("throws for unregistered route", () => {
-    expect(() => getPublishProvider("blog" as never)).toThrow();
+    expect(() => getPublishProvider("nonexistent" as never)).toThrow();
   });
 });

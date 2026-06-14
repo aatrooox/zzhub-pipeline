@@ -123,6 +123,7 @@ export async function publishBlogRoute({
     console.error(`[dry-run] Blog: cd ${blogRoot} && ${config.commands.blogPublish.join(" ")}`);
     return {
       route: "blog",
+      account: "default",
       status: "skipped",
       detail: "dry-run",
       published_at: null,
@@ -138,6 +139,7 @@ export async function publishBlogRoute({
   if (result.exitCode !== 0) {
     return {
       route: "blog",
+      account: "default",
       status: "failed",
       detail: `blog publish command failed: ${config.commands.blogPublish.join(" ")}`,
       published_at: null,
@@ -148,6 +150,7 @@ export async function publishBlogRoute({
 
   return {
     route: "blog",
+    account: "default",
     status: "success",
     detail: null,
     published_at: new Date().toISOString(),

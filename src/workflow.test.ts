@@ -1340,7 +1340,7 @@ describe("publish validation", () => {
     expect(updated.phase.current).toBe("publish");
     expect(updated.phase.publish.status).toBe("pending");
     expect(updated.publish.results[0]?.status).toBe("failed");
-    expect(updated.publish.results[0]?.detail).toContain("Unsupported workflow publish route: blog");
+    expect(updated.publish.results[0]?.detail).toContain("blog publish command failed");
 
     const task = await getTaskByStatePath(statePath);
     expect(task.blockers).toEqual([]);
@@ -2178,9 +2178,9 @@ describe("PUBLISH_PROVIDERS", () => {
 describe("executePublishTargets helpers", () => {
   test("dedupeTargets deduplicates by route+account", () => {
     const targets = [
-      { route: "wechat-article", account: "default" },
-      { route: "wechat-article", account: "default" },  // duplicate
-      { route: "blog", account: "default" },
+      { route: "wechat-article" as const, account: "default" },
+      { route: "wechat-article" as const, account: "default" },  // duplicate
+      { route: "blog" as const, account: "default" },
     ];
     const deduped = dedupeTargets(targets);
     expect(deduped).toHaveLength(2);
@@ -2188,12 +2188,12 @@ describe("executePublishTargets helpers", () => {
 
   test("filterIdempotent filters out already-published targets", () => {
     const targets = [
-      { route: "wechat-article", account: "default" },
-      { route: "blog", account: "default" },
+      { route: "wechat-article" as const, account: "default" },
+      { route: "blog" as const, account: "default" },
     ];
     const existingResults = [
       {
-        route: "wechat-article",
+        route: "wechat-article" as const,
         account: "default",
         status: "success" as const,
         detail: null,
@@ -2205,5 +2205,39 @@ describe("executePublishTargets helpers", () => {
     const filtered = filterIdempotent(targets, existingResults, 1, 1);
     expect(filtered).toHaveLength(1);
     expect(filtered[0].route).toBe("blog");
+  });
+});
+
+describe("publish command with publish_targets", () => {
+  test("publish iterates publish_targets when present", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-publish-targets-");
+    const statePath = join(tmpDir, "state.json");
+    const state = defaultState();
+    state.run_id = "test-run";
+    state.workspace_root = tmpDir;
+    state.state_path = statePath;
+    state.asset_path = tmpDir;
+    state.route.primary = "wechat-article";
+    state.route.account = "default";
+    state.publish_targets = [
+      { route: "wechat-article", account: "default" },
+      { route: "wechat-newspic", account: "ancientone" },
+    ];
+    state.metadata.title = "Test";
+    state.metadata.slug = "test";
+    state.metadata.date = "2026-06-14";
+    state.content_review.status = "passed";
+    // post.md needed by wechat-newspic provider (read before dry-run check)
+    await writeFile(join(tmpDir, "post.md"), "正文", "utf-8");
+    await writeState(statePath, state);
+
+    await publish(["--state", statePath, "--dry-run"]);
+
+    const finalState = await readState(statePath);
+    expect(finalState.publish.results).toHaveLength(2);
+    expect(finalState.publish.results[0].account).toBe("default");
+    expect(finalState.publish.results[0].status).toBe("skipped");
+    expect(finalState.publish.results[1].account).toBe("ancientone");
+    expect(finalState.publish.results[1].status).toBe("skipped");
   });
 });

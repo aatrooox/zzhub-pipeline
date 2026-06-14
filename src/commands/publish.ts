@@ -16,14 +16,14 @@
 import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderPublish } from "../output";
 import { loadConfig, resolveWorkspacePaths } from "../config";
-import { getPublishProvider } from "../providers";
 import {
   readState,
   validateForPhase,
   writeState,
-  type PublishResult,
+  type PublishTarget,
   type RoutePrimary,
 } from "../state";
+import { executePublishTargets } from "../providers/publish-core";
 
 export async function publish(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -34,7 +34,7 @@ Usage: zzhub-pipeline publish [options]
 
 Options:
   --state      Path to state JSON (required)
-  --route      Only publish this route (optional; default: all routes)
+  --route      Only publish this route (optional; default: all targets)
   --dry-run    Print commands without executing (optional)
 `.trim());
     return;
@@ -58,72 +58,45 @@ Options:
     );
   }
 
-  // Collect all routes to publish
-  const routes: RoutePrimary[] = routeOverride
-    ? [routeOverride]
-    : [state.route.primary, ...state.route.extras];
-
-  const results: PublishResult[] = [...state.publish.results];
-  let hasUnfinishedPublish = false;
-
-  for (const route of routes) {
-    // ── Idempotency check ──
-    const existing = results.find((r) => r.route === route);
-    if (
-      existing &&
-      existing.status === "success" &&
-      existing.content_version === state.artifacts.content_version &&
-      existing.render_version === state.artifacts.render_version
-    ) {
-      console.error(`[publish] Skipping ${route}: already published at current version`);
-      continue;
-    }
-
-    try {
-      const provider = getPublishProvider(route);
-      const result = await provider({
-        state,
-        dryRun,
-        config,
-        workspacePaths,
-      });
-
-      // Upsert result
-      const idx = results.findIndex((r) => r.route === route);
-      if (idx >= 0) {
-        results[idx] = result;
-      } else {
-        results.push(result);
-      }
-
-      if (result.status !== "success" && result.status !== "skipped") {
-        hasUnfinishedPublish = true;
-      }
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      const failResult: PublishResult = {
-        route,
-        status: "failed",
-        detail,
-        published_at: null,
-        content_version: state.artifacts.content_version,
-        render_version: state.artifacts.render_version,
-      };
-      const idx = results.findIndex((r) => r.route === route);
-      if (idx >= 0) {
-        results[idx] = failResult;
-      } else {
-        results.push(failResult);
-      }
-      hasUnfinishedPublish = true;
+  // Determine targets
+  let targets: PublishTarget[];
+  if (routeOverride) {
+    targets = [{ route: routeOverride, account: state.route.account }];
+  } else if (state.publish_targets.length > 0) {
+    targets = state.publish_targets;
+  } else {
+    // Derive from route (backward compat)
+    targets = [{ route: state.route.primary, account: state.route.account }];
+    for (const extra of state.route.extras) {
+      targets.push({ route: extra, account: state.route.account });
     }
   }
 
-  // Update state
-  state.publish.results = results;
+  const { results, errors } = await executePublishTargets({
+    state,
+    targets,
+    dryRun,
+    config,
+    workspacePaths,
+  });
 
-  const allDone = routes.every((route) => {
-    const r = results.find((x) => x.route === route);
+  // Upsert results into state
+  for (const result of results) {
+    const idx = state.publish.results.findIndex(
+      (r) => r.route === result.route && r.account === result.account,
+    );
+    if (idx >= 0) {
+      state.publish.results[idx] = result;
+    } else {
+      state.publish.results.push(result);
+    }
+  }
+
+  // Check if all targets are done
+  const allDone = targets.every((target) => {
+    const r = state.publish.results.find(
+      (x) => x.route === target.route && x.account === target.account,
+    );
     return r && (r.status === "success" || r.status === "skipped");
   });
 
@@ -131,7 +104,7 @@ Options:
     state.mode = "done";
     state.phase.publish = { status: "done", error: null };
     state.phase.current = "done";
-  } else if (hasUnfinishedPublish) {
+  } else {
     state.mode = "active";
     state.phase.publish = { status: "pending", error: null };
     state.phase.current = "publish";
@@ -139,9 +112,13 @@ Options:
 
   await writeState(statePath, state);
 
-  printResult({
-    publish_results: results,
+  const output: any = {
+    publish_results: state.publish.results,
     mode: state.mode,
     phase: state.phase.current,
-  }, renderPublish);
+  };
+  if (errors.length > 0) {
+    output.errors = errors;
+  }
+  printResult(output, renderPublish);
 }

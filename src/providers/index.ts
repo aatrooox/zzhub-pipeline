@@ -54,11 +54,14 @@ async function publishWechatArticleRoute({
     }
   }
 
+  const account = accountOverride || state.route.account;
+
   if (dryRun) {
     console.error(`[dry-run] Zotepad export: ${exportPostPath}`);
     console.error(`[dry-run] Wechat draft: ${state.metadata.title}`);
     return {
       route: "wechat-article",
+      account,
       status: "skipped",
       detail: "dry-run",
       published_at: null,
@@ -69,7 +72,6 @@ async function publishWechatArticleRoute({
 
   try {
     const markdownRenderer = await resolveMarkdownRenderer(config);
-    const account = accountOverride || state.route.account;
     const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
     const { html } = await markdownRenderer.render({
       markdownPath: exportPostPath,
@@ -93,6 +95,7 @@ async function publishWechatArticleRoute({
   } catch (error) {
     return {
       route: "wechat-article",
+      account,
       status: "failed",
       detail: error instanceof Error ? error.message : String(error),
       published_at: null,
@@ -103,6 +106,7 @@ async function publishWechatArticleRoute({
 
   return {
     route: "wechat-article",
+    account,
     status: "success",
     detail: null,
     published_at: new Date().toISOString(),
@@ -135,11 +139,14 @@ async function publishWechatNewspicRoute({
   const renderPhotos = assets.map((asset) => asset.path);
   const photos = mergePhotoLists(renderPhotos, bodyImageUrls);
 
+  const account = accountOverride || state.route.account;
+
   if (dryRun) {
     console.error(`[dry-run] Wechat newspic: ${state.metadata.title}`);
     console.error(`[dry-run] Content file: ${cleanPath}`);
     return {
       route: "wechat-newspic",
+      account,
       status: "skipped",
       detail: "dry-run",
       published_at: null,
@@ -149,7 +156,6 @@ async function publishWechatNewspicRoute({
   }
 
   try {
-    const account = accountOverride || state.route.account;
     await createWechatNewspic({
       account,
       title: state.metadata.title,
@@ -164,6 +170,7 @@ async function publishWechatNewspicRoute({
   } catch (error) {
     return {
       route: "wechat-newspic",
+      account,
       status: "failed",
       detail: error instanceof Error ? error.message : String(error),
       published_at: null,
@@ -174,6 +181,7 @@ async function publishWechatNewspicRoute({
 
   return {
     route: "wechat-newspic",
+    account,
     status: "success",
     detail: null,
     published_at: new Date().toISOString(),
