@@ -30,11 +30,7 @@ const DEFAULT_SIZE = { width: 900, height: 1200 } as const;
 const WECHAT_SPLIT_WINDOW_EXTRA_HEIGHT = 87;
 const PRETEXT_SCREENSHOT_VIRTUAL_TIME_BUDGET_MS = 6_000;
 
-function detectIcon(template: string, _text: string, _line1: string, _line2: string, _line3: string, fallbackIcon: string): string {
-  if (template === "wechat-cover-split") {
-    return join(ICONS_DIR, "logo.png");
-  }
-
+function detectIcon(_template: string, _text: string, _line1: string, _line2: string, _line3: string, fallbackIcon: string): string {
   if (fallbackIcon.length > 0) return fallbackIcon;
   return join(ICONS_DIR, "logo.png");
 }

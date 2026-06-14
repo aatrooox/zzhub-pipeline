@@ -148,7 +148,7 @@ const VISUAL_PARAMS: Record<string, AccountVisualParams> = {
     footer: "公众号 · 古一软件",
     bg: "#faf5f8",
     highlight: "#ca6093",
-    fallback_icon: "assets/icons/logo.png",
+    fallback_icon: "assets/icons/ancientone-logo.png",
   },
 };
 

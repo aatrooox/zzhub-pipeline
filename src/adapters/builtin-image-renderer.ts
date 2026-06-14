@@ -144,6 +144,12 @@ async function renderCover(
 
   if (template === "wechat-cover-split") {
     const cmdParts = ["--template", "wechat-cover-split", "--text", title];
+    if (visualParams) {
+      cmdParts.push("--highlight", visualParams.highlight);
+      cmdParts.push("--bg", visualParams.bg);
+      cmdParts.push("--footer", visualParams.footer);
+      cmdParts.push("--fallback-icon", visualParams.fallback_icon);
+    }
     cmdParts.push("--highlight-words", highlightWords.join(","));
     cmdParts.push("--out", coverOut);
     runRenderCardCli(cmdParts);
@@ -303,7 +309,7 @@ export const builtinImageRenderer: ImageRenderPlugin = {
 
     if (route === "wechat-article") {
       // Article: cover only (wechat-cover-split)
-      const cover = await renderCover("wechat-cover-split", title, outputDir, null, highlightWords);
+      const cover = await renderCover("wechat-cover-split", title, outputDir, vp, highlightWords);
       return { assets: [cover], pageCount: 1, pages: [{ page: 1, imageCount: 0, imageSources: [] }] };
     }
 
