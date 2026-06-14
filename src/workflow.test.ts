@@ -2120,4 +2120,28 @@ describe("publish_targets and multi-account", () => {
     });
     expect(state.publish.results[0].account).toBe("default");
   });
+
+  test("publish_targets field defaults to empty array", () => {
+    const state = WorkflowStateSchema.parse({});
+    expect(state.publish_targets).toEqual([]);
+  });
+
+  test("publish_targets accepts array of {route, account}", () => {
+    const state = WorkflowStateSchema.parse({
+      publish_targets: [
+        { route: "wechat-article", account: "default" },
+        { route: "wechat-article", account: "ancientone" },
+        { route: "blog", account: "default" },
+      ],
+    });
+    expect(state.publish_targets).toHaveLength(3);
+    expect(state.publish_targets[1].account).toBe("ancientone");
+  });
+
+  test("publish_targets account defaults to 'default' when omitted", () => {
+    const state = WorkflowStateSchema.parse({
+      publish_targets: [{ route: "blog" }],
+    });
+    expect(state.publish_targets[0].account).toBe("default");
+  });
 });

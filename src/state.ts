@@ -56,6 +56,7 @@ export type {
   PublishResultStatus,
   PublishResult,
   PublishResults,
+  PublishTarget,
   ContentReviewStatus,
   ContentReview,
   HandoffResearchPolicy,

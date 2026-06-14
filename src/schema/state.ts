@@ -274,6 +274,11 @@ const PublishResultsSchema = withObjectDefault(
   }),
 );
 
+const PublishTargetSchema = z.object({
+  route: RoutePrimarySchema,
+  account: trimmedString("default"),
+});
+
 const ContentReviewSchema = withObjectDefault(
   z.object({
     status: ContentReviewStatusSchema,
@@ -330,6 +335,7 @@ export const WorkflowStateSchema = z.object({
   artifacts: ArtifactsSchema,
   images: ImagesSchema,
   publish: PublishResultsSchema,
+  publish_targets: z.array(PublishTargetSchema).default([]),
   content_review: ContentReviewSchema,
   redo_hint: z.string().nullable().default(null),
 });
@@ -371,6 +377,7 @@ export type Images = z.infer<typeof ImagesSchema>;
 export type PublishResultStatus = z.infer<typeof PublishResultStatusSchema>;
 export type PublishResult = z.infer<typeof PublishResultSchema>;
 export type PublishResults = z.infer<typeof PublishResultsSchema>;
+export type PublishTarget = z.infer<typeof PublishTargetSchema>;
 export type ContentReviewStatus = z.infer<typeof ContentReviewStatusSchema>;
 export type ContentReview = z.infer<typeof ContentReviewSchema>;
 export type HandoffResearchPolicy = z.infer<typeof HandoffResearchPolicySchema>;
