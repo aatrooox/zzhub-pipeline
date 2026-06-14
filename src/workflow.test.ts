@@ -25,6 +25,7 @@ import { resolveAuthoring } from "./profiles";
 import { WorkflowStateSchema } from "./schema/state";
 import { defaultState, readState, validateForPhase, writeState } from "./state";
 import { getTaskByStatePath } from "./task-manager";
+import { getPublishProvider, listPublishProviders } from "./providers";
 import { stripLeadingH1, stripLeadingTitleHeading } from "./text";
 
 const TEST_CONFIG_PATH = join(
@@ -2157,5 +2158,18 @@ describe("provider accountOverride", () => {
       accountOverride: "ancientone",
     };
     expect(ctx.accountOverride).toBe("ancientone");
+  });
+});
+
+describe("PUBLISH_PROVIDERS", () => {
+  test("blog is registered as publish provider", () => {
+    const provider = getPublishProvider("blog");
+    expect(provider).toBeDefined();
+    expect(typeof provider).toBe("function");
+  });
+
+  test("listPublishProviders includes blog", () => {
+    const providers = listPublishProviders();
+    expect(providers).toContain("blog");
   });
 });

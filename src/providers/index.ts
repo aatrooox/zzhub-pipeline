@@ -7,6 +7,7 @@ import {
   prepareBodyForNewspic,
 } from "../text";
 import { resolveMarkdownRenderer } from "../adapter-loader";
+import { publishBlogRoute } from "./blog";
 import { createWechatDraft, createWechatNewspic, extractImageUrls, mergePhotoLists } from "./wechat";
 
 export interface PublishRouteContext {
@@ -181,9 +182,10 @@ async function publishWechatNewspicRoute({
   };
 }
 
-const PUBLISH_PROVIDERS: Partial<Record<RoutePrimary, PublishProvider>> = {
+const PUBLISH_PROVIDERS: Record<RoutePrimary, PublishProvider> = {
   "wechat-article": publishWechatArticleRoute,
   "wechat-newspic": publishWechatNewspicRoute,
+  "blog": publishBlogRoute,
 };
 
 export function getPublishProvider(route: RoutePrimary): PublishProvider {
