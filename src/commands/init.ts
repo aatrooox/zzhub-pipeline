@@ -36,6 +36,7 @@ import {
   writeState,
   type ContentForm,
   type ContentOrigin,
+  type PublishTarget,
   type Target,
   type TaskKind,
 } from "../state";
@@ -81,6 +82,30 @@ Options:
 
   const targets = targetsRaw.split(",").map((t) => t.trim()) as Target[];
 
+  // Parse multi-target format: "route@account,route@account,..."
+  // Also supports RoutePrimary values (wechat-article, wechat-newspic, blog)
+  // which need to be mapped to Target enum (wechat, blog) for intent.targets.
+  const publishTargets: PublishTarget[] = [];
+  const targetParts = targetsRaw.split(",").map((t) => t.trim());
+  const defaultAccount = accountOverride || "default";
+  const mappedTargets: Target[] = [];
+
+  for (const part of targetParts) {
+    const atIdx = part.indexOf("@");
+    const route = atIdx !== -1 ? part.slice(0, atIdx).trim() : part;
+    const account = atIdx !== -1 ? part.slice(atIdx + 1).trim() : defaultAccount;
+    publishTargets.push({ route: route as any, account });
+    // Map RoutePrimary to Target enum: wechat-* → "wechat", blog → "blog"
+    mappedTargets.push(route.startsWith("wechat") ? "wechat" : route as Target);
+  }
+
+  // Single target: leave publish_targets empty (backward compat)
+  // Multi-target: populate publish_targets
+  const isMultiTarget = publishTargets.length > 1 || targetsRaw.includes("@");
+
+  // Use mapped targets (Target enum) for intent, not raw RoutePrimary values
+  const intentTargets = mappedTargets.length > 0 ? mappedTargets : targets;
+
   const runId = generateRunId();
   const statePath = getRunStatePath(workspace, runId);
   let newspicRender = null;
@@ -98,13 +123,21 @@ Options:
   state.route = resolveFullRoute(intentText, {
     account: accountOverride,
     contentForm,
-    targets,
+    targets: intentTargets,
   });
+
+  // Set publish_targets if multi-target
+  if (isMultiTarget && publishTargets.length > 0) {
+    state.publish_targets = publishTargets;
+    // First target becomes primary route
+    state.route.primary = publishTargets[0].route as any;
+    state.route.account = publishTargets[0].account;
+  }
 
   state.intent = {
     task_kind: taskKind,
     content_form: contentForm,
-    targets,
+    targets: intentTargets,
     content_origin: contentOrigin,
     intent_text: intentText || null,
     explicit_constraints: [],

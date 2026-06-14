@@ -2241,3 +2241,61 @@ describe("publish command with publish_targets", () => {
     expect(finalState.publish.results[1].status).toBe("skipped");
   });
 });
+
+describe("init with multi-target --targets", () => {
+  test("single target leaves publish_targets empty", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-init-single-");
+    const output = await captureJsonOutput<any>(() =>
+      init([
+        "--workspace", tmpDir,
+        "--task-kind", "publish",
+        "--content-form", "article",
+        "--targets", "wechat-article",
+        "--content-origin", "user",
+        "--account", "default",
+      ]),
+    );
+    const state = await readState(output.state_path);
+    expect(state.publish_targets).toEqual([]);
+    expect(state.route.primary).toBe("wechat-article");
+    expect(state.route.account).toBe("default");
+  });
+
+  test("multi-target populates publish_targets", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-init-multi-");
+    const output = await captureJsonOutput<any>(() =>
+      init([
+        "--workspace", tmpDir,
+        "--task-kind", "publish",
+        "--content-form", "article",
+        "--targets", "wechat-article@default,wechat-article@ancientone,blog@default",
+        "--content-origin", "user",
+      ]),
+    );
+    const state = await readState(output.state_path);
+    expect(state.publish_targets).toHaveLength(3);
+    expect(state.publish_targets[0]).toEqual({ route: "wechat-article", account: "default" });
+    expect(state.publish_targets[1]).toEqual({ route: "wechat-article", account: "ancientone" });
+    expect(state.publish_targets[2]).toEqual({ route: "blog", account: "default" });
+    expect(state.route.primary).toBe("wechat-article");
+    expect(state.route.account).toBe("default");
+  });
+
+  test("--targets without @ uses --account value", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-init-no-at-");
+    const output = await captureJsonOutput<any>(() =>
+      init([
+        "--workspace", tmpDir,
+        "--task-kind", "publish",
+        "--content-form", "article",
+        "--targets", "wechat-article,blog",
+        "--content-origin", "user",
+        "--account", "ancientone",
+      ]),
+    );
+    const state = await readState(output.state_path);
+    expect(state.publish_targets).toHaveLength(2);
+    expect(state.publish_targets[0].account).toBe("ancientone");
+    expect(state.publish_targets[1].account).toBe("ancientone");
+  });
+});
