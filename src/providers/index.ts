@@ -14,6 +14,7 @@ export interface PublishRouteContext {
   dryRun: boolean;
   config: PipelineConfig;
   workspacePaths: ResolvedWorkspacePaths;
+  accountOverride?: string;
 }
 
 export type PublishProvider = (ctx: PublishRouteContext) => Promise<PublishResult>;
@@ -23,6 +24,7 @@ async function publishWechatArticleRoute({
   dryRun,
   config,
   workspacePaths,
+  accountOverride,
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   let exportPostPath = postPath;
@@ -66,17 +68,18 @@ async function publishWechatArticleRoute({
 
   try {
     const markdownRenderer = await resolveMarkdownRenderer(config);
-    const wxAccount = config.wx.accounts[state.route.account] ?? config.wx.accounts[config.wx.defaultAccount];
+    const account = accountOverride || state.route.account;
+    const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
     const { html } = await markdownRenderer.render({
       markdownPath: exportPostPath,
       outPath: workspacePaths.zotepadExportHtml,
-      account: state.route.account,
+      account,
       title: state.metadata.title,
       customCss: wxAccount?.customCss ?? null,
       themeOverrides: wxAccount?.theme,
     });
     await createWechatDraft({
-      account: state.route.account,
+      account,
       title: state.metadata.title,
       html,
       photos,
@@ -84,7 +87,7 @@ async function publishWechatArticleRoute({
       existingDraftMediaId: state.intent.existing_draft_media_id,
       noteId: state.intent.note_id,
       nezusBaseUrl: process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl,
-      nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[state.route.account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
+      nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
     });
   } catch (error) {
     return {
@@ -111,6 +114,7 @@ async function publishWechatNewspicRoute({
   state,
   dryRun,
   config,
+  accountOverride,
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
@@ -144,8 +148,9 @@ async function publishWechatNewspicRoute({
   }
 
   try {
+    const account = accountOverride || state.route.account;
     await createWechatNewspic({
-      account: state.route.account,
+      account,
       title: state.metadata.title,
       content: cleanContent,
       photos,
@@ -153,7 +158,7 @@ async function publishWechatNewspicRoute({
       existingDraftMediaId: state.intent.existing_draft_media_id,
       noteId: state.intent.note_id,
       nezusBaseUrl: process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl,
-      nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[state.route.account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
+      nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
     });
   } catch (error) {
     return {

@@ -2145,3 +2145,17 @@ describe("publish_targets and multi-account", () => {
     expect(state.publish_targets[0].account).toBe("default");
   });
 });
+
+describe("provider accountOverride", () => {
+  test("PublishRouteContext accepts accountOverride", () => {
+    // Type-level test: this should compile
+    const ctx: import("./providers").PublishRouteContext = {
+      state: {} as any,
+      dryRun: true,
+      config: {} as any,
+      workspacePaths: {} as any,
+      accountOverride: "ancientone",
+    };
+    expect(ctx.accountOverride).toBe("ancientone");
+  });
+});
