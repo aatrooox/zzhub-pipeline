@@ -22,6 +22,7 @@ import { tasks } from "./commands/tasks";
 import { renderPostsRelativePath, resolveWorkspacePaths, resolveWorkspaceRoot } from "./config";
 import { resolveFullRoute } from "./routes";
 import { resolveAuthoring } from "./profiles";
+import { WorkflowStateSchema } from "./schema/state";
 import { defaultState, readState, validateForPhase, writeState } from "./state";
 import { getTaskByStatePath } from "./task-manager";
 import { stripLeadingH1, stripLeadingTitleHeading } from "./text";
@@ -2084,5 +2085,39 @@ describe("newspic_render default behavior", () => {
     const finalState = await readState(initOutput.state_path);
     // Default is "single" — no auto-inference from content length
     expect(finalState.intent.newspic_render?.pagination_mode ?? "single").toBe("single");
+  });
+});
+
+describe("publish_targets and multi-account", () => {
+  test("PublishResult schema accepts account field with default", () => {
+    const state = WorkflowStateSchema.parse({});
+    // publish.results should accept items with account field
+    const result = {
+      route: "wechat-article" as const,
+      account: "ancientone",
+      status: "success" as const,
+      detail: null,
+      published_at: "2026-06-14T10:00:00Z",
+      content_version: 1,
+      render_version: 1,
+    };
+    state.publish.results.push(result);
+    const parsed = WorkflowStateSchema.parse(state);
+    expect(parsed.publish.results[0].account).toBe("ancientone");
+  });
+
+  test("PublishResult defaults account to 'default' when missing", () => {
+    const result = {
+      route: "wechat-article",
+      status: "success",
+      detail: null,
+      published_at: null,
+      content_version: 0,
+      render_version: 0,
+    };
+    const state = WorkflowStateSchema.parse({
+      publish: { results: [result] },
+    });
+    expect(state.publish.results[0].account).toBe("default");
   });
 });

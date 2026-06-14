@@ -260,6 +260,7 @@ const ImagesSchema = withObjectDefault(
 
 const PublishResultSchema = z.object({
   route: RoutePrimarySchema,
+  account: trimmedString("default"),
   status: PublishResultStatusSchema,
   detail: z.string().nullable().default(null),
   published_at: z.string().nullable().default(null),
