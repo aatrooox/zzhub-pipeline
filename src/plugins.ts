@@ -17,6 +17,7 @@ import { prepare } from "./commands/prepare";
 import { publish } from "./commands/publish";
 import { reconcile } from "./commands/reconcile";
 import { render } from "./commands/render";
+import { republish } from "./commands/republish";
 import { reset } from "./commands/reset";
 import { review } from "./commands/review";
 import { status } from "./commands/status";
@@ -53,6 +54,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "prepare-finalize", summary: "Highlight words + asset save", plugin: "workflow", handler: prepareFinalize },
         { name: "render", summary: "Image plan + imgx render", plugin: "workflow", handler: render },
         { name: "publish", summary: "Execute publish routes", plugin: "workflow", handler: publish },
+        { name: "republish", summary: "Add publish targets and execute for new targets only", plugin: "workflow", handler: republish },
         { name: "reconcile", summary: "Reconcile managed task materials and derived state", plugin: "workflow", handler: reconcile },
         { name: "checkpoint", summary: "Read task state and validate current phase", plugin: "workflow", handler: checkpoint },
         { name: "status", summary: "Read a managed task with gaps and next action", plugin: "workflow", handler: status },

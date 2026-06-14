@@ -14,6 +14,7 @@ import { prepare } from "./commands/prepare";
 import { prepareFinalize } from "./commands/prepare-finalize";
 import { render } from "./commands/render";
 import { publish } from "./commands/publish";
+import { republish } from "./commands/republish";
 import { reconcile } from "./commands/reconcile";
 import { review } from "./commands/review";
 import { status } from "./commands/status";
@@ -2297,5 +2298,83 @@ describe("init with multi-target --targets", () => {
     expect(state.publish_targets).toHaveLength(2);
     expect(state.publish_targets[0].account).toBe("ancientone");
     expect(state.publish_targets[1].account).toBe("ancientone");
+  });
+});
+
+describe("republish command", () => {
+  test("republish adds targets and executes", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-republish-");
+    const statePath = join(tmpDir, "state.json");
+    const state = defaultState();
+    state.run_id = "test-run";
+    state.workspace_root = tmpDir;
+    state.asset_path = tmpDir;
+    state.route.primary = "wechat-article";
+    state.route.account = "default";
+    state.metadata.title = "Test";
+    state.metadata.slug = "test";
+    state.metadata.date = "2026-06-14";
+    state.content_review.status = "passed";
+    state.mode = "done";
+    state.publish.results = [
+      {
+        route: "wechat-article",
+        account: "default",
+        status: "success",
+        detail: null,
+        published_at: "2026-06-14T10:00:00Z",
+        content_version: 1,
+        render_version: 1,
+      },
+    ];
+    await writeState(statePath, state);
+
+    // Republish to another account with dry-run
+    await republish(["--state", statePath, "--account", "ancientone", "--dry-run"]);
+
+    const finalState = await readState(statePath);
+    expect(finalState.publish_targets).toContainEqual({
+      route: "wechat-article",
+      account: "ancientone",
+    });
+    expect(finalState.publish.results).toHaveLength(2);
+    expect(finalState.mode).toBe("done");
+  });
+
+  test("republish skips idempotent targets", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-republish-idem-");
+    const statePath = join(tmpDir, "state.json");
+    const state = defaultState();
+    state.run_id = "test-run";
+    state.workspace_root = tmpDir;
+    state.asset_path = tmpDir;
+    state.route.primary = "wechat-article";
+    state.route.account = "default";
+    state.metadata.title = "Test";
+    state.metadata.slug = "test";
+    state.metadata.date = "2026-06-14";
+    state.content_review.status = "passed";
+    state.mode = "done";
+    state.artifacts.content_version = 1;
+    state.artifacts.render_version = 1;
+    state.publish.results = [
+      {
+        route: "wechat-article",
+        account: "default",
+        status: "success",
+        detail: null,
+        published_at: "2026-06-14T10:00:00Z",
+        content_version: 1,
+        render_version: 1,
+      },
+    ];
+    await writeState(statePath, state);
+
+    // Try to republish same target - should skip
+    await republish(["--state", statePath, "--account", "default", "--dry-run"]);
+
+    const finalState = await readState(statePath);
+    // Should still have only 1 result (skipped duplicate)
+    expect(finalState.publish.results).toHaveLength(1);
   });
 });
