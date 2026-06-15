@@ -151,7 +151,7 @@ Options:
     : resolveFullRoute(intentText, {
         primary: routeOverride,
         extras,
-        account: accountOverride,
+        account: accountOverride ?? state.route?.account || undefined,
         contentForm: state.intent.content_form,
         targets: state.intent.targets,
       });
