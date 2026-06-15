@@ -601,7 +601,7 @@ Options:
   const targets = optionalArg(parsed, "targets") ?? "wechat";
   const account = optionalArg(parsed, "account");
 
-  // Get topic to retrieve title
+  // Get topic to verify it exists
   const db = ensureDb(workspace);
   try {
     const topicRow = db
@@ -610,7 +610,6 @@ Options:
     if (!topicRow) {
       throw new Error(`Topic not found: ${topicId}`);
     }
-    const topic = rowToTopic(topicRow);
 
     // Build init command args
     const initArgs = [

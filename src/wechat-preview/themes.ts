@@ -178,7 +178,7 @@ export function getWechatPreviewTheme(
   return {
     ...base,
     editorVars: hasEditorVars ? { ...base.editorVars, ...overrides.editorVars } : base.editorVars,
-    exportTheme: hasExportTheme ? { ...base.exportTheme, ...definedValues(overrides.exportTheme) } : base.exportTheme,
+    exportTheme: hasExportTheme ? { ...base.exportTheme, ...definedValues(overrides.exportTheme!) } : base.exportTheme,
   };
 }
 
