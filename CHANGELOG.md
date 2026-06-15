@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.9.1
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.9.0...v0.9.1)
+
+### Fixes
+
+- Preserve existing account when prepare is called without --account ([0a8f88f](https://github.com/aatrooox/zzhub-pipeline/commit/0a8f88f))
+
+### Chore
+
+- Remove stale Unreleased section (already in v0.9.0) ([66142b1](https://github.com/aatrooox/zzhub-pipeline/commit/66142b1))
+
+### ❤️ Contributors
+
+- Aatrox3 ([@aatrooox](https://github.com/aatrooox))
+
 ## v0.9.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.8.0...v0.9.0)
