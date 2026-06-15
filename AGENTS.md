@@ -174,6 +174,7 @@ Resume mode compares core inputs (body, title, route, intent_text, explicit_cons
 - `content_review.status` must be `"passed"` before `render` or `publish` can proceed.
 - `redo_hint` is set by `reset --mode redo.*` and cleared by `prepare-finalize`, so leave it alone.
 - Body text is never stored in state. It lives in `{workspace}/.zzhub-media/tmp/{run_id}/`.
+- `republish` adds to `publish_targets` and `publish.results`, but does not change `mode`.
 
 ## State file lifecycle
 
@@ -291,11 +292,12 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark tasks as abandoned |
 
-### ops group (11 commands)
+### ops group (12 commands)
 
 | Command | Description |
 |---|---|
 | `sync-blog` | Copy post.md to blog repo, publish, and record result in state JSON |
+| `republish` | Publish completed task to additional accounts/platforms |
 | `imgx` | Run bundled imgx renderer subcommands |
 | `wechat-export` | Render markdown to WeChat HTML |
 | `cos-upload` | Upload image to COS CDN |

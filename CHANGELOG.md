@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- **republish**: New command to publish completed tasks to additional accounts/platforms without re-rendering
+- **init multi-target**: `--targets "route@account,route@account,..."` format for specifying multiple publish targets at init
+- **publish_targets**: New state field for storing multi-target publish configuration
+- **blog provider**: Blog is now registered in PUBLISH_PROVIDERS, accessible via unified publish flow
+
 ## v0.8.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.7.0...v0.8.0)

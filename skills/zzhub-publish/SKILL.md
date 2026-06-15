@@ -227,3 +227,44 @@ zzhub-pipeline wx-draft-delete --media-id MEDIA_ID
 `--account` 参数可选，默认使用配置中的 `wx.defaultAccount`。指定账号：`--account ancientone`。
 
 发布完成后，如果需要清理草稿箱（例如更新已有草稿后想删掉旧版本），用 `wx-drafts` 查到旧版 `media_id`，然后 `wx-draft-delete` 删除。
+
+## 多账号/多平台发布
+
+### init 时指定多目标
+
+```bash
+# 多目标（逗号分隔 route@account 格式）
+zzp init --workspace ws \
+  --targets "wechat-article@default,wechat-article@ancientone,blog@default" \
+  --task-kind publish --content-form article --content-origin user
+
+# 无 @ 时使用 --account 值
+zzp init --workspace ws --targets "wechat-article,blog" --account ancientone
+```
+
+单目标时 `publish_targets` 为空（向后兼容）。多目标时写入 `publish_targets`，publish 阶段一次性并行发布。
+
+### 事后追加发布（republish）
+
+任务完成后（mode=done），追加发布到其他账号/平台：
+
+```bash
+# 简写：同路由不同账号
+zzp republish --state {state_path} --account ancientone
+
+# 多目标
+zzp republish --state {state_path} --targets "wechat-article@ancientone,blog@default"
+
+# 混合
+zzp republish --state {state_path} --account ancientone --targets "blog@default"
+```
+
+**前置条件**：
+- `asset_path` 存在（产物已生成）
+- `content_review.status = passed`
+
+**行为**：
+- 并行执行所有新 targets
+- 幂等：已成功的 route+account 自动跳过
+- mode 保持 done，结果追加到 `publish.results[]`
+- 有失败时返回错误详情
