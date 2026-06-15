@@ -54,7 +54,6 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "prepare-finalize", summary: "Highlight words + asset save", plugin: "workflow", handler: prepareFinalize },
         { name: "render", summary: "Image plan + imgx render", plugin: "workflow", handler: render },
         { name: "publish", summary: "Execute publish routes", plugin: "workflow", handler: publish },
-        { name: "republish", summary: "Add publish targets and execute for new targets only", plugin: "workflow", handler: republish },
         { name: "reconcile", summary: "Reconcile managed task materials and derived state", plugin: "workflow", handler: reconcile },
         { name: "checkpoint", summary: "Read task state and validate current phase", plugin: "workflow", handler: checkpoint },
         { name: "status", summary: "Read a managed task with gaps and next action", plugin: "workflow", handler: status },
@@ -69,6 +68,7 @@ export function getCommandPlugins(): CommandPlugin[] {
       name: "ops",
       commands: [
         { name: "sync-blog", summary: "Copy post.md to blog repo, publish, and record result in state JSON", plugin: "ops", handler: syncBlog },
+        { name: "republish", summary: "Publish completed task to additional accounts/platforms", plugin: "ops", handler: republish },
         { name: "imgx", summary: "Run bundled imgx renderer subcommands", plugin: "ops", handler: imgxCommand },
         { name: "wechat-export", summary: "Render markdown to WeChat HTML with bundled preview styles", plugin: "ops", handler: wechatExport },
         { name: "cos-upload", summary: "Upload a local image to configured COS CDN", plugin: "ops", handler: cosUpload },
