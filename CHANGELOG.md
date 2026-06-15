@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.9.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.8.0...v0.9.0)
+
+### Features
+
+- **topic:** Add evaluate command for AI scoring ([815ab7e](https://github.com/aatrooox/zzhub-pipeline/commit/815ab7e))
+- **topic:** Add promote command to convert topic to publish task ([ec3dd14](https://github.com/aatrooox/zzhub-pipeline/commit/ec3dd14))
+- **schema:** Add account field to PublishResult ([a75c31b](https://github.com/aatrooox/zzhub-pipeline/commit/a75c31b))
+- **schema:** Add publish_targets field for multi-target publish ([0e4d44c](https://github.com/aatrooox/zzhub-pipeline/commit/0e4d44c))
+- **providers:** Add accountOverride to PublishRouteContext ([eb406cb](https://github.com/aatrooox/zzhub-pipeline/commit/eb406cb))
+- **providers:** Register blog in PUBLISH_PROVIDERS ([008b760](https://github.com/aatrooox/zzhub-pipeline/commit/008b760))
+- **providers:** Extract executePublishTargets core ([e895d9b](https://github.com/aatrooox/zzhub-pipeline/commit/e895d9b))
+- **publish:** Use executePublishTargets core ([7ae4eac](https://github.com/aatrooox/zzhub-pipeline/commit/7ae4eac))
+- **init:** Support multi-target --targets format ([8f31929](https://github.com/aatrooox/zzhub-pipeline/commit/8f31929))
+- **commands:** Add republish for multi-account publish ([00a3174](https://github.com/aatrooox/zzhub-pipeline/commit/00a3174))
+
+### Fixes
+
+- **render:** Pass account visual params to cover image for all accounts ([31fda36](https://github.com/aatrooox/zzhub-pipeline/commit/31fda36))
+- Move republish from workflow to ops group ([a464310](https://github.com/aatrooox/zzhub-pipeline/commit/a464310))
+- Resolve pre-existing typecheck errors ([b009aa8](https://github.com/aatrooox/zzhub-pipeline/commit/b009aa8))
+
+### Documentation
+
+- Update AGENTS.md with topic and analytics commands ([5c5bf24](https://github.com/aatrooox/zzhub-pipeline/commit/5c5bf24))
+- Document republish and multi-target init ([4724d30](https://github.com/aatrooox/zzhub-pipeline/commit/4724d30))
+
+### ❤️ Contributors
+
+- Aatrox3 ([@aatrooox](https://github.com/aatrooox))
+
 ## [Unreleased]
 
 ### Features
