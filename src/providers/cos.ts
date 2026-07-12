@@ -90,28 +90,32 @@ async function requestSts(
   )) as StsApiResponse;
 
   const d = response?.data;
-  if (
-    !d?.TmpSecretId ||
-    !d?.TmpSecretKey ||
-    !d?.SessionToken ||
-    !d?.Bucket ||
-    !d?.Region ||
-    !d?.Key ||
-    d.StartTime === undefined ||
-    d.ExpiredTime === undefined
-  ) {
-    throw new Error(`COS STS response incomplete: ${JSON.stringify(response)}`);
+  const missing = [
+    ["TmpSecretId", d?.TmpSecretId],
+    ["TmpSecretKey", d?.TmpSecretKey],
+    ["SessionToken", d?.SessionToken],
+    ["Bucket", d?.Bucket],
+    ["Region", d?.Region],
+    ["Key", d?.Key],
+    ["StartTime", d?.StartTime],
+    ["ExpiredTime", d?.ExpiredTime],
+  ].filter(([, value]) => value === undefined || value === null || value === "");
+  if (missing.length > 0) {
+    throw new Error(
+      `COS STS response incomplete; missing: ${missing.map(([field]) => field).join(", ")}`,
+    );
   }
+  const data = d as Required<NonNullable<StsApiResponse["data"]>>;
 
   return {
-    TmpSecretId: d.TmpSecretId,
-    TmpSecretKey: d.TmpSecretKey,
-    SessionToken: d.SessionToken,
-    StartTime: d.StartTime,
-    ExpiredTime: d.ExpiredTime,
-    Bucket: d.Bucket,
-    Region: d.Region,
-    Key: d.Key,
+    TmpSecretId: data.TmpSecretId,
+    TmpSecretKey: data.TmpSecretKey,
+    SessionToken: data.SessionToken,
+    StartTime: data.StartTime,
+    ExpiredTime: data.ExpiredTime,
+    Bucket: data.Bucket,
+    Region: data.Region,
+    Key: data.Key,
   };
 }
 

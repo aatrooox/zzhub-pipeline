@@ -17,7 +17,7 @@
 
 import { parseArgs, requireArg, optionalArg } from "../args";
 import { printResult, renderReview } from "../output";
-import { readState, writeState, type ContentReviewStatus } from "../state";
+import { readResolvedState, writeState, type ContentReviewStatus } from "../state";
 
 const VALID_STATUSES: ContentReviewStatus[] = [
   "passed",
@@ -43,7 +43,7 @@ Statuses:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const status = requireArg(parsed, "status", "review status") as ContentReviewStatus;
   const feedback = optionalArg(parsed, "feedback") ?? null;
 
@@ -59,7 +59,9 @@ Statuses:
     );
   }
 
-  const state = await readState(statePath);
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
 
   state.content_review = {
     status,

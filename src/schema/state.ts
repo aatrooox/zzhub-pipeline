@@ -263,6 +263,7 @@ const PublishResultSchema = z.object({
   account: trimmedString("default"),
   status: PublishResultStatusSchema,
   detail: z.string().nullable().default(null),
+  external_id: z.string().nullable().optional(),
   published_at: z.string().nullable().default(null),
   content_version: z.number().int().default(0),
   render_version: z.number().int().default(0),

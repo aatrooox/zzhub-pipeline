@@ -15,7 +15,7 @@ import {
   defaultState,
   generateRunId,
   getRunStatePath,
-  readState,
+  readResolvedState,
   writeState,
   type ContentForm,
   type HandoffAuthoringPolicy,
@@ -473,10 +473,16 @@ Options:
     handoff.mode === "resume"
       ? await resolveExistingStatePath(workspace, handoff)
       : getRunStatePath(workspace, generateRunId());
-  const state =
-    handoff.mode === "resume"
-      ? await readState(statePath)
-      : buildNewState(workspace, statePath, statePath.split("/").pop()?.replace(/\.json$/, "") ?? generateRunId());
+  const resolvedExisting = handoff.mode === "resume"
+    ? await readResolvedState(statePath)
+    : null;
+  const effectiveStatePath = resolvedExisting?.path ?? statePath;
+  const state = resolvedExisting?.state ??
+    buildNewState(
+      workspace,
+      effectiveStatePath,
+      effectiveStatePath.split("/").pop()?.replace(/\.json$/, "") ?? generateRunId(),
+    );
 
   if (handoff.mode === "new" && !state.run_id) {
     state.run_id = generateRunId();
@@ -484,7 +490,7 @@ Options:
   }
 
   await applyHandoffToState(state, handoff);
-  await writeState(state.state_path, state);
+  await writeState(state.state_path || effectiveStatePath, state);
 
   const task = await getTaskByStatePath(state.state_path);
   printResult({

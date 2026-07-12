@@ -14,6 +14,8 @@ const UPLOAD_TIMEOUT = 60000;
 const DRAFT_TIMEOUT = 30000;
 const TOKEN_FETCH_RETRY_MAX_ATTEMPTS = 3;
 const TOKEN_FETCH_RETRY_DELAY_MS = 500;
+const IMAGE_DOWNLOAD_TIMEOUT = 30000;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 const IMAGE_EXTENSIONS = new Map<string, string>([
   ["image/jpeg", "jpg"],
@@ -50,6 +52,50 @@ interface UploadApiResponse {
   url?: string;
   errcode?: number;
   errmsg?: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function asApiCode(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+export function resolveDraftMediaId(
+  response: unknown,
+  existingDraftMediaId?: string | null,
+): string {
+  const record = asRecord(response);
+  const data = asRecord(record.data);
+  const errcode = asApiCode(record.errcode) ?? asApiCode(data.errcode) ?? 0;
+  const code = asApiCode(record.code) ?? asApiCode(data.code) ?? 0;
+  if (errcode !== 0 || (code !== 0 && code !== 200)) {
+    const message = record.errmsg ?? record.message ?? data.errmsg ?? data.message ?? "Unknown error";
+    throw new Error(`WeChat draft API error: ${errcode || code} - ${String(message)}`);
+  }
+
+  if (existingDraftMediaId) {
+    return existingDraftMediaId;
+  }
+  const mediaId = typeof data.media_id === "string"
+    ? data.media_id
+    : typeof record.media_id === "string"
+      ? record.media_id
+      : null;
+  if (!mediaId) {
+    throw new Error("WeChat draft API response did not include media_id");
+  }
+  return mediaId;
 }
 
 interface UploadedMedia {
@@ -136,7 +182,11 @@ function getWxRuntimeConfig(
   const accountName = normalizeAccountName(
     accountOverride || config.wx.defaultAccount,
   );
-  const accountConfig = fillWxAccountConfig(config.wx.accounts[accountName]);
+  const configuredAccount = config.wx.accounts[accountName];
+  if (!configuredAccount) {
+    throw new Error(`Unknown wx account: ${accountName}`);
+  }
+  const accountConfig = fillWxAccountConfig(configuredAccount);
   return {
     accountName,
     baseUrl: trimTrailingSlash(process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl),
@@ -227,6 +277,44 @@ export function replaceImageUrls(html: string, imageUrlMap: Record<string, strin
     replaced = replaced.replace(new RegExp(escaped, "g"), wx);
   }
   return replaced;
+}
+
+export async function readResponseBodyWithLimit(
+  response: Response,
+  maxBytes: number,
+): Promise<ArrayBuffer> {
+  const contentLength = Number.parseInt(response.headers.get("content-length") || "", 10);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error(`Image exceeds ${maxBytes} byte limit`);
+  }
+  if (!response.body) {
+    return new ArrayBuffer(0);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`Image exceeds ${maxBytes} byte limit`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body.buffer;
 }
 
 async function requestJson(
@@ -337,7 +425,13 @@ async function resolvePhotoPayload(
       throw new Error("Invalid data URL format");
     }
     const contentType = matches[1] || "image/png";
+    if (!IMAGE_EXTENSIONS.has(contentType.toLowerCase())) {
+      throw new Error(`Unsupported data URL image type: ${contentType}`);
+    }
     const buffer = Buffer.from(matches[2] || "", "base64");
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error(`Image exceeds ${MAX_IMAGE_BYTES} byte limit`);
+    }
     const extension = IMAGE_EXTENSIONS.get(contentType.toLowerCase()) || "png";
     return {
       blob: new Blob([buffer], { type: contentType }),
@@ -347,16 +441,28 @@ async function resolvePhotoPayload(
 
   if (photoUrl.startsWith("http://") || photoUrl.startsWith("https://")) {
     const safeUrl = photoUrl.includes(" ") ? photoUrl.replace(/ /g, "%20") : photoUrl;
-    const response = await fetch(safeUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download image: HTTP ${response.status}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), IMAGE_DOWNLOAD_TIMEOUT);
+    try {
+      const response = await fetch(safeUrl, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Failed to download image: HTTP ${response.status}`);
+      }
+      const contentType = (response.headers.get("content-type") || "")
+        .split(";", 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (!contentType || !IMAGE_EXTENSIONS.has(contentType)) {
+        throw new Error(`Downloaded resource is not a supported image: ${contentType || "unknown type"}`);
+      }
+      const buffer = await readResponseBodyWithLimit(response, MAX_IMAGE_BYTES);
+      return {
+        blob: new Blob([buffer], { type: contentType }),
+        filename: resolveFilenameFromUrl(photoUrl, contentType, index),
+      };
+    } finally {
+      clearTimeout(timeoutId);
     }
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return {
-      blob: new Blob([buffer], { type: contentType }),
-      filename: resolveFilenameFromUrl(photoUrl, contentType, index),
-    };
   }
 
   if (photoUrl.startsWith("file://")) {
@@ -383,9 +489,15 @@ function resolveFilePayload(
   if (!existsSync(filePath)) {
     throw new Error(`File not found: ${filePath}`);
   }
-  const buffer = readFileSync(filePath);
   const ext = extname(filePath).toLowerCase();
-  const contentType = EXTENSION_CONTENT_TYPES.get(ext) || "image/jpeg";
+  const contentType = EXTENSION_CONTENT_TYPES.get(ext);
+  if (!contentType) {
+    throw new Error(`Unsupported local image type: ${ext || "no extension"}`);
+  }
+  const buffer = readFileSync(filePath);
+  if (buffer.byteLength > MAX_IMAGE_BYTES) {
+    throw new Error(`Image exceeds ${MAX_IMAGE_BYTES} byte limit: ${filePath}`);
+  }
   const extension = IMAGE_EXTENSIONS.get(contentType.toLowerCase()) || ext.replace(".", "") || "jpg";
   const baseName = basename(filePath, ext) || `image_${index + 1}`;
   return {
@@ -528,7 +640,7 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
     draftTimeout,
   );
 
-  const draftMediaId = isUpdate ? input.existingDraftMediaId : (response as any)?.data?.media_id || (response as any)?.media_id || null;
+  const draftMediaId = resolveDraftMediaId(response, input.existingDraftMediaId);
 
   // ── Callback to Nezus to persist media_id ──
   if (draftMediaId && input.noteId && input.nezusBaseUrl && input.nezusPat) {
@@ -615,7 +727,7 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
     draftTimeout,
   );
 
-  const draftMediaId = isUpdate ? input.existingDraftMediaId : (response as any)?.data?.media_id || (response as any)?.media_id || null;
+  const draftMediaId = resolveDraftMediaId(response, input.existingDraftMediaId);
 
   // ── Callback to Nezus to persist media_id ──
   if (draftMediaId && input.noteId && input.nezusBaseUrl && input.nezusPat) {

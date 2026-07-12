@@ -67,6 +67,7 @@ Options:
       wx: mergedWx,
       cos: { ...config.cos, ...(importedObj.cos ?? {}) },
       plugins: { ...config.plugins, ...(importedObj.plugins ?? {}) },
+      imgx: { ...config.imgx, ...(importedObj.imgx ?? {}) },
     };
     // Validate through Zod schema — strips unknown fields, applies defaults
     const merged = PipelineConfigSchema.parse(raw);

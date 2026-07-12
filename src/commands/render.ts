@@ -14,7 +14,7 @@
  * Output: Updated state with images.plan, images.render_assets
  */
 
-import { readFile } from "fs/promises";
+import { access, readFile } from "fs/promises";
 import { join } from "path";
 
 import { parseArgs, requireArg, flagArg } from "../args";
@@ -22,11 +22,14 @@ import { printResult, renderRender } from "../output";
 import { loadConfig } from "../config";
 import { resolveImageRenderer } from "../adapter-loader";
 import {
+  acquireStateOperationLock,
   defaultBodyInputs,
   normalizeNewspicRenderSpec,
-  readState,
+  readResolvedState,
+  validateForPhase,
   writeState,
   type NewspicRenderSpec,
+  type WorkflowState,
 } from "../state";
 import {
   stripFrontmatter,
@@ -35,7 +38,7 @@ import {
 import { getLongformTheme } from "../routes";
 import { collectNewspicRequiredMarkers } from "../workflow-materials";
 
-function getNewspicRenderSpec(state: Awaited<ReturnType<typeof readState>>): NewspicRenderSpec {
+function getNewspicRenderSpec(state: WorkflowState): NewspicRenderSpec {
   const spec = normalizeNewspicRenderSpec(state.intent.newspic_render);
   return {
     ...spec,
@@ -57,14 +60,22 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const skipRender = flagArg(parsed, "skip-render");
 
-  const state = await readState(statePath);
+  const initialResolved = await readResolvedState(requestedStatePath);
+  const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
+  try {
+  const resolved = await readResolvedState(initialResolved.path);
+  const statePath = resolved.path;
+  const state = resolved.state;
 
   // Validate prerequisites
-  if (!state.asset_path) {
-    throw new Error("asset_path not set. Run prepare-finalize first.");
+  const validationErrors = validateForPhase(state, "render");
+  if (validationErrors.length > 0) {
+    throw new Error(
+      `Render validation failed: ${validationErrors.map((item) => `${item.field}: ${item.message}`).join("; ")}`,
+    );
   }
 
   const postPath = join(state.asset_path, "post.md");
@@ -89,6 +100,8 @@ Options:
     state.images.render_assets = [];
     state.phase.render = { status: "done", error: null };
     state.phase.current = state.intent.requires.publish ? "publish" : "done";
+    state.mode = state.phase.current === "done" ? "done" : "active";
+    state.redo_hint = null;
     await writeState(statePath, state);
     printResult({
       plan: state.images.plan,
@@ -224,21 +237,49 @@ Options:
     theme: routePrimary === "wechat-newspic" ? getLongformTheme(state.route.account) : undefined,
     template,
   });
+  const routeAssets = renderResult.assets.filter(
+    (asset) => asset.route === routePrimary && asset.path.trim().length > 0,
+  );
+  if (routeAssets.length === 0) {
+    throw new Error(
+      `Image renderer '${imageRenderer.name}' returned no assets for ${routePrimary}`,
+    );
+  }
+  if (
+    routePrimary === "wechat-article" &&
+    !routeAssets.some((asset) => asset.kind === "cover")
+  ) {
+    throw new Error(
+      `Image renderer '${imageRenderer.name}' did not return a WeChat article cover`,
+    );
+  }
+  for (const asset of routeAssets) {
+    await access(asset.path).catch(() => {
+      throw new Error(
+        `Image renderer '${imageRenderer.name}' returned a missing asset: ${asset.path}`,
+      );
+    });
+  }
 
   // ── Update state ────────────────────────────────────────────────
 
-  state.images.render_assets = renderResult.assets;
+  state.images.render_assets = routeAssets;
   state.images.plan.status = "rendered";
   state.phase.render = { status: "done", error: null };
   state.phase.current = state.intent.requires.publish ? "publish" : "done";
+  state.mode = state.phase.current === "done" ? "done" : "active";
+  state.redo_hint = null;
   state.artifacts.render_version += 1;
 
   await writeState(statePath, state);
 
   printResult({
     plan: state.images.plan,
-    render_assets: renderResult.assets,
+    render_assets: routeAssets,
     render_version: state.artifacts.render_version,
     phase: state.phase.current,
   }, renderRender);
+  } finally {
+    await releaseOperationLock();
+  }
 }

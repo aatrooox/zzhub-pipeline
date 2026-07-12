@@ -3,7 +3,7 @@ import { join } from "path";
 
 import { loadConfig, resolveWorkspacePaths, resolveWorkspaceRoot } from "./config";
 import {
-  readState,
+  readResolvedState,
   type PhaseName,
   type ValidationError,
   validateForPhase,
@@ -212,6 +212,36 @@ function summarizeState(
   };
 }
 
+function buildRevisionAction(
+  summary: TaskSummary,
+  state: WorkflowState,
+  mode: "revise" | "style",
+): TaskNextAction {
+  const isStyleRedo = mode === "style";
+  return {
+    action: "revise-content",
+    reason: isStyleRedo
+      ? "A style redo was requested before deterministic prepare can continue."
+      : "Content review requested a revision.",
+    executor: "worker",
+    command: null,
+    params: {
+      state_path: summary.state_path,
+      feedback: state.content_review.feedback ?? null,
+      source_body_path: state.source_body_path ?? undefined,
+      source_materials_path: state.handoff.source_materials_path ?? undefined,
+      worker_profile: "editor",
+      worker_mode: mode,
+      required_inputs: ["body_text"],
+      body_source: "needs_production",
+      on_complete: isStyleRedo
+        ? "Apply the requested style pass. Then call: zzhub-pipeline attach-body --state ... --body-text \"...\" and re-run status."
+        : "Revise the body text based on the feedback. Then call: zzhub-pipeline attach-body --state ... --body-text \"...\" and re-run status.",
+      handoff_alt: `zzhub-pipeline attach-body --state "${summary.state_path}" --body "{file_path}"`,
+    },
+  };
+}
+
 function buildTaskStatus(summary: TaskSummary, state: WorkflowState): TaskStatusReport {
   const phaseChecked = getValidationPhase(state);
   const validationErrors = validateForPhase(state, phaseChecked);
@@ -372,10 +402,27 @@ function buildTaskStatus(summary: TaskSummary, state: WorkflowState): TaskStatus
         on_complete: "After user provides image inputs, call the suggested command, then re-run status.",
       },
     };
-  } else if (!state.metadata.title || !state.metadata.slug || !state.metadata.date) {
+  } else if (state.redo_hint === "writer" || state.redo_hint === "style") {
+    nextAction = buildRevisionAction(
+      summary,
+      state,
+      state.redo_hint === "style" ? "style" : "revise",
+    );
+  } else if (state.content_review.status === "needs_revision") {
+    nextAction = buildRevisionAction(summary, state, "revise");
+  } else if (
+    !state.metadata.title ||
+    !state.metadata.slug ||
+    !state.metadata.date ||
+    ((state.phase.current === "prepare" || state.phase.prepare.status !== "done") &&
+      !state.formatted_body_path) ||
+    state.redo_hint === "format" ||
+    state.redo_hint === "asset-meta" ||
+    state.redo_hint === "channel-route"
+  ) {
     nextAction = {
       action: "prepare",
-      reason: "Body exists, but deterministic prepare metadata is still incomplete.",
+      reason: "Body exists, but deterministic prepare output is still incomplete or invalidated.",
       executor: "cli",
       command: `zzhub-pipeline prepare --state "${summary.state_path}"`,
       params: {
@@ -387,26 +434,7 @@ function buildTaskStatus(summary: TaskSummary, state: WorkflowState): TaskStatus
         on_complete: "After the command succeeds, re-run status to confirm metadata is ready.",
       },
     };
-  } else if (state.content_review.status === "needs_revision") {
-    nextAction = {
-      action: "revise-content",
-      reason: "Content review requested a revision.",
-      executor: "worker",
-      command: null,
-      params: {
-        state_path: summary.state_path,
-        feedback: state.content_review.feedback ?? null,
-        source_body_path: state.source_body_path ?? undefined,
-        source_materials_path: state.handoff.source_materials_path ?? undefined,
-        worker_profile: "editor",
-        worker_mode: "revise",
-        required_inputs: ["body_text"],
-        body_source: "needs_production",
-        on_complete: "Revise the body text based on the feedback. Then call: zzhub-pipeline attach-body --state ... --body-text \"...\" and re-run status.",
-        handoff_alt: `zzhub-pipeline attach-body --state "${summary.state_path}" --body "{file_path}"`,
-      },
-    };
-  } else if (!state.asset_path) {
+  } else if (state.phase.current === "prepare" || state.phase.prepare.status !== "done") {
     if (state.content_review.status !== "passed") {
       nextAction = {
         action: "review-content",
@@ -551,14 +579,19 @@ export async function getTaskByStatePath(
   path: string,
   source: TaskFileSource = path.endsWith("workflow-state.json") ? "canonical" : "run",
 ): Promise<ListedTask> {
-  const state = await readState(path);
+  const resolved = await readResolvedState(path);
+  const state = resolved.state;
+  const filePath = resolved.path;
+  const resolvedSource = resolved.redirected
+    ? (filePath.endsWith("workflow-state.json") ? "canonical" : "run")
+    : source;
   await reconcileStateArtifacts(state);
-  const createdAt = state.created_at || fallbackIsoFromRunId(state.run_id) || await fallbackIsoFromFile(path);
-  const updatedAt = state.updated_at || createdAt || await fallbackIsoFromFile(path);
-  const summary = summarizeState(state, path, source, createdAt, updatedAt);
+  const createdAt = state.created_at || fallbackIsoFromRunId(state.run_id) || await fallbackIsoFromFile(filePath);
+  const updatedAt = state.updated_at || createdAt || await fallbackIsoFromFile(filePath);
+  const summary = summarizeState(state, filePath, resolvedSource, createdAt, updatedAt);
   return {
-    file_path: path,
-    source,
+    file_path: filePath,
+    source: resolvedSource,
     ...buildTaskStatus(summary, state),
   };
 }

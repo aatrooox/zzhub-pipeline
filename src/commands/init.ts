@@ -29,16 +29,18 @@ import { printResult, renderInit } from "../output";
 import { loadConfig, resolveWorkspaceRoot } from "../config";
 import { resolveFullRoute } from "../routes";
 import {
+  parseAccountName,
+  parseContentForm,
+  parseContentOrigin,
+  parsePublishTargets,
+  parseTaskKind,
+} from "../publish-targets";
+import {
   defaultState,
   generateRunId,
   getRunStatePath,
   normalizeNewspicRenderSpec,
   writeState,
-  type ContentForm,
-  type ContentOrigin,
-  type PublishTarget,
-  type Target,
-  type TaskKind,
 } from "../state";
 
 export async function init(args: string[]): Promise<void> {
@@ -67,10 +69,10 @@ Options:
     return;
   }
 
-  const taskKind = requireArg(parsed, "task-kind", "task kind") as TaskKind;
-  const contentForm = requireArg(parsed, "content-form", "content form") as ContentForm;
+  const taskKind = parseTaskKind(requireArg(parsed, "task-kind", "task kind"));
+  const contentForm = parseContentForm(requireArg(parsed, "content-form", "content form"));
   const targetsRaw = requireArg(parsed, "targets", "publish targets");
-  const contentOrigin = requireArg(parsed, "content-origin", "content origin") as ContentOrigin;
+  const contentOrigin = parseContentOrigin(requireArg(parsed, "content-origin", "content origin"));
   const intentText = optionalArg(parsed, "intent-text") ?? "";
   const accountOverride = optionalArg(parsed, "account");
   const styleHint = optionalArg(parsed, "style-hint") ?? null;
@@ -80,31 +82,13 @@ Options:
   const config = loadConfig();
   const workspace = resolveWorkspaceRoot(optionalArg(parsed, "workspace"), config);
 
-  const targets = targetsRaw.split(",").map((t) => t.trim()) as Target[];
-
-  // Parse multi-target format: "route@account,route@account,..."
-  // Also supports RoutePrimary values (wechat-article, wechat-newspic, blog)
-  // which need to be mapped to Target enum (wechat, blog) for intent.targets.
-  const publishTargets: PublishTarget[] = [];
-  const targetParts = targetsRaw.split(",").map((t) => t.trim());
-  const defaultAccount = accountOverride || "default";
-  const mappedTargets: Target[] = [];
-
-  for (const part of targetParts) {
-    const atIdx = part.indexOf("@");
-    const route = atIdx !== -1 ? part.slice(0, atIdx).trim() : part;
-    const account = atIdx !== -1 ? part.slice(atIdx + 1).trim() : defaultAccount;
-    publishTargets.push({ route: route as any, account });
-    // Map RoutePrimary to Target enum: wechat-* → "wechat", blog → "blog"
-    mappedTargets.push(route.startsWith("wechat") ? "wechat" : route as Target);
-  }
-
-  // Single target: leave publish_targets empty (backward compat)
-  // Multi-target: populate publish_targets
-  const isMultiTarget = publishTargets.length > 1 || targetsRaw.includes("@");
-
-  // Use mapped targets (Target enum) for intent, not raw RoutePrimary values
-  const intentTargets = mappedTargets.length > 0 ? mappedTargets : targets;
+  const defaultAccount = parseAccountName(accountOverride ?? "default");
+  const parsedTargets = parsePublishTargets(targetsRaw, {
+    contentForm,
+    defaultAccount,
+  });
+  const publishTargets = parsedTargets.targets;
+  const intentTargets = parsedTargets.intentTargets;
 
   const runId = generateRunId();
   const statePath = getRunStatePath(workspace, runId);
@@ -121,16 +105,16 @@ Options:
   state.state_path = statePath;
   state.mode = "active";
   state.route = resolveFullRoute(intentText, {
-    account: accountOverride,
+    account: accountOverride ? defaultAccount : undefined,
     contentForm,
     targets: intentTargets,
   });
 
   // Set publish_targets if multi-target
-  if (isMultiTarget && publishTargets.length > 0) {
+  if (parsedTargets.explicit && publishTargets.length > 0) {
     state.publish_targets = publishTargets;
     // First target becomes primary route
-    state.route.primary = publishTargets[0].route as any;
+    state.route.primary = publishTargets[0].route;
     state.route.account = publishTargets[0].account;
   }
 

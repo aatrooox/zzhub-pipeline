@@ -7,6 +7,8 @@
  */
 
 import type { PipelineConfig } from "./schema/config";
+import { isAbsolute, resolve } from "path";
+import { pathToFileURL } from "url";
 import type {
   ImageRenderPlugin,
   MarkdownRenderPlugin,
@@ -49,7 +51,10 @@ function validateMarkdownRenderPlugin(plugin: unknown, specifier: string): Markd
 
 async function importPlugin(specifier: string): Promise<unknown> {
   try {
-    const mod = await import(specifier);
+    const importSpecifier = specifier.startsWith(".") || isAbsolute(specifier)
+      ? pathToFileURL(resolve(specifier)).href
+      : specifier;
+    const mod = await import(importSpecifier);
     // Support both default exports and named `plugin` exports
     return mod.default ?? mod.plugin ?? mod;
   } catch (err) {

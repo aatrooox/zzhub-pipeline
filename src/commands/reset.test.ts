@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 
 import { reset } from "./reset";
 import { defaultState, readState, writeState } from "../state";
+import { getTaskByStatePath } from "../task-manager";
 
 const TEST_CONFIG_PATH = join(tmpdir(), `zzhub-pipeline-test-config-reset-${process.pid}.json`);
 process.env.ZZHUB_PIPELINE_CONFIG = TEST_CONFIG_PATH;
@@ -45,6 +46,8 @@ describe("reset", () => {
     state.phase.publish = { status: "done", error: null };
     state.phase.current = "done";
     state.content_review = { status: "passed", feedback: null };
+    state.source_body_path = join(workspace, "source.md");
+    await writeFile(state.source_body_path, "Existing body", "utf-8");
     await writeState(statePath, state);
 
     const output = await captureJsonOutput<{ reset_mode: string; start_step: string | null }>(() =>
@@ -62,6 +65,7 @@ describe("reset", () => {
     expect(updated.mode).toBe("active");
     expect(updated.content_review.status).toBe("unchecked");
     expect(updated.redo_hint).toBe("writer");
+    expect((await getTaskByStatePath(statePath)).next_action.action).toBe("revise-content");
   });
 
   test("mode=render keeps prepare=done but resets render and publish", async () => {
@@ -147,5 +151,44 @@ describe("reset", () => {
     expect(
       reset(["--state", statePath, "--mode", "bogus"]),
     ).rejects.toThrow("Invalid reset mode: bogus");
+  });
+
+  test("mode=publish clears current-version success so publish can run again", async () => {
+    const workspace = await makeTempDir("zzhub-reset-publish-");
+    const statePath = join(workspace, "state.json");
+    const state = defaultState();
+    state.workspace_root = workspace;
+    state.state_path = statePath;
+    state.run_id = "run-reset-publish";
+    state.artifacts.content_version = 3;
+    state.artifacts.render_version = 2;
+    state.publish.results = [
+      {
+        route: "wechat-article",
+        account: "default",
+        status: "success",
+        detail: null,
+        published_at: "2026-07-12T00:00:00.000Z",
+        content_version: 3,
+        render_version: 2,
+      },
+      {
+        route: "blog",
+        account: "default",
+        status: "success",
+        detail: null,
+        published_at: "2026-07-11T00:00:00.000Z",
+        content_version: 2,
+        render_version: 2,
+      },
+    ];
+    await writeState(statePath, state);
+
+    await captureJsonOutput(() => reset(["--state", statePath, "--mode", "publish"]));
+
+    const updated = await readState(statePath);
+    expect(updated.publish.results).toHaveLength(1);
+    expect(updated.publish.results[0]?.route).toBe("blog");
+    expect(updated.phase.current).toBe("publish");
   });
 });

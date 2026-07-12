@@ -7,8 +7,8 @@
  * Types and validation are powered by Zod schemas in schema/state.ts.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { dirname } from "path";
+import { access, mkdir, open, readFile, rename, rm, stat, writeFile } from "fs/promises";
+import { dirname, isAbsolute, resolve } from "path";
 import {
   WorkflowStateSchema,
   NewspicRenderSpecSchema,
@@ -103,6 +103,80 @@ export function normalizeNewspicRenderSpec(raw: unknown): NewspicRenderSpec {
 
 // ── CRUD ──────────────────────────────────────────────────────────
 
+const stateReadVersions = new WeakMap<WorkflowState, Map<string, string>>();
+const heldOperationLocks = new Set<string>();
+const OPERATION_LOCK_STALE_MS = 30 * 60_000;
+
+function rememberStateVersion(
+  state: WorkflowState,
+  path: string,
+  version: string,
+): void {
+  const versions = stateReadVersions.get(state) ?? new Map<string, string>();
+  versions.set(resolve(path), version);
+  stateReadVersions.set(state, versions);
+}
+
+async function acquireFileLock(
+  lockPath: string,
+  staleAfterMs: number,
+): Promise<() => Promise<void>> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      const handle = await open(lockPath, "wx", 0o600);
+      return async () => {
+        await handle.close();
+        await rm(lockPath, { force: true });
+      };
+    } catch (error) {
+      const code = error instanceof Error && "code" in error
+        ? String((error as NodeJS.ErrnoException).code)
+        : "";
+      if (code !== "EEXIST") {
+        throw error;
+      }
+      const lockStat = await stat(lockPath).catch(() => null);
+      if (lockStat && Date.now() - lockStat.mtimeMs > staleAfterMs) {
+        await rm(lockPath, { force: true });
+        continue;
+      }
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+    }
+  }
+  throw new Error(`Timed out waiting for lock: ${lockPath}`);
+}
+
+async function acquireStateWriteLock(path: string): Promise<() => Promise<void>> {
+  return acquireFileLock(`${path}.lock`, 30_000);
+}
+
+export async function acquireStateOperationLock(
+  path: string,
+): Promise<() => Promise<void>> {
+  const normalizedPath = resolve(path);
+  const releaseOperationLock = await acquireFileLock(
+    `${normalizedPath}.operation.lock`,
+    OPERATION_LOCK_STALE_MS,
+  );
+  heldOperationLocks.add(normalizedPath);
+  try {
+    const releaseWriteLock = await acquireStateWriteLock(normalizedPath);
+    await releaseWriteLock();
+  } catch (error) {
+    heldOperationLocks.delete(normalizedPath);
+    await releaseOperationLock();
+    throw error;
+  }
+
+  let released = false;
+  return async () => {
+    if (released) return;
+    released = true;
+    heldOperationLocks.delete(normalizedPath);
+    await releaseOperationLock();
+  };
+}
+
 /**
  * Read and parse a workflow state JSON file.
  * Throws if file doesn't exist or JSON is malformed.
@@ -110,7 +184,73 @@ export function normalizeNewspicRenderSpec(raw: unknown): NewspicRenderSpec {
 export async function readState(path: string): Promise<WorkflowState> {
   const raw = await readFile(path, "utf-8");
   const parsed = JSON.parse(raw);
-  return WorkflowStateSchema.parse(parsed);
+  const state = WorkflowStateSchema.parse(parsed);
+  rememberStateVersion(state, path, state.updated_at);
+  return state;
+}
+
+export interface ResolvedState {
+  path: string;
+  requested_path: string;
+  redirected: boolean;
+  state: WorkflowState;
+}
+
+/**
+ * Follow state.state_path when a temporary run snapshot points at the
+ * canonical workflow-state.json created by prepare-finalize.
+ */
+export async function readResolvedState(path: string): Promise<ResolvedState> {
+  const requestedPath = resolve(path);
+  let currentPath = requestedPath;
+  let state = await readState(currentPath);
+  const runId = state.run_id;
+  const visited = new Set([currentPath]);
+
+  while (state.state_path) {
+    const nextPath = isAbsolute(state.state_path)
+      ? resolve(state.state_path)
+      : resolve(dirname(currentPath), state.state_path);
+    if (nextPath === currentPath) {
+      break;
+    }
+    if (visited.has(nextPath)) {
+      throw new Error(`State path cycle detected: ${[...visited, nextPath].join(" -> ")}`);
+    }
+
+    try {
+      await access(nextPath);
+    } catch (error) {
+      const code = error instanceof Error && "code" in error
+        ? String((error as NodeJS.ErrnoException).code)
+        : "";
+      if (code === "ENOENT") {
+        break;
+      }
+      throw error;
+    }
+
+    const nextState = await readState(nextPath);
+    if (runId && nextState.run_id && nextState.run_id !== runId) {
+      throw new Error(
+        `State path run_id mismatch: ${runId} points to ${nextState.run_id}`,
+      );
+    }
+    visited.add(nextPath);
+    currentPath = nextPath;
+    state = nextState;
+  }
+
+  if (!state.state_path) {
+    state.state_path = currentPath;
+  }
+
+  return {
+    path: currentPath,
+    requested_path: requestedPath,
+    redirected: currentPath !== requestedPath,
+    state,
+  };
 }
 
 /**
@@ -121,14 +261,55 @@ export async function writeState(
   path: string,
   state: WorkflowState,
 ): Promise<void> {
-  const now = new Date().toISOString();
+  const currentUpdatedAt = Date.parse(state.updated_at);
+  const nextTimestamp = Number.isFinite(currentUpdatedAt)
+    ? Math.max(Date.now(), currentUpdatedAt + 1)
+    : Date.now();
+  const now = new Date(nextTimestamp).toISOString();
   if (!state.created_at) {
     state.created_at = now;
   }
   state.updated_at = now;
-  await mkdir(dirname(path), { recursive: true });
-  const json = JSON.stringify(state, null, 2) + "\n";
-  await writeFile(path, json, "utf-8");
+  const validated = WorkflowStateSchema.parse(state);
+  const json = JSON.stringify(validated, null, 2) + "\n";
+  const normalizedPath = resolve(path);
+  await mkdir(dirname(normalizedPath), { recursive: true });
+  const releaseLock = await acquireStateWriteLock(normalizedPath);
+  const tempPath = `${normalizedPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    if (!heldOperationLocks.has(normalizedPath)) {
+      const operationLockPath = `${normalizedPath}.operation.lock`;
+      const operationLockStat = await stat(operationLockPath).catch(() => null);
+      if (
+        operationLockStat &&
+        Date.now() - operationLockStat.mtimeMs > OPERATION_LOCK_STALE_MS
+      ) {
+        await rm(operationLockPath, { force: true });
+      } else if (operationLockStat) {
+        throw new Error(
+          `State has another operation in progress: ${normalizedPath}`,
+        );
+      }
+    }
+    const expectedVersion = stateReadVersions.get(state)?.get(normalizedPath);
+    if (expectedVersion !== undefined) {
+      const currentRaw = await readFile(normalizedPath, "utf-8");
+      const current = WorkflowStateSchema.parse(JSON.parse(currentRaw));
+      if (current.updated_at !== expectedVersion) {
+        throw new Error(
+          `State changed since it was read: ${normalizedPath}. Re-run the command with fresh status.`,
+        );
+      }
+    }
+    await writeFile(tempPath, json, { encoding: "utf-8", mode: 0o600 });
+    await rename(tempPath, normalizedPath);
+    rememberStateVersion(state, normalizedPath, validated.updated_at);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+    throw error;
+  } finally {
+    await releaseLock();
+  }
 }
 
 /**
@@ -139,10 +320,54 @@ export async function updateState(
   path: string,
   mutate: (state: WorkflowState) => void,
 ): Promise<WorkflowState> {
-  const state = await readState(path);
+  const resolved = await readResolvedState(path);
+  const state = resolved.state;
   mutate(state);
-  await writeState(path, state);
+  await writeState(resolved.path, state);
   return state;
+}
+
+export function reenterPrepare(
+  state: WorkflowState,
+  options: {
+    redoHint?: string | null;
+    resetReview?: boolean;
+    clearFormattedBody?: boolean;
+  } = {},
+): void {
+  state.mode = "active";
+  state.phase.prepare = { status: "pending", error: null };
+  state.phase.render = { status: "pending", error: null };
+  state.phase.publish = { status: "pending", error: null };
+  state.phase.current = "prepare";
+  state.redo_hint = options.redoHint ?? null;
+  if (options.resetReview) {
+    state.content_review = defaultContentReview();
+  }
+  if (options.clearFormattedBody) {
+    state.formatted_body_path = null;
+  }
+  state.images.plan = defaultImagePlan();
+  state.images.render_assets = [];
+}
+
+export function reenterRender(state: WorkflowState): void {
+  state.mode = "active";
+  state.phase.render = { status: "pending", error: null };
+  state.phase.publish = { status: "pending", error: null };
+  state.phase.current = "render";
+  state.redo_hint = null;
+  state.images.render_assets = [];
+  if (state.images.plan.needed) {
+    state.images.plan.status = "planned";
+  }
+}
+
+export function reenterPublish(state: WorkflowState): void {
+  state.mode = "active";
+  state.phase.publish = { status: "pending", error: null };
+  state.phase.current = "publish";
+  state.redo_hint = null;
 }
 
 // ── Run ID ────────────────────────────────────────────────────────
@@ -179,8 +404,11 @@ export function validateForPhase(
   phase: PhaseName,
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  const publishRoutes = [state.route.primary, ...state.route.extras];
+  const publishRoutes = state.publish_targets.length > 0
+    ? state.publish_targets.map((target) => target.route)
+    : [state.route.primary, ...state.route.extras];
   const needsWechatArticle = publishRoutes.includes("wechat-article");
+  const needsWechatNewspic = publishRoutes.includes("wechat-newspic");
 
   if (!state.run_id) {
     errors.push({ field: "run_id", message: "Missing run_id" });
@@ -223,8 +451,14 @@ export function validateForPhase(
   }
 
   if (phase === "publish") {
+    if (state.intent.requires.render && state.phase.render.status !== "done") {
+      errors.push({
+        field: "phase.render.status",
+        message: `Render phase must be done before publish; current status is ${state.phase.render.status}`,
+      });
+    }
     if (
-      state.route.primary !== "blog" &&
+      publishRoutes.some((route) => route !== "blog") &&
       state.images.plan.needed &&
       state.images.plan.status !== "rendered" &&
       state.images.plan.status !== "skipped"
@@ -242,6 +476,28 @@ export function validateForPhase(
       errors.push({
         field: "images.body_inputs.status",
         message: "Wechat article body images are still pending user input",
+      });
+    }
+    if (
+      state.images.plan.needed &&
+      needsWechatArticle &&
+      !state.images.render_assets.some(
+        (asset) => asset.route === "wechat-article" && asset.kind === "cover",
+      )
+    ) {
+      errors.push({
+        field: "images.render_assets",
+        message: "Wechat article cover asset is missing",
+      });
+    }
+    if (
+      state.images.plan.needed &&
+      needsWechatNewspic &&
+      !state.images.render_assets.some((asset) => asset.route === "wechat-newspic")
+    ) {
+      errors.push({
+        field: "images.render_assets",
+        message: "Wechat newspic render assets are missing",
       });
     }
   }

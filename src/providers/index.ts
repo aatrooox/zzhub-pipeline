@@ -47,7 +47,9 @@ async function publishWechatArticleRoute({
       state.images.body_inputs.received,
     );
     exportPostPath = join(state.asset_path, "post-wechat-draft.md");
-    await writeFile(exportPostPath, draftContent, "utf-8");
+    if (!dryRun) {
+      await writeFile(exportPostPath, draftContent, "utf-8");
+    }
 
     for (const img of state.images.body_inputs.received) {
       photos.push(img.path);
@@ -81,7 +83,7 @@ async function publishWechatArticleRoute({
       customCss: wxAccount?.customCss ?? null,
       themeOverrides: wxAccount?.theme,
     });
-    await createWechatDraft({
+    const response = await createWechatDraft({
       account,
       title: state.metadata.title,
       html,
@@ -92,6 +94,16 @@ async function publishWechatArticleRoute({
       nezusBaseUrl: process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl,
       nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
     });
+    return {
+      route: "wechat-article",
+      account,
+      status: "success",
+      detail: null,
+      external_id: typeof response.draftMediaId === "string" ? response.draftMediaId : null,
+      published_at: new Date().toISOString(),
+      content_version: state.artifacts.content_version,
+      render_version: state.artifacts.render_version,
+    };
   } catch (error) {
     return {
       route: "wechat-article",
@@ -104,15 +116,6 @@ async function publishWechatArticleRoute({
     };
   }
 
-  return {
-    route: "wechat-article",
-    account,
-    status: "success",
-    detail: null,
-    published_at: new Date().toISOString(),
-    content_version: state.artifacts.content_version,
-    render_version: state.artifacts.render_version,
-  };
 }
 
 async function publishWechatNewspicRoute({
@@ -126,7 +129,9 @@ async function publishWechatNewspicRoute({
   const bodyImageUrls = extractImageUrls(postContent);
   const cleanContent = prepareBodyForNewspic(postContent);
   const cleanPath = join(state.asset_path, "post-clean.md");
-  await writeFile(cleanPath, cleanContent, "utf-8");
+  if (!dryRun) {
+    await writeFile(cleanPath, cleanContent, "utf-8");
+  }
 
   const assets = (state.images.render_assets as RenderAsset[])
     .filter((asset) => asset.route === "wechat-newspic")
@@ -156,7 +161,7 @@ async function publishWechatNewspicRoute({
   }
 
   try {
-    await createWechatNewspic({
+    const response = await createWechatNewspic({
       account,
       title: state.metadata.title,
       content: cleanContent,
@@ -167,6 +172,16 @@ async function publishWechatNewspicRoute({
       nezusBaseUrl: process.env.ZZHUB_WX_BASE_URL || config.wx.baseUrl,
       nezusPat: process.env.ZZCLUB_PAT || config.wx.accounts[account]?.pat || config.wx.accounts[config.wx.defaultAccount]?.pat,
     });
+    return {
+      route: "wechat-newspic",
+      account,
+      status: "success",
+      detail: null,
+      external_id: typeof response.draftMediaId === "string" ? response.draftMediaId : null,
+      published_at: new Date().toISOString(),
+      content_version: state.artifacts.content_version,
+      render_version: state.artifacts.render_version,
+    };
   } catch (error) {
     return {
       route: "wechat-newspic",
@@ -179,15 +194,6 @@ async function publishWechatNewspicRoute({
     };
   }
 
-  return {
-    route: "wechat-newspic",
-    account,
-    status: "success",
-    detail: null,
-    published_at: new Date().toISOString(),
-    content_version: state.artifacts.content_version,
-    render_version: state.artifacts.render_version,
-  };
 }
 
 const PUBLISH_PROVIDERS: Record<RoutePrimary, PublishProvider> = {

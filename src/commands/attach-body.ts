@@ -4,7 +4,7 @@ import { extname, join, resolve } from "path";
 import { parseArgs, optionalArg, requireArg } from "../args";
 import { printResult, renderTaskShape } from "../output";
 import { resolveWorkspacePaths } from "../config";
-import { readState, writeState } from "../state";
+import { readResolvedState, reenterPrepare, writeState } from "../state";
 import { getTaskByStatePath } from "../task-manager";
 import { reconcileStateArtifacts } from "../workflow-materials";
 
@@ -48,7 +48,7 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const bodyPath = optionalArg(parsed, "body");
   const bodyText = optionalArg(parsed, "body-text");
   if (!bodyPath && bodyText === undefined) {
@@ -58,13 +58,22 @@ Options:
     throw new Error("Use either --body or --body-text, not both");
   }
 
-  const state = await readState(statePath);
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
   state.source_body_path = await stageManagedBodyFile(
     state.workspace_root,
     state.run_id,
     bodyPath ?? null,
     bodyText ?? null,
   );
+  reenterPrepare(state, {
+    clearFormattedBody: true,
+    resetReview: true,
+  });
+  if (state.handoff.review_policy === "trust_user") {
+    state.content_review = { status: "passed", feedback: null };
+  }
   await reconcileStateArtifacts(state);
   await writeState(statePath, state);
 

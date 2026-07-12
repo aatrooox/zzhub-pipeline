@@ -123,11 +123,12 @@ describe("analytics commands", () => {
 
     test("filters by days", async () => {
       const statePath = join(workspace, "state.json");
+      const today = new Date().toISOString().slice(0, 10);
       await writeFile(statePath, JSON.stringify({
         run_id: "run_001",
-        metadata: { title: "Article", date: "2026-06-11" },
+        metadata: { title: "Article", date: today },
         route: { primary: "wechat-article" },
-        publish: { results: { wechat: { status: "success", published_at: "2026-06-11T10:00:00Z" } } },
+        publish: { results: { wechat: { status: "success", published_at: `${today}T10:00:00Z` } } },
       }));
 
       await recordAnalytics({ statePath, reads: 1000 });

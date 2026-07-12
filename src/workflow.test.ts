@@ -20,14 +20,24 @@ import { review } from "./commands/review";
 import { status } from "./commands/status";
 import { syncBlog } from "./commands/sync-blog";
 import { tasks } from "./commands/tasks";
-import { renderPostsRelativePath, resolveWorkspacePaths, resolveWorkspaceRoot } from "./config";
+import {
+  loadConfig,
+  renderPostsRelativePath,
+  resolveWorkspacePaths,
+  resolveWorkspaceRoot,
+} from "./config";
 import { resolveFullRoute } from "./routes";
 import { resolveAuthoring } from "./profiles";
 import { WorkflowStateSchema } from "./schema/state";
 import { defaultState, readState, validateForPhase, writeState } from "./state";
 import { getTaskByStatePath } from "./task-manager";
-import { dedupeTargets, filterIdempotent } from "./providers/publish-core";
+import {
+  dedupeTargets,
+  executePublishTargets,
+  filterIdempotent,
+} from "./providers/publish-core";
 import { getPublishProvider, listPublishProviders } from "./providers";
+import { getStatePublishTargets } from "./publish-targets";
 import { stripLeadingH1, stripLeadingTitleHeading } from "./text";
 
 const TEST_CONFIG_PATH = join(
@@ -120,6 +130,33 @@ describe("route resolution", () => {
 });
 
 describe("init", () => {
+  test("validates runtime enums before writing state", async () => {
+    const workspace = await makeTempDir("zzhub-init-invalid-");
+    await expect(init([
+      "--workspace", workspace,
+      "--task-kind", "publsih",
+      "--content-form", "article",
+      "--targets", "wechat",
+      "--content-origin", "user",
+    ])).rejects.toThrow("Invalid task kind");
+  });
+
+  test("maps wechat@account targets from the classified content form", async () => {
+    const workspace = await makeTempDir("zzhub-init-alias-");
+    const output = await captureJsonOutput<{ state_path: string }>(() => init([
+      "--workspace", workspace,
+      "--task-kind", "publish",
+      "--content-form", "article",
+      "--targets", "wechat@ancientone",
+      "--content-origin", "user",
+    ]));
+    const state = await readState(output.state_path);
+    expect(state.publish_targets).toEqual([
+      { route: "wechat-article", account: "ancientone" },
+    ]);
+    expect(state.route.primary).toBe("wechat-article");
+  });
+
   test("normalizes underscore flags and resolves route/account from intent text", async () => {
     const workspace = await makeTempDir("zzhub-init-");
     const output = await captureJsonOutput<{ state_path: string }>(() =>
@@ -481,6 +518,49 @@ describe("authoring resolution", () => {
 });
 
 describe("prepare", () => {
+  test("replacing a reviewed body invalidates prepare and downstream state", async () => {
+    const workspace = await makeTempDir("zzhub-attach-revision-");
+    const statePath = join(workspace, "workflow-state.json");
+    const state = defaultState();
+    state.run_id = "run-attach-revision";
+    state.workspace_root = workspace;
+    state.state_path = statePath;
+    state.asset_path = join(workspace, "posts", "existing");
+    state.formatted_body_path = join(workspace, "old-formatted.md");
+    state.metadata.title = "Existing";
+    state.metadata.slug = "existing";
+    state.metadata.date = "2026-04-08";
+    state.content_review = { status: "needs_revision", feedback: "Rewrite this" };
+    state.phase.prepare.status = "done";
+    state.phase.render.status = "done";
+    state.phase.publish.status = "done";
+    state.phase.current = "done";
+    state.mode = "done";
+    state.images.plan.status = "rendered";
+    state.images.render_assets = [{
+      kind: "cover",
+      route: "wechat-article",
+      path: join(workspace, "old-cover.png"),
+    }];
+    await writeState(statePath, state);
+
+    await captureJsonOutput(() => attachBody([
+      "--state",
+      statePath,
+      "--body-text",
+      "# Revised\n\nNew body",
+    ]));
+
+    const updated = await readState(statePath);
+    expect(updated.formatted_body_path).toBeNull();
+    expect(updated.content_review.status).toBe("unchecked");
+    expect(updated.phase.current).toBe("prepare");
+    expect(updated.phase.render.status).toBe("pending");
+    expect(updated.images.render_assets).toEqual([]);
+    const task = await getTaskByStatePath(statePath);
+    expect(task.next_action.action).toBe("prepare");
+  });
+
   test("uses managed temp paths for inline attached body and default formatted output", async () => {
     const workspace = await makeTempDir("zzhub-prepare-managed-");
     const statePath = join(workspace, "state.json");
@@ -634,9 +714,48 @@ describe("prepare", () => {
     expect(updated.images.body_inputs.status).toBe("none");
     expect(updated.images.body_inputs.received).toEqual([]);
   });
+
+  test("direct body replacement invalidates an existing review", async () => {
+    const workspace = await makeTempDir("zzhub-prepare-review-reset-");
+    const statePath = join(workspace, "state.json");
+    const bodyPath = join(workspace, "replacement.md");
+    const state = defaultState();
+    state.run_id = "run-review-reset";
+    state.workspace_root = workspace;
+    state.state_path = statePath;
+    state.intent.content_form = "article";
+    state.intent.content_origin = "user";
+    state.content_review.status = "passed";
+    await writeState(statePath, state);
+    await writeFile(bodyPath, "# Replacement\n\nNew body", "utf-8");
+
+    await prepare(["--state", statePath, "--body", bodyPath]);
+
+    expect((await readState(statePath)).content_review.status).toBe("unchecked");
+  });
 });
 
 describe("render", () => {
+  test("rejects rendering content that has not passed review", async () => {
+    const workspace = await makeTempDir("zzhub-render-review-");
+    const assetPath = join(workspace, "posts", "review-gate");
+    const statePath = join(assetPath, "workflow-state.json");
+    await mkdir(assetPath, { recursive: true });
+    await writeFile(join(assetPath, "post.md"), "Body", "utf-8");
+    const state = defaultState();
+    state.run_id = "run-review-gate";
+    state.workspace_root = workspace;
+    state.state_path = statePath;
+    state.asset_path = assetPath;
+    state.metadata.title = "Review gate";
+    state.metadata.slug = "review-gate";
+    state.metadata.date = "2026-04-10";
+    await writeState(statePath, state);
+
+    await expect(render(["--state", statePath, "--skip-render"]))
+      .rejects.toThrow("content_review.status");
+  });
+
   test("respects explicit newspic multi-page render intent and page image markers", async () => {
     const workspace = await makeTempDir("zzhub-render-spec-");
     const assetPath = join(workspace, "posts", "2026-04-10-newspic");
@@ -662,6 +781,9 @@ describe("render", () => {
     state.run_id = "run-spec";
     state.route.primary = "wechat-newspic";
     state.metadata.title = "Spec Newspic";
+    state.metadata.slug = "spec-newspic";
+    state.metadata.date = "2026-04-10";
+    state.content_review.status = "passed";
     state.intent.newspic_render = {
       pagination_mode: "multi",
       min_pages: 2,
@@ -727,6 +849,9 @@ describe("render", () => {
       page_specs: [],
     };
     state.metadata.title = "Longform";
+    state.metadata.slug = "longform";
+    state.metadata.date = "2026-04-08";
+    state.content_review.status = "passed";
     state.images.body_inputs = {
       scope: "newspic-longform",
       expected: 2,
@@ -781,6 +906,9 @@ describe("render", () => {
       fallback_icon: "assets/icons/logo.png",
     };
     state.metadata.title = "Recordly：开源跨平台录屏与演示视频编辑工具";
+    state.metadata.slug = "recordly";
+    state.metadata.date = "2026-04-09";
+    state.content_review.status = "passed";
     await writeState(statePath, state);
 
     const previousLogPath = process.env.TEST_RENDER_CARD_ARGS_PATH;
@@ -900,6 +1028,43 @@ describe("prepare-finalize", () => {
     expect(updated.asset_path.endsWith("2026-04-08-same-slug-v2")).toBe(true);
   });
 
+  test("reserves distinct asset paths when two tasks finalize concurrently", async () => {
+    const workspace = await makeTempDir("zzhub-finalize-concurrent-");
+    const bodyPath = join(workspace, "body.md");
+    await writeFile(bodyPath, "正文", "utf-8");
+
+    const statePaths = ["run-a", "run-b"].map((runId) =>
+      join(workspace, ".zzhub-media", "runs", `${runId}.json`));
+    for (let index = 0; index < statePaths.length; index += 1) {
+      const state = defaultState();
+      state.workspace_root = workspace;
+      state.state_path = statePaths[index];
+      state.run_id = `run-${index}`;
+      state.metadata.title = "Concurrent";
+      state.metadata.slug = "concurrent";
+      state.metadata.date = "2026-04-08";
+      state.content_review.status = "passed";
+      await writeState(statePaths[index], state);
+    }
+
+    await Promise.all(statePaths.map((statePath) =>
+      prepareFinalize([
+        "--state",
+        statePath,
+        "--body",
+        bodyPath,
+        "--workspace",
+        workspace,
+      ])));
+
+    const finalized = await Promise.all(statePaths.map((statePath) => readState(statePath)));
+    expect(new Set(finalized.map((state) => state.asset_path)).size).toBe(2);
+    expect(finalized.map((state) => state.asset_path).sort()).toEqual([
+      join(workspace, "posts", "2026-04-08-concurrent"),
+      join(workspace, "posts", "2026-04-08-concurrent-v2"),
+    ]);
+  });
+
   test("reuses the canonical asset path during revision-style finalization", async () => {
     const workspace = await makeTempDir("zzhub-finalize-reuse-");
     const assetPath = join(workspace, "posts", "2026-04-08-existing");
@@ -987,7 +1152,7 @@ describe("prepare-finalize", () => {
 
     await mkdir(bodySourceDir, { recursive: true });
     await writeFile(assetImagePath, "demo-image", "utf-8");
-    await writeFile(bodyPath, "正文段落\n\n![示例](./demo.jpg)\n", "utf-8");
+    await writeFile(bodyPath, '正文段落\n\n![示例](./demo.jpg "Demo")\n', "utf-8");
 
     const state = defaultState();
     state.workspace_root = workspace;
@@ -1015,7 +1180,7 @@ describe("prepare-finalize", () => {
     const copiedImage = join(updated.asset_path, "demo.jpg");
     const copiedImageContent = await readFile(copiedImage, "utf-8");
 
-    expect(postContent).toContain("![示例](./demo.jpg)");
+    expect(postContent).toContain('![示例](./demo.jpg "Demo")');
     expect(copiedImageContent).toBe("demo-image");
   });
 
@@ -1066,6 +1231,11 @@ describe("text", () => {
 });
 
 describe("config", () => {
+  test("reports malformed config instead of silently using defaults", async () => {
+    await writeFile(TEST_CONFIG_PATH, "{ invalid json", "utf-8");
+    expect(() => loadConfig()).toThrow("Failed to read pipeline config");
+  });
+
   test("uses configured workspace root when workspace is omitted", async () => {
     const workspace = await makeTempDir("zzhub-config-root-");
 
@@ -1439,6 +1609,31 @@ describe("cos upload", () => {
 });
 
 describe("managed tasks", () => {
+  test("commands passed a run snapshot update canonical state", async () => {
+    const workspace = await makeTempDir("zzhub-canonical-command-");
+    const runPath = join(workspace, ".zzhub-media", "runs", "run-command.json");
+    const canonicalPath = join(workspace, "posts", "canonical", "workflow-state.json");
+    const runState = defaultState();
+    runState.run_id = "run-command";
+    runState.workspace_root = workspace;
+    runState.state_path = canonicalPath;
+    await writeState(runPath, runState);
+    await writeState(canonicalPath, structuredClone(runState));
+
+    await captureJsonOutput(() => review([
+      "--state",
+      runPath,
+      "--status",
+      "passed",
+    ]));
+
+    expect((await readState(canonicalPath)).content_review.status).toBe("passed");
+    expect((await readState(runPath)).content_review.status).toBe("unchecked");
+    const task = await getTaskByStatePath(runPath);
+    expect(task.summary.state_path).toBe(canonicalPath);
+    expect(task.state.content_review.status).toBe("passed");
+  });
+
   test("init writes a collision-resistant run id and timestamps", async () => {
     const workspace = await makeTempDir("zzhub-managed-init-");
     const output = await captureJsonOutput<{ run_id: string; state_path: string }>(() =>
@@ -1764,9 +1959,9 @@ describe("managed tasks", () => {
       summary: { mode: string; phase: { current: string } };
       next_action: { action: string };
     }>(() => status(["--state", initOutput.state_path]));
-    expect(finished.summary.mode).toBe("done");
-    expect(finished.summary.phase.current).toBe("done");
-    expect(finished.next_action.action).toBe("complete");
+    expect(finished.summary.mode).toBe("active");
+    expect(finished.summary.phase.current).toBe("publish");
+    expect(finished.next_action.action).toBe("publish");
   });
 
   test("tasks and current-task queries handle multiple in-flight tasks", async () => {
@@ -1903,7 +2098,7 @@ describe("managed tasks", () => {
     ]);
   });
 
-  test("can resume from an interrupted mid-task state and finish publish", async () => {
+  test("can resume from an interrupted mid-task state and preview publish", async () => {
     const workspace = await makeTempDir("zzhub-managed-resume-");
     const bodyPath = join(workspace, "body.md");
 
@@ -1995,9 +2190,9 @@ describe("managed tasks", () => {
       summary: { mode: string; phase: { current: string } };
       next_action: { action: string };
     }>(() => status(["--state", initOutput.state_path]));
-    expect(completed.summary.mode).toBe("done");
-    expect(completed.summary.phase.current).toBe("done");
-    expect(completed.next_action.action).toBe("complete");
+    expect(completed.summary.mode).toBe("active");
+    expect(completed.summary.phase.current).toBe("publish");
+    expect(completed.next_action.action).toBe("publish");
   });
 
   test("keeps render as the next action after finalize when init uses underscore flags", async () => {
@@ -2207,6 +2402,28 @@ describe("executePublishTargets helpers", () => {
     expect(filtered).toHaveLength(1);
     expect(filtered[0].route).toBe("blog");
   });
+
+  test("does not retry result persistence as a provider failure", async () => {
+    const workspace = await makeTempDir("zzhub-persist-result-");
+    const state = defaultState();
+    state.workspace_root = workspace;
+    state.asset_path = workspace;
+    state.metadata.title = "Test";
+    let persistenceCalls = 0;
+
+    await expect(executePublishTargets({
+      state,
+      targets: [{ route: "wechat-article", account: "default" }],
+      dryRun: true,
+      config: loadConfig(),
+      workspacePaths: resolveWorkspacePaths(workspace),
+      onResult: async () => {
+        persistenceCalls += 1;
+        throw new Error("persistence failed");
+      },
+    })).rejects.toThrow("persistence failed");
+    expect(persistenceCalls).toBe(1);
+  });
 });
 
 describe("publish command with publish_targets", () => {
@@ -2220,26 +2437,31 @@ describe("publish command with publish_targets", () => {
     state.asset_path = tmpDir;
     state.route.primary = "wechat-article";
     state.route.account = "default";
+    state.intent.content_form = "article";
     state.publish_targets = [
       { route: "wechat-article", account: "default" },
-      { route: "wechat-newspic", account: "ancientone" },
+      { route: "wechat-article", account: "ancientone" },
     ];
     state.metadata.title = "Test";
     state.metadata.slug = "test";
     state.metadata.date = "2026-06-14";
     state.content_review.status = "passed";
-    // post.md needed by wechat-newspic provider (read before dry-run check)
     await writeFile(join(tmpDir, "post.md"), "正文", "utf-8");
     await writeState(statePath, state);
 
-    await publish(["--state", statePath, "--dry-run"]);
+    const output = await captureJsonOutput<{
+      publish_results: Array<{ account: string; status: string }>;
+      dry_run: boolean;
+    }>(() => publish(["--state", statePath, "--dry-run"]));
 
     const finalState = await readState(statePath);
-    expect(finalState.publish.results).toHaveLength(2);
-    expect(finalState.publish.results[0].account).toBe("default");
-    expect(finalState.publish.results[0].status).toBe("skipped");
-    expect(finalState.publish.results[1].account).toBe("ancientone");
-    expect(finalState.publish.results[1].status).toBe("skipped");
+    expect(finalState.publish.results).toHaveLength(0);
+    expect(output.dry_run).toBe(true);
+    expect(output.publish_results).toHaveLength(2);
+    expect(output.publish_results[0].account).toBe("default");
+    expect(output.publish_results[0].status).toBe("skipped");
+    expect(output.publish_results[1].account).toBe("ancientone");
+    expect(output.publish_results[1].status).toBe("skipped");
   });
 });
 
@@ -2299,10 +2521,33 @@ describe("init with multi-target --targets", () => {
     expect(state.publish_targets[0].account).toBe("ancientone");
     expect(state.publish_targets[1].account).toBe("ancientone");
   });
+
+  test("rejects mixed WeChat content routes", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-init-mixed-");
+    await expect(init([
+      "--workspace", tmpDir,
+      "--task-kind", "publish",
+      "--content-form", "article",
+      "--targets", "wechat-article,wechat-newspic",
+      "--content-origin", "user",
+    ])).rejects.toThrow("cannot mix wechat-article and wechat-newspic");
+  });
+});
+
+test("getStatePublishTargets retains the primary target", () => {
+  const state = defaultState();
+  state.route.primary = "wechat-article";
+  state.route.account = "default";
+  state.publish_targets = [{ route: "blog", account: "default" }];
+
+  expect(getStatePublishTargets(state)).toEqual([
+    { route: "wechat-article", account: "default" },
+    { route: "blog", account: "default" },
+  ]);
 });
 
 describe("republish command", () => {
-  test("republish adds targets and executes", async () => {
+  test("republish dry-run previews targets without mutating state", async () => {
     const tmpDir = await makeTempDir("zzhub-test-republish-");
     const statePath = join(tmpDir, "state.json");
     const state = defaultState();
@@ -2330,14 +2575,19 @@ describe("republish command", () => {
     await writeState(statePath, state);
 
     // Republish to another account with dry-run
-    await republish(["--state", statePath, "--account", "ancientone", "--dry-run"]);
+    const output = await captureJsonOutput<{
+      new_targets: Array<{ route: string; account: string }>;
+      dry_run: boolean;
+    }>(() => republish(["--state", statePath, "--account", "ancientone", "--dry-run"]));
 
     const finalState = await readState(statePath);
-    expect(finalState.publish_targets).toContainEqual({
+    expect(output.new_targets).toContainEqual({
       route: "wechat-article",
       account: "ancientone",
     });
-    expect(finalState.publish.results).toHaveLength(2);
+    expect(output.dry_run).toBe(true);
+    expect(finalState.publish_targets).toEqual([]);
+    expect(finalState.publish.results).toHaveLength(1);
     expect(finalState.mode).toBe("done");
   });
 
@@ -2376,5 +2626,27 @@ describe("republish command", () => {
     const finalState = await readState(statePath);
     // Should still have only 1 result (skipped duplicate)
     expect(finalState.publish.results).toHaveLength(1);
+  });
+
+  test("rejects a WeChat target incompatible with the content form", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-republish-route-");
+    const statePath = join(tmpDir, "state.json");
+    const state = defaultState();
+    state.run_id = "test-run";
+    state.workspace_root = tmpDir;
+    state.asset_path = tmpDir;
+    state.route.primary = "wechat-article";
+    state.intent.content_form = "article";
+    state.metadata.title = "Test";
+    state.metadata.slug = "test";
+    state.metadata.date = "2026-06-14";
+    state.content_review.status = "passed";
+    await writeState(statePath, state);
+
+    await expect(republish([
+      "--state", statePath,
+      "--targets", "wechat-newspic@default",
+      "--dry-run",
+    ])).rejects.toThrow("cannot mix wechat-article and wechat-newspic");
   });
 });

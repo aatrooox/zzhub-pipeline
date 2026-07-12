@@ -2,7 +2,12 @@ import { readFile } from "fs/promises";
 
 import { parseArgs, requireArg } from "../args";
 import { printResult, renderTaskShape } from "../output";
-import { normalizeNewspicRenderSpec, readState, writeState } from "../state";
+import {
+  normalizeNewspicRenderSpec,
+  readResolvedState,
+  reenterRender,
+  writeState,
+} from "../state";
 import { getTaskByStatePath } from "../task-manager";
 import { reconcileStateArtifacts } from "../workflow-materials";
 
@@ -20,13 +25,19 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const specPath = requireArg(parsed, "file", "newspic render spec file");
 
-  const state = await readState(statePath);
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
+  const prepareWasDone = state.phase.prepare.status === "done";
   const spec = JSON.parse(await readFile(specPath, "utf-8")) as unknown;
   state.intent.newspic_render = normalizeNewspicRenderSpec(spec);
   await reconcileStateArtifacts(state);
+  if (prepareWasDone) {
+    reenterRender(state);
+  }
   await writeState(statePath, state);
 
   const task = await getTaskByStatePath(statePath);

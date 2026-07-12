@@ -15,7 +15,7 @@
  * Output: asset_path, canonical state_path
  */
 
-import { access, copyFile, readFile, writeFile, mkdir } from "fs/promises";
+import { copyFile, readFile, writeFile, mkdir, rename, rm } from "fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "path";
 import { parseArgs, requireArg, optionalArg } from "../args";
 import { printResult, renderPrepareFinalize } from "../output";
@@ -26,7 +26,8 @@ import {
   resolveWorkspaceRoot,
 } from "../config";
 import {
-  readState,
+  acquireStateOperationLock,
+  readResolvedState,
   writeState,
   getCanonicalStatePath,
 } from "../state";
@@ -37,15 +38,6 @@ import {
   stripLeadingTitleHeading,
   removePageMarkers,
 } from "../text";
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function isExternalAssetRef(value: string): boolean {
   return /^(https?:|data:|blob:|\/\/)/i.test(value);
@@ -140,13 +132,16 @@ async function materializeInlineAssets(options: {
   };
 
   let rewritten = options.body.replace(
-    /!\[([^\]]*)\]\((<)?([^)]+?)(>)?\)/g,
-    (match, alt, open, src) => {
-      const targetRelativePath = registerAsset(String(src ?? ""));
+    /!\[([^\]]*)\]\((?:<([^>]+)>|([^\s)]+))(\s+(?:"[^"]*"|'[^']*'))?\)/g,
+    (match, alt, angleSrc, bareSrc, titleSuffix) => {
+      const targetRelativePath = registerAsset(String(angleSrc ?? bareSrc ?? ""));
       if (!targetRelativePath) {
         return match;
       }
-      return `![${alt}](${open ? "<" : ""}${formatRelativeAssetRef(targetRelativePath)}${open ? ">" : ""})`;
+      const rewrittenSource = angleSrc
+        ? `<${formatRelativeAssetRef(targetRelativePath)}>`
+        : formatRelativeAssetRef(targetRelativePath);
+      return `![${alt}](${rewrittenSource}${titleSuffix ?? ""})`;
     },
   );
 
@@ -193,11 +188,16 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const explicitBodyPath = optionalArg(parsed, "body");
   const workspaceOverride = optionalArg(parsed, "workspace");
 
-  const state = await readState(statePath);
+  const initialResolved = await readResolvedState(requestedStatePath);
+  const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
+  try {
+  const resolved = await readResolvedState(initialResolved.path);
+  const statePath = resolved.path;
+  const state = resolved.state;
   if (state.content_review.status !== "passed") {
     throw new Error(
       `content_review must be passed before prepare-finalize (current: ${state.content_review.status})`,
@@ -219,6 +219,18 @@ Options:
   const config = loadConfig();
   const workspace = resolveWorkspaceRoot(workspaceOverride ?? state.workspace_root, config);
   const workspacePaths = resolveWorkspacePaths(workspace, config);
+  state.workspace_root = workspace;
+
+  const missingMetadata = [
+    ["metadata.title", state.metadata.title],
+    ["metadata.slug", state.metadata.slug],
+    ["metadata.date", state.metadata.date],
+  ].filter(([, value]) => !value);
+  if (missingMetadata.length > 0) {
+    throw new Error(
+      `prepare-finalize requires complete metadata: ${missingMetadata.map(([field]) => field).join(", ")}`,
+    );
+  }
 
   // ── Step 1: Channel route 2nd pass — highlight_words ──
   // If highlight_words were already set explicitly via `prepare --highlight-words`,
@@ -240,44 +252,51 @@ Options:
     const baseTitle = state.metadata.title;
     let nextSlug = baseSlug;
     let nextTitle = baseTitle;
-    let relativePath = renderPostsRelativePath(config, {
+    const baseRelativePath = renderPostsRelativePath(config, {
       date: state.metadata.date,
       slug: nextSlug,
       title: nextTitle,
     });
-    let candidatePath = join(workspacePaths.postsRoot, relativePath);
-    let suffix = 2;
+    let suffix = 1;
 
-    while (await pathExists(candidatePath)) {
-      if (patternUsesSlug) {
+    while (true) {
+      if (suffix > 1 && patternUsesSlug) {
         nextSlug = `${baseSlug}-v${suffix}`;
-        relativePath = renderPostsRelativePath(config, {
-          date: state.metadata.date,
-          slug: nextSlug,
-          title: baseTitle,
-        });
-      } else if (patternUsesTitle) {
+      } else if (suffix > 1 && patternUsesTitle) {
         nextTitle = `${baseTitle}-v${suffix}`;
-        relativePath = renderPostsRelativePath(config, {
-          date: state.metadata.date,
-          slug: baseSlug,
-          title: nextTitle,
-        });
-      } else {
-        relativePath = appendSuffixToRelativePath(relativePath, suffix);
       }
-      candidatePath = join(workspacePaths.postsRoot, relativePath);
-      suffix += 1;
+      const relativePath = suffix === 1
+        ? baseRelativePath
+        : patternUsesSlug || patternUsesTitle
+          ? renderPostsRelativePath(config, {
+              date: state.metadata.date,
+              slug: nextSlug,
+              title: nextTitle,
+            })
+          : appendSuffixToRelativePath(baseRelativePath, suffix);
+      const candidatePath = join(workspacePaths.postsRoot, relativePath);
+      await mkdir(dirname(candidatePath), { recursive: true });
+      try {
+        await mkdir(candidatePath);
+        assetPath = candidatePath;
+        break;
+      } catch (error) {
+        const code = error instanceof Error && "code" in error
+          ? String((error as NodeJS.ErrnoException).code)
+          : "";
+        if (code !== "EEXIST") {
+          throw error;
+        }
+        suffix += 1;
+      }
     }
 
     if (patternUsesSlug && nextSlug !== state.metadata.slug) {
       state.metadata.slug = nextSlug;
     }
-    assetPath = candidatePath;
+  } else {
+    await mkdir(assetPath, { recursive: true });
   }
-
-  // Create directories
-  await mkdir(assetPath, { recursive: true });
 
   const bodySourceDir = dirname(state.source_body_path ?? bodyPath);
   body = await materializeInlineAssets({
@@ -312,7 +331,14 @@ Options:
   // Write post.md
   const postContent = `${frontmatter}\n\n${removePageMarkers(body)}`;
   const postPath = join(assetPath, "post.md");
-  await writeFile(postPath, postContent, "utf-8");
+  const postTempPath = `${postPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(postTempPath, postContent, "utf-8");
+    await rename(postTempPath, postPath);
+  } catch (error) {
+    await rm(postTempPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
 
   // Update state
   state.asset_path = assetPath;
@@ -322,6 +348,7 @@ Options:
   state.phase.prepare = { status: "done", error: null };
   state.phase.current = state.intent.requires.render ? "render" : 
                          state.intent.requires.publish ? "publish" : "done";
+  state.mode = state.phase.current === "done" ? "done" : "active";
   
   // Clear redo_hint — prepare sub-sequence is complete
   state.redo_hint = null;
@@ -333,7 +360,9 @@ Options:
   await writeState(state.state_path, state);
 
   // Also update the temp run state to point to canonical
-  await writeState(statePath, state);
+  if (resolve(statePath) !== resolve(state.state_path)) {
+    await writeState(statePath, state);
+  }
 
   // Output summary
   const output = {
@@ -345,4 +374,7 @@ Options:
     content_version: state.artifacts.content_version,
   };
   printResult(output, renderPrepareFinalize);
+  } finally {
+    await releaseOperationLock();
+  }
 }

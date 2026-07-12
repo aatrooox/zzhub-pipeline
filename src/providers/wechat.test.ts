@@ -8,7 +8,62 @@ import {
   replaceImageUrls,
   isRetryableTokenFetchError,
   resolveFilenameFromUrl,
+  resolveDraftMediaId,
+  readResponseBodyWithLimit,
 } from "./wechat";
+
+describe("resolveDraftMediaId", () => {
+  test("extracts media_id from a successful draft response", () => {
+    expect(resolveDraftMediaId({ code: 0, data: { media_id: "media-1" } }))
+      .toBe("media-1");
+  });
+
+  test("rejects business errors returned with HTTP 200", () => {
+    expect(() => resolveDraftMediaId({ errcode: 40001, errmsg: "invalid credential" }))
+      .toThrow("WeChat draft API error: 40001");
+  });
+
+  test("rejects string business error codes for draft updates", () => {
+    expect(() => resolveDraftMediaId(
+      { errcode: "40001", errmsg: "invalid credential" },
+      "existing-media",
+    )).toThrow("WeChat draft API error: 40001");
+  });
+
+  test("requires media_id for a newly created draft", () => {
+    expect(() => resolveDraftMediaId({ code: 0, data: {} }))
+      .toThrow("did not include media_id");
+  });
+
+  test("uses the existing media id for a successful update", () => {
+    expect(resolveDraftMediaId({ errcode: 0 }, "existing-media"))
+      .toBe("existing-media");
+  });
+});
+
+describe("readResponseBodyWithLimit", () => {
+  test("accepts a streamed response at the byte limit", async () => {
+    const response = new Response(new Uint8Array([1, 2, 3]));
+    const body = await readResponseBodyWithLimit(response, 3);
+    expect(new Uint8Array(body)).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  test("rejects a streamed response as soon as it exceeds the byte limit", async () => {
+    const response = new Response(new Uint8Array([1, 2, 3, 4]));
+    await expect(readResponseBodyWithLimit(response, 3)).rejects.toThrow(
+      "Image exceeds 3 byte limit",
+    );
+  });
+
+  test("rejects an oversized content-length before reading the body", async () => {
+    const response = new Response(new Uint8Array([1]), {
+      headers: { "content-length": "4" },
+    });
+    await expect(readResponseBodyWithLimit(response, 3)).rejects.toThrow(
+      "Image exceeds 3 byte limit",
+    );
+  });
+});
 
 describe("normalizeAccountName", () => {
   test("accepts valid account names", () => {

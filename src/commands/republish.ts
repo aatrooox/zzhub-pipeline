@@ -18,12 +18,24 @@ import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult } from "../output";
 import { loadConfig, resolveWorkspacePaths } from "../config";
 import {
-  readState,
+  acquireStateOperationLock,
+  readResolvedState,
+  validateForPhase,
   writeState,
   type PublishTarget,
-  type RoutePrimary,
 } from "../state";
-import { executePublishTargets } from "../providers/publish-core";
+import {
+  getStatePublishTargets,
+  parseAccountName,
+  parseRoutePrimary,
+  validatePublishTargetCompatibility,
+} from "../publish-targets";
+import {
+  dedupeTargets,
+  executePublishTargets,
+  upsertPublishResult,
+} from "../providers/publish-core";
+import { reconcileStateArtifacts } from "../workflow-materials";
 
 export async function republish(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -54,12 +66,19 @@ Examples:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
-  const accountArg = optionalArg(parsed, "account");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
+  const accountRaw = optionalArg(parsed, "account");
+  const accountArg = accountRaw ? parseAccountName(accountRaw) : undefined;
   const targetsArg = optionalArg(parsed, "targets");
   const dryRun = flagArg(parsed, "dry-run");
 
-  const state = await readState(statePath);
+  const initialResolved = await readResolvedState(requestedStatePath);
+  const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
+  try {
+  const resolved = await readResolvedState(initialResolved.path);
+  const statePath = resolved.path;
+  const state = resolved.state;
+  await reconcileStateArtifacts(state);
   const config = loadConfig();
   const workspacePaths = resolveWorkspacePaths(state.workspace_root, config);
 
@@ -88,14 +107,14 @@ Examples:
     for (const part of parts) {
       const atIdx = part.indexOf("@");
       if (atIdx !== -1) {
-        const route = part.slice(0, atIdx).trim() as RoutePrimary;
-        const account = part.slice(atIdx + 1).trim();
+        const route = parseRoutePrimary(part.slice(0, atIdx).trim());
+        const account = parseAccountName(part.slice(atIdx + 1), `account in target '${part}'`);
         newTargets.push({ route, account });
       } else {
         // No @: use state.route.primary as route, part as account
         newTargets.push({
           route: state.route.primary,
-          account: part.trim(),
+          account: parseAccountName(part, "target account"),
         });
       }
     }
@@ -104,9 +123,40 @@ Examples:
   if (newTargets.length === 0) {
     throw new Error("No targets specified. Use --account or --targets.");
   }
+  if (
+    state.intent.existing_draft_media_id &&
+    newTargets.some((target) =>
+      target.route.startsWith("wechat-") &&
+      (target.route !== state.route.primary || target.account !== state.route.account))
+  ) {
+    throw new Error(
+      "existing_draft_media_id cannot be republished to a different WeChat target",
+    );
+  }
 
-  // Append to publish_targets (dedupe handled by executePublishTargets)
-  state.publish_targets = [...state.publish_targets, ...newTargets];
+  const mergedTargets = dedupeTargets([
+    ...getStatePublishTargets(state),
+    ...newTargets,
+  ]);
+  validatePublishTargetCompatibility(mergedTargets, state.intent.content_form);
+  const validationErrors = validateForPhase(
+    {
+      ...state,
+      state_path: state.state_path || statePath,
+      publish_targets: mergedTargets,
+    },
+    "publish",
+  );
+  if (validationErrors.length > 0) {
+    throw new Error(
+      `Republish validation failed: ${validationErrors.map((item) => `${item.field}: ${item.message}`).join("; ")}`,
+    );
+  }
+
+  if (!dryRun) {
+    state.publish_targets = mergedTargets;
+    await writeState(statePath, state);
+  }
 
   // Execute (executePublishTargets handles dedupe and idempotent filter)
   const { results, errors } = await executePublishTargets({
@@ -115,32 +165,25 @@ Examples:
     dryRun,
     config,
     workspacePaths,
+    onResult: dryRun
+      ? undefined
+      : async (result) => {
+          upsertPublishResult(state, result);
+          await writeState(statePath, state);
+        },
   });
 
-  // Upsert results
-  for (const result of results) {
-    const idx = state.publish.results.findIndex(
-      (r) => r.route === result.route && r.account === result.account,
-    );
-    if (idx >= 0) {
-      state.publish.results[idx] = result;
-    } else {
-      state.publish.results.push(result);
-    }
-  }
-
-  // Mode stays done (or whatever it was)
-  state.updated_at = new Date().toISOString();
-
-  await writeState(statePath, state);
-
-  const output: any = {
-    publish_results: state.publish.results,
+  const output: Record<string, unknown> = {
+    publish_results: dryRun ? results : state.publish.results,
     mode: state.mode,
     new_targets: newTargets,
+    ...(dryRun ? { dry_run: true } : {}),
   };
   if (errors.length > 0) {
     output.errors = errors;
   }
   printResult(output);
+  } finally {
+    await releaseOperationLock();
+  }
 }

@@ -2,7 +2,13 @@ import { readFile } from "fs/promises";
 
 import { parseArgs, optionalArg, requireArg } from "../args";
 import { printResult, renderTaskShape } from "../output";
-import { readState, writeState, type BodyInputReceived } from "../state";
+import {
+  readResolvedState,
+  reenterPublish,
+  reenterRender,
+  writeState,
+  type BodyInputReceived,
+} from "../state";
 import { getTaskByStatePath } from "../task-manager";
 import { reconcileStateArtifacts } from "../workflow-materials";
 
@@ -52,12 +58,15 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const imagesFile = requireArg(parsed, "images-file", "JSON file with marker/path data");
   const scope = optionalArg(parsed, "scope");
   const layout = optionalArg(parsed, "layout");
 
-  const state = await readState(statePath);
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
+  const prepareWasDone = state.phase.prepare.status === "done";
   const raw = JSON.parse(await readFile(imagesFile, "utf-8")) as unknown;
   const incoming = parseReceivedImages(raw);
   const merged = new Map(state.images.body_inputs.received.map((item) => [item.marker, item.path]));
@@ -74,6 +83,17 @@ Options:
   }
 
   await reconcileStateArtifacts(state);
+  if (prepareWasDone && state.images.body_inputs.scope === "newspic-longform") {
+    reenterRender(state);
+  } else if (
+    prepareWasDone &&
+    state.images.body_inputs.scope === "article" &&
+    (state.phase.current === "publish" ||
+      state.phase.current === "done" ||
+      state.phase.publish.status === "done")
+  ) {
+    reenterPublish(state);
+  }
   await writeState(statePath, state);
 
   const task = await getTaskByStatePath(statePath);

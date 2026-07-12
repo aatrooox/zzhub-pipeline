@@ -25,17 +25,19 @@
  */
 
 import { copyFile, mkdir, readFile, writeFile } from "fs/promises";
-import { extname, join, resolve } from "path";
+import { dirname, extname, join, resolve } from "path";
 import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderPrepare } from "../output";
 import { resolveWorkspacePaths } from "../config";
 import {
   defaultBodyInputs,
-  readState,
+  readResolvedState,
+  reenterPrepare,
   writeState,
 } from "../state";
 import { resolveFullRoute } from "../routes";
 import { resolveAuthoring, hasStyleRequest } from "../profiles";
+import { parseAccountName, parseRoutePrimary } from "../publish-targets";
 import {
   formatArticle,
   generateSlug,
@@ -106,11 +108,13 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const bodyPath = optionalArg(parsed, "body");
   const titleOverride = optionalArg(parsed, "title");
-  const accountOverride = optionalArg(parsed, "account");
-  const routeOverride = optionalArg(parsed, "route") as RoutePrimary | undefined;
+  const accountRaw = optionalArg(parsed, "account");
+  const accountOverride = accountRaw ? parseAccountName(accountRaw) : undefined;
+  const routeRaw = optionalArg(parsed, "route");
+  const routeOverride = routeRaw ? parseRoutePrimary(routeRaw) : undefined;
   const extrasRaw = optionalArg(parsed, "extras");
   const isStyleRequest = flagArg(parsed, "style-request");
   const bodyOutPath = optionalArg(parsed, "body-out");
@@ -122,11 +126,13 @@ Options:
     : undefined;
 
   const extras = extrasRaw
-    ? (extrasRaw.split(",").map((s) => s.trim()) as RoutePrimary[])
+    ? extrasRaw.split(",").map((value) => parseRoutePrimary(value.trim(), "extra route"))
     : undefined;
 
   // Read state and body
-  const state = await readState(statePath);
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
   const intentText = optionalArg(parsed, "intent-text") ?? state.intent.intent_text ?? "";
   const resolvedBodyPath = bodyPath
     ? await stageManagedBodyFile(state.workspace_root, state.run_id, bodyPath)
@@ -136,6 +142,13 @@ Options:
   }
   const bodyRaw = await readFile(resolvedBodyPath, "utf-8");
   const cleanBody = stripFrontmatter(bodyRaw);
+  reenterPrepare(state, {
+    redoHint: state.redo_hint,
+    resetReview: Boolean(bodyPath),
+  });
+  if (bodyPath && state.handoff.review_policy === "trust_user") {
+    state.content_review = { status: "passed", feedback: null };
+  }
   state.source_body_path = resolvedBodyPath;
   state.intent.intent_text = intentText || state.intent.intent_text;
 
@@ -151,7 +164,7 @@ Options:
     : resolveFullRoute(intentText, {
         primary: routeOverride,
         extras,
-        account: accountOverride ?? state.route?.account || undefined,
+        account: accountOverride ?? (state.route?.account || undefined),
         contentForm: state.intent.content_form,
         targets: state.intent.targets,
       });
@@ -215,6 +228,9 @@ Options:
       break;
     }
   }
+  if (!title) {
+    throw new Error("Unable to derive a title from an empty body. Pass --title explicitly.");
+  }
 
   // Prefer editor-supplied slug; sanitize it defensively, then fall back to auto-generate
   const slug = suggestedSlug
@@ -224,11 +240,16 @@ Options:
         .replace(/^-+|-+$/g, "")
         .slice(0, 80) || generateSlug(title)
     : generateSlug(title);
-  const date = todayDate();
+  const date = state.asset_path && state.metadata.date
+    ? state.metadata.date
+    : todayDate();
 
   // Description: required for wechat-article, optional otherwise
   let description: string | null = null;
-  if (route.primary === "wechat-article") {
+  if (
+    route.primary === "wechat-article" ||
+    route.extras.includes("wechat-article")
+  ) {
     description = extractDescription(bodyFormatted);
   }
 
@@ -252,7 +273,7 @@ Options:
     route.extras.includes("wechat-newspic");
 
   if (needsArticleInputs) {
-    const markers = findIllustrationMarkers(cleanBody);
+    const markers = [...new Set(findIllustrationMarkers(cleanBody))];
     if (markers.length > 0) {
       const previousInputs =
         state.images.body_inputs.scope === "article"
@@ -279,18 +300,24 @@ Options:
     state.images.body_inputs = defaultBodyInputs();
   }
 
-  // ── Write state ──
+  if (
+    state.redo_hint === "format" ||
+    state.redo_hint === "asset-meta" ||
+    state.redo_hint === "channel-route"
+  ) {
+    state.redo_hint = null;
+  }
+
+  // Commit the formatted artifact before state starts pointing at it.
   state.formatted_body_path =
     bodyOutPath ?? getManagedFormattedBodyPath(state.workspace_root, state.run_id);
+  const formattedBodyPath = state.formatted_body_path;
+  await mkdir(dirname(formattedBodyPath), { recursive: true });
+  await writeFile(formattedBodyPath, bodyFormatted, "utf-8");
   await writeState(statePath, state);
 
-  // ── Output formatted body ──
-  const formattedBodyPath = state.formatted_body_path;
-  await mkdir(join(resolveWorkspacePaths(state.workspace_root).tempRoot, state.run_id), { recursive: true });
-  await writeFile(formattedBodyPath, bodyFormatted, "utf-8");
-
   // Output summary for orchestrator
-  const illustrationMarkers = findIllustrationMarkers(cleanBody);
+  const illustrationMarkers = [...new Set(findIllustrationMarkers(cleanBody))];
   const output = {
     state_path: statePath,
     route: {

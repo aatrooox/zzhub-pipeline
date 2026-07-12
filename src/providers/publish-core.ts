@@ -20,6 +20,7 @@ export interface ExecutePublishTargetsParams {
   dryRun: boolean;
   config: PipelineConfig;
   workspacePaths: ResolvedWorkspacePaths;
+  onResult?: (result: PublishResult) => Promise<void>;
 }
 
 export interface ExecutePublishTargetsResult {
@@ -66,13 +67,28 @@ export function filterIdempotent(
   });
 }
 
+export function upsertPublishResult(
+  state: WorkflowState,
+  result: PublishResult,
+): void {
+  const index = state.publish.results.findIndex(
+    (item) => item.route === result.route && item.account === result.account,
+  );
+  if (index >= 0) {
+    state.publish.results[index] = result;
+  } else {
+    state.publish.results.push(result);
+  }
+}
+
 /**
- * Execute publish for a list of targets in parallel.
+ * Execute publish targets sequentially so callers can persist each outcome
+ * before the next external side effect begins.
  */
 export async function executePublishTargets(
   params: ExecutePublishTargetsParams,
 ): Promise<ExecutePublishTargetsResult> {
-  const { state, targets, dryRun, config, workspacePaths } = params;
+  const { state, targets, dryRun, config, workspacePaths, onResult } = params;
 
   const deduped = dedupeTargets(targets);
   const filtered = filterIdempotent(
@@ -85,39 +101,44 @@ export async function executePublishTargets(
   const results: PublishResult[] = [];
   const errors: PublishTargetError[] = [];
 
-  // Execute in parallel
-  const promises = filtered.map(async (target) => {
-    const provider = getPublishProvider(target.route);
-    const ctx: PublishRouteContext = {
-      state,
-      dryRun,
-      config,
-      workspacePaths,
-      accountOverride: target.account,
-    };
-
+  for (const target of filtered) {
+    let result: PublishResult;
     try {
-      const result = await provider(ctx);
-      return { result, error: null };
+      const provider = getPublishProvider(target.route);
+      const ctx: PublishRouteContext = {
+        state,
+        dryRun,
+        config,
+        workspacePaths,
+        accountOverride: target.account,
+      };
+      const providerResult = await provider(ctx);
+      result = {
+        ...providerResult,
+        route: target.route,
+        account: target.account,
+        content_version: state.artifacts.content_version,
+        render_version: state.artifacts.render_version,
+      };
     } catch (err) {
       const error: PublishTargetError = {
         route: target.route,
         account: target.account,
         error: err instanceof Error ? err.message : String(err),
       };
-      return { result: null, error };
-    }
-  });
-
-  const outcomes = await Promise.all(promises);
-
-  for (const { result, error } of outcomes) {
-    if (result) {
-      results.push(result);
-    }
-    if (error) {
+      result = {
+        route: target.route,
+        account: target.account,
+        status: "failed",
+        detail: error.error,
+        published_at: null,
+        content_version: state.artifacts.content_version,
+        render_version: state.artifacts.render_version,
+      };
       errors.push(error);
     }
+    results.push(result);
+    await onResult?.(result);
   }
 
   return { results, errors };

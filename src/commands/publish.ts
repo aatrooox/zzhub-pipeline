@@ -17,13 +17,23 @@ import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderPublish } from "../output";
 import { loadConfig, resolveWorkspacePaths } from "../config";
 import {
-  readState,
+  acquireStateOperationLock,
+  readResolvedState,
   validateForPhase,
   writeState,
   type PublishTarget,
   type RoutePrimary,
 } from "../state";
-import { executePublishTargets } from "../providers/publish-core";
+import {
+  getStatePublishTargets,
+  parseRoutePrimary,
+  validatePublishTargetCompatibility,
+} from "../publish-targets";
+import {
+  executePublishTargets,
+  upsertPublishResult,
+} from "../providers/publish-core";
+import { reconcileStateArtifacts } from "../workflow-materials";
 
 export async function publish(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -40,36 +50,52 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
-  const routeOverride = optionalArg(parsed, "route") as RoutePrimary | undefined;
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
+  const routeRaw = optionalArg(parsed, "route");
+  const routeOverride: RoutePrimary | undefined = routeRaw
+    ? parseRoutePrimary(routeRaw)
+    : undefined;
   const dryRun = flagArg(parsed, "dry-run");
 
-  const state = await readState(statePath);
+  const initialResolved = await readResolvedState(requestedStatePath);
+  const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
+  try {
+  const resolved = await readResolvedState(initialResolved.path);
+  const statePath = resolved.path;
+  const state = resolved.state;
+  await reconcileStateArtifacts(state);
   const config = loadConfig();
   const workspacePaths = resolveWorkspacePaths(state.workspace_root, config);
-  const validationErrors = validateForPhase(state, "publish");
 
   if (!state.asset_path) {
     throw new Error("asset_path not set. Cannot publish.");
-  }
-  if (validationErrors.length > 0) {
-    throw new Error(
-      `Publish validation failed: ${validationErrors.map((item) => `${item.field}: ${item.message}`).join("; ")}`,
-    );
   }
 
   // Determine targets
   let targets: PublishTarget[];
   if (routeOverride) {
     targets = [{ route: routeOverride, account: state.route.account }];
-  } else if (state.publish_targets.length > 0) {
-    targets = state.publish_targets;
   } else {
-    // Derive from route (backward compat)
-    targets = [{ route: state.route.primary, account: state.route.account }];
-    for (const extra of state.route.extras) {
-      targets.push({ route: extra, account: state.route.account });
-    }
+    targets = getStatePublishTargets(state);
+  }
+  validatePublishTargetCompatibility(targets, state.intent.content_form);
+  const validationState = {
+    ...state,
+    state_path: state.state_path || statePath,
+    publish_targets: targets,
+  };
+  const validationErrors = validateForPhase(validationState, "publish");
+  if (validationErrors.length > 0) {
+    throw new Error(
+      `Publish validation failed: ${validationErrors.map((item) => `${item.field}: ${item.message}`).join("; ")}`,
+    );
+  }
+
+  const wechatTargets = targets.filter((target) => target.route.startsWith("wechat-"));
+  if (state.intent.existing_draft_media_id && wechatTargets.length > 1) {
+    throw new Error(
+      "existing_draft_media_id can only be used with one WeChat publish target",
+    );
   }
 
   const { results, errors } = await executePublishTargets({
@@ -78,18 +104,23 @@ Options:
     dryRun,
     config,
     workspacePaths,
+    onResult: dryRun
+      ? undefined
+      : async (result) => {
+          upsertPublishResult(state, result);
+          await writeState(statePath, state);
+        },
   });
 
-  // Upsert results into state
-  for (const result of results) {
-    const idx = state.publish.results.findIndex(
-      (r) => r.route === result.route && r.account === result.account,
-    );
-    if (idx >= 0) {
-      state.publish.results[idx] = result;
-    } else {
-      state.publish.results.push(result);
-    }
+  if (dryRun) {
+    printResult({
+      publish_results: results,
+      mode: state.mode,
+      phase: state.phase.current,
+      dry_run: true,
+      ...(errors.length > 0 ? { errors } : {}),
+    }, renderPublish);
+    return;
   }
 
   // Check if all targets are done
@@ -97,7 +128,7 @@ Options:
     const r = state.publish.results.find(
       (x) => x.route === target.route && x.account === target.account,
     );
-    return r && (r.status === "success" || r.status === "skipped");
+    return r?.status === "success";
   });
 
   if (allDone) {
@@ -121,4 +152,7 @@ Options:
     output.errors = errors;
   }
   printResult(output, renderPublish);
+  } finally {
+    await releaseOperationLock();
+  }
 }

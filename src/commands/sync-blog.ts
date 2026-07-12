@@ -1,7 +1,11 @@
 import { parseArgs, requireArg, flagArg } from "../args";
 import { printResult, renderSyncBlog } from "../output";
 import { loadConfig, resolveWorkspacePaths } from "../config";
-import { readState, updateState } from "../state";
+import {
+  acquireStateOperationLock,
+  readResolvedState,
+  updateState,
+} from "../state";
 import { publishBlogRoute } from "../providers/blog";
 
 export async function syncBlog(args: string[]): Promise<void> {
@@ -18,13 +22,18 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const dryRun = flagArg(parsed, "dry-run");
 
   const config = loadConfig();
 
   // Run the actual publish (may have network side effects)
-  const state = await readState(statePath);
+  const initialResolved = await readResolvedState(requestedStatePath);
+  const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
+  try {
+  const resolved = await readResolvedState(initialResolved.path);
+  const statePath = resolved.path;
+  const state = resolved.state;
 
   if (!state.asset_path) {
     throw new Error("asset_path not set. Run prepare-finalize first.");
@@ -37,6 +46,11 @@ Options:
     config,
     workspacePaths,
   });
+
+  if (dryRun) {
+    printResult({ ...result, mode: state.mode }, renderSyncBlog);
+    return;
+  }
 
   // Write result back to state
   const finalState = await updateState(statePath, (s) => {
@@ -52,4 +66,7 @@ Options:
     ...result,
     mode: finalState.mode,
   }, renderSyncBlog);
+  } finally {
+    await releaseOperationLock();
+  }
 }

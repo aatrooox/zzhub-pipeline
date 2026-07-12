@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises";
-import { dirname } from "path";
+import { dirname, isAbsolute, resolve } from "path";
 import { ensureDb } from "../db";
 import { AnalyticsSchema, type Analytics } from "../schema/analytics";
 import { parseArgs, requireArg, optionalArg } from "../args";
@@ -26,10 +26,27 @@ function resolveWorkspace(statePath: string): string {
 export async function recordAnalytics(
   input: RecordAnalyticsInput,
 ): Promise<Analytics> {
-  const stateContent = await readFile(input.statePath, "utf-8");
-  const state = JSON.parse(stateContent);
+  const requestedPath = resolve(input.statePath);
+  let statePath = requestedPath;
+  let state = JSON.parse(await readFile(statePath, "utf-8"));
+  if (typeof state.state_path === "string" && state.state_path.trim()) {
+    const candidatePath = isAbsolute(state.state_path)
+      ? resolve(state.state_path)
+      : resolve(dirname(statePath), state.state_path);
+    if (candidatePath !== statePath) {
+      try {
+        state = JSON.parse(await readFile(candidatePath, "utf-8"));
+        statePath = candidatePath;
+      } catch (error) {
+        const code = error instanceof Error && "code" in error
+          ? String((error as NodeJS.ErrnoException).code)
+          : "";
+        if (code !== "ENOENT") throw error;
+      }
+    }
+  }
 
-  const workspace = resolveWorkspace(input.statePath);
+  const workspace = state.workspace_root || resolveWorkspace(statePath);
   const db = ensureDb(workspace);
 
   try {

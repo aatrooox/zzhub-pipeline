@@ -21,7 +21,14 @@
 
 import { parseArgs, requireArg } from "../args";
 import { printResult, renderReset } from "../output";
-import { readState, writeState, defaultContentReview } from "../state";
+import {
+  defaultContentReview,
+  readResolvedState,
+  reenterPrepare,
+  reenterPublish,
+  reenterRender,
+  writeState,
+} from "../state";
 
 type ResetMode =
   | "content"
@@ -68,7 +75,7 @@ Modes:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
   const mode = requireArg(parsed, "mode", "reset mode") as ResetMode;
 
   if (!VALID_MODES.includes(mode)) {
@@ -77,7 +84,9 @@ Modes:
     );
   }
 
-  const state = await readState(statePath);
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
 
   switch (mode) {
     case "content":
@@ -85,14 +94,10 @@ Modes:
     case "redo.format":
     case "redo.metadata":
     case "redo.route":
-      // Reset prepare + render + publish
-      state.phase.prepare = { status: "pending", error: null };
-      state.phase.render = { status: "pending", error: null };
-      state.phase.publish = { status: "pending", error: null };
-      state.phase.current = "prepare";
-      state.mode = "active";
-      // Persist redo hint so orchestrator can recover start step even after context loss
-      state.redo_hint =
+      reenterPrepare(state, {
+        clearFormattedBody: mode === "content",
+        resetReview: mode === "content" || mode === "redo.style",
+        redoHint:
         mode === "redo.style"
           ? "style"
           : mode === "redo.format"
@@ -101,33 +106,21 @@ Modes:
               ? "asset-meta"
               : mode === "redo.route"
                 ? "channel-route"
-                : "writer"; // content
-      // Reset content_review for content rewrite (writer will produce new body)
-      if (mode === "content") {
-        state.content_review = defaultContentReview();
-      }
+                : "writer",
+      });
       break;
 
     case "render":
-      // Reset render + publish, keep prepare done
-      state.phase.render = { status: "pending", error: null };
-      state.phase.publish = { status: "pending", error: null };
-      state.phase.current = "render";
-      state.mode = "active";
-      state.redo_hint = null;
-      // Reset image plan status
-      if (state.images.plan.needed) {
-        state.images.plan.status = "planned";
-      }
+      reenterRender(state);
       break;
 
     case "publish":
-      // Reset publish only
-      state.phase.publish = { status: "pending", error: null };
-      state.phase.current = "publish";
-      state.mode = "active";
-      state.redo_hint = null;
-      // Don't change content_version or render_version
+      reenterPublish(state);
+      state.publish.results = state.publish.results.filter(
+        (result) =>
+          result.content_version !== state.artifacts.content_version ||
+          result.render_version !== state.artifacts.render_version,
+      );
       break;
 
     case "full":

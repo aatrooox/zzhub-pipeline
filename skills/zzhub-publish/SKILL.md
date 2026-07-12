@@ -42,94 +42,38 @@ zzhub-pipeline 状态机的编排层。CLI 通过 `--view agent` 输出告诉你
 
 ### worker 执行器 — attach-body（写稿）
 
-任务需要正文内容。`next_action.params` 指明模式：
+任务需要正文内容。当 `params.spawn` 为 `true` 时，主 Agent 需要构建写作 Brief 并 spawn sub-agent 完成写作。
 
-- **worker_mode=write**：从零写一篇新文章。任务中的 `intent_text` 描述了用户想要的内容。
-- **worker_mode=write-from-materials**：`source_materials_path` 有上游素材。先读完再写。
-- **worker_mode=research-then-write** / **research-then-write-from-materials**：先调研再写稿。用网络搜索收集事实信息，然后动笔。
+**详见**：`references/writing-brief.md` — 包含工作模式说明、Brief 构建指南、格式和质量要求、交稿流程。
 
-**重要：当 `params.spawn` 为 `true` 时（绝大多数情况），主 Agent 禁止直接写稿。** 主 Agent 的职责是构建写作 Brief，然后 spawn sub-agent 在干净上下文中完成写作：
-
-1. 主 Agent 根据 `intent_text`、`worker_mode` 和用户原始需求构建写作 Brief，包含：
-   - 文章主题、目标读者、字数要求
-   - 需要覆盖的核心要点和角度
-   - 语气和风格要求（见下方写稿质量要求）
-   - Markdown 格式规范（见下方）
-   - **标题要求**：标题占整篇文章 60% 的权重，必须反复打磨。好标题的标准：有悬念、有冲突感、让人产生"这说的是什么？"的好奇心、读完标题就想点进来
-   - **标题关键词**：产出标题的同时，从标题中挑选 1-2 个关键词（必须是标题中实际出现的词），用于生成文字封面图时高亮显示。选择标准：最有冲击力、最能概括文章核心、读者一眼就能被吸引的词。例如标题"那天晚上我用 AI 发了第一篇文章"中，关键词可选"AI"或"第一篇文章"
-
-2. 使用 `Agent` 工具 spawn sub-agent（类型选择 `general-purpose`），prompt 中只包含写作 Brief 和格式规范。**不要把主对话中的无关上下文、CLI 输出、状态机细节带入 sub-agent。** Sub-agent 只需要知道"写什么"和"怎么写"，不需要知道 zzhub-pipeline 的存在。
-
-3. Sub-agent 完成写作后返回正文。主 Agent 检查正文是否符合格式要求（有无 `##` 标题、段落是否简短等），同时**从正文末尾提取封面高亮关键词**（去掉 `**封面高亮关键词**: ` 标记后得到逗号分隔的关键词列表）。然后通过以下命令交稿：
-
-```bash
-zzhub-pipeline attach-body --state {state_path} --body-text "{正文内容（去掉关键词行的纯净正文）}"
-```
-
-如果正文很长，先写到临时文件，然后用 `--body {file_path}` 代替。
-
-**重要：** 后续执行 `prepare` 时，必须把提取到的关键词通过 `--highlight-words` 传入，这样 render 生成文字封面图时才会高亮这些词：
-
-```bash
-zzhub-pipeline prepare --state {state_path} --highlight-words "关键词1,关键词2"
-```
-
-如果 sub-agent 没有输出关键词或关键词格式异常，prepare 时会自动从标题中提取（fallback 行为），但人工选的关键词通常效果更好。
-
-**写稿格式要求（必须在 sub-agent prompt 中明确给出）：**
-- 使用 `## 章节名` 二级标题划分章节（公众号正文不用 `#` 一级标题）
-- 使用 `**粗体**` 强调关键词、关键数据、重点句
-- 使用 `- ` 或 `1. ` 组织列表和要点
-- 使用 `>` 引用重要内容或金句
-- 段落简短，适合手机阅读（每段 2-4 句）
-- 章节之间用空行分隔，适当使用分割线
-
-**写稿质量要求（必须在 sub-agent prompt 中明确给出）：**
-- 标题占整篇文章 60% 的权重，花最多时间打磨标题。标题要有悬念、冲突感或陌生感，让人产生好奇心。避免平淡的陈述句，尝试用问题、对比、反常识或具体场景作为标题。
-- 写作角度要有**陌生感**——把读者熟悉的事物用全新的视角呈现出来。比如讲一个工具不要列功能，而是讲"那天晚上我发了第一篇 AI 帮我排版的文章，封面是自动生成的"。
-- 用**讲故事的风格**组织内容——有场景、有冲突、有转折、有解决。先描述一个痛点时刻，再引出工具如何改变这个局面，让读者产生"这说的就是我"的代入感。
-- 有具体的细节和观点，避免空洞的套话。
-- 有个人语气和风格，不要写得像教科书或官方通稿。
-- **必须在正文末尾单独一行输出封面高亮关键词**，格式为：`**封面高亮关键词**: 关键词1, 关键词2`。这些关键词必须来自标题中实际出现的词，选 1-2 个最有冲击力的。
+快速流程：
+1. 读取 `references/writing-brief.md`，按指南构建写作 Brief
+2. Spawn sub-agent（general-purpose），prompt 只包含 Brief 和格式规范
+3. Sub-agent 返回正文后，提取封面关键词，执行 `attach-body` 交稿
+4. 后续 `prepare` 时传入 `--highlight-words` 参数
 
 ### worker 执行器 — review-content（审核）
 
-**主 Agent 应 spawn sub-agent 进行独立审核**，保持审核的客观性并避免主上下文污染。
+主 Agent 应 spawn sub-agent 进行独立审核，保持客观性并避免主上下文污染。
 
-1. 主 Agent 构建审核 Brief：读取 `source_body_path`（或 `formatted_body_path`，如果存在）的正文，连同以下审核标准一起交给 sub-agent。
+**详见**：`references/content-review.md` — 包含审核 Brief 构建指南和审核标准。
 
-2. 使用 `Agent` 工具 spawn sub-agent（类型选择 `general-purpose`），prompt 中只包含正文内容和审核标准，不包含主对话上下文。
-
-3. Sub-agent 返回审核结论（passed / needs_revision）和具体反馈。
-
-审核标准（写入 sub-agent prompt）：
-
-1. **AI 味检测**：是否读起来像 AI 生成？警惕：过于流畅的过渡句、空洞的总结、无意义的最高级形容词、公式化的结构、缺乏具体细节或个人声音。
-2. **标题质量（60% 权重）**：标题是否有悬念、冲突感或陌生感？是否让人产生好奇心？还是平淡的陈述句？好标题应该让人看完就想点进来。同时避免标题党。
-3. **陌生感与讲故事**：文章是否用讲故事的方式展开？是否有场景、冲突、转折？是否把熟悉的事物用新鲜的角度呈现出来？还是平铺直叙地罗列功能？
-4. **事实准确性**：文章中的说法、日期、人名、技术细节是否准确？标记任何看起来有问题的内容。
-5. **微信适配**：格式是否适合微信阅读？段落是否简短？是否有微信无法渲染的 markdown？字数是否合适（文章 800-3000 字）？
-6. **Markdown 结构**：是否正确使用了 `##` 标题划分章节？是否有 `**粗体**` 强调重点？列表和引用格式是否恰当？
-
-主 Agent 根据 sub-agent 返回的结论执行：
-- **通过** → 执行：`zzhub-pipeline review --state {state_path} --status passed`
-- **需要修改** → 执行：`zzhub-pipeline review --state {state_path} --status needs_revision --feedback "具体修改建议..."`
-
-反馈必须具体可操作，用中文写，明确指出需要修改的具体段落。
+快速流程：
+1. 读取 `references/content-review.md`，获取审核标准
+2. 读取正文，连同审核标准一起交给 sub-agent
+3. Sub-agent 返回结论后，执行 `review --status passed` 或 `review --status needs_revision --feedback "..."`
 
 ### worker 执行器 — revise-content（修订）
 
-`next_action.params.feedback` 中包含修改意见。主 Agent 构建修订 Brief（原文 + 修改意见 + 格式要求），spawn sub-agent 在干净上下文中执行修订。
+`next_action.params.feedback` 中包含修改意见。主 Agent 构建修订 Brief，spawn sub-agent 执行修订。
 
-1. 主 Agent 读取 `source_body_path` 的正文，与 `feedback` 一起构建修订 Brief。
-2. 使用 `Agent` 工具 spawn sub-agent（类型选择 `general-purpose`），prompt 中只包含原文、修改意见、格式要求。
-3. Sub-agent 返回修改后的正文。主 Agent 检查修改是否覆盖了所有反馈点，然后交稿：
+**详见**：`references/revision-brief.md` — 包含修订 Brief 构建指南。
 
-```bash
-zzhub-pipeline attach-body --state {state_path} --body-text "{修改后的正文}"
-```
-
-交稿后重新 `status`。下一步通常会是 `review-content`（重新审核）。
+快速流程：
+1. 读取 `references/revision-brief.md`
+2. 读取正文和 `feedback`，构建修订 Brief，spawn sub-agent
+3. Sub-agent 返回修改后的正文，执行 `attach-body` 交稿
+4. 重新 `status`，下一步通常是 `review-content`
 
 ### await-input 执行器
 

@@ -99,7 +99,7 @@ export async function reconcileBodyInputs(state: WorkflowState): Promise<void> {
     state.route.extras.includes("wechat-newspic");
 
   if (usesArticleImages && !usesNewspicImages) {
-    const markers = findIllustrationMarkers(cleanBody);
+    const markers = [...new Set(findIllustrationMarkers(cleanBody))];
     const markerSet = new Set(markers);
     const received = previousReceived.filter((item) => markerSet.has(item.marker));
     if (markers.length === 0) {
@@ -178,20 +178,41 @@ export async function discoverRenderAssets(state: WorkflowState): Promise<Render
     if (await pathExists(newspicDir)) {
       const files = await readdir(newspicDir);
       const pageFiles = files
-        .filter((name) => /^article-\d+\.png$/.test(name))
-        .sort();
-      for (let index = 0; index < pageFiles.length; index += 1) {
+        .flatMap((name) => {
+          const match = name.match(/^article-(\d+)\.png$/);
+          return match ? [{ name, index: Number.parseInt(match[1], 10) }] : [];
+        })
+        .sort((a, b) => a.index - b.index);
+      for (const pageFile of pageFiles) {
         assets.push({
           kind: "page",
           route: "wechat-newspic",
-          path: join(newspicDir, pageFiles[index]),
-          index: index + 1,
+          path: join(newspicDir, pageFile.name),
+          index: pageFile.index,
         });
       }
     }
   }
 
   return assets;
+}
+
+function hasRequiredRenderAssets(
+  state: WorkflowState,
+  renderAssets: RenderAsset[],
+): boolean {
+  const publishRoutes = state.publish_targets.length > 0
+    ? state.publish_targets.map((target) => target.route)
+    : [state.route.primary, ...state.route.extras];
+  const hasArticleCover = !publishRoutes.includes("wechat-article") || renderAssets.some(
+    (asset) => asset.route === "wechat-article" && asset.kind === "cover",
+  );
+  const hasNewspicAssets = !publishRoutes.includes("wechat-newspic") || renderAssets.some(
+    (asset) =>
+      asset.route === "wechat-newspic" &&
+      (!shouldUseNewspicLongform(state) || asset.kind === "page"),
+  );
+  return renderAssets.length > 0 && hasArticleCover && hasNewspicAssets;
 }
 
 export async function reconcileStateArtifacts(state: WorkflowState): Promise<void> {
@@ -205,9 +226,22 @@ export async function reconcileStateArtifacts(state: WorkflowState): Promise<voi
   if (!state.asset_path) {
     return;
   }
+  if (state.phase.current === "prepare" || state.phase.prepare.status !== "done") {
+    return;
+  }
+
+  const recordedAssets = state.images.render_assets;
+  if (
+    state.phase.render.status === "done" &&
+    hasRequiredRenderAssets(state, recordedAssets) &&
+    (await Promise.all(recordedAssets.map((asset) => pathExists(asset.path)))).every(Boolean)
+  ) {
+    state.images.plan.status = "rendered";
+    return;
+  }
 
   const renderAssets = await discoverRenderAssets(state);
-  if (renderAssets.length > 0) {
+  if (hasRequiredRenderAssets(state, renderAssets)) {
     state.images.render_assets = renderAssets;
     state.images.plan.status = "rendered";
   } else if (state.images.plan.needed && state.images.plan.status === "rendered") {

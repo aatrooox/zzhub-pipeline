@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
-import { join, resolve } from "path";
+import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { PipelineConfig, ResolvedWorkspacePaths } from "../config";
 import { spawnSync } from "../spawn";
 import { PublishResult, WorkflowState } from "../state";
@@ -13,23 +13,61 @@ interface BlogPublishContext {
   workspacePaths: ResolvedWorkspacePaths;
 }
 
-// ![alt](path) — skips http(s):// URLs, captures [1]=alt [2]=rawPath
-const LOCAL_IMAGE_RE = /!\[([^\]]*)\]\((?!https?:\/\/)([^)]+)\)/g;
+const LOCAL_IMAGE_RE = /!\[([^\]]*)\]\((?![a-zA-Z][a-zA-Z0-9+.-]*:|\/\/)(?:<([^>]+)>|([^\s)]+))(?:\s+"[^"]*")?\)/g;
 
 export function extractLocalImagePaths(content: string, assetPath: string): Map<string, string> {
   const pathMap = new Map<string, string>();
   for (const match of content.matchAll(LOCAL_IMAGE_RE)) {
-    const rawPath = match[2].trim();
-    pathMap.set(rawPath, resolve(assetPath, rawPath));
+    const rawPath = (match[2] ?? match[3] ?? "").trim();
+    const assetRoot = resolve(assetPath);
+    const absolutePath = resolve(assetRoot, rawPath);
+    const relativePath = relative(assetRoot, absolutePath);
+    if (
+      relativePath === ".." ||
+      relativePath.startsWith(`..${/\\/.test(relativePath) ? "\\" : "/"}`) ||
+      isAbsolute(relativePath)
+    ) {
+      throw new Error(`Local blog image escapes asset directory: ${rawPath}`);
+    }
+    pathMap.set(rawPath, absolutePath);
   }
   return pathMap;
 }
 
 export function replaceLocalImagePaths(content: string, urlMap: Map<string, string>): string {
-  return content.replace(LOCAL_IMAGE_RE, (original, alt: string, rawPath: string) => {
-    const url = urlMap.get(rawPath.trim());
+  return content.replace(LOCAL_IMAGE_RE, (original, alt: string, anglePath: string, barePath: string) => {
+    const rawPath = (anglePath ?? barePath ?? "").trim();
+    const url = urlMap.get(rawPath);
     return url ? `![${alt}](${url})` : original;
   });
+}
+
+export function resolveBlogPostPath(
+  blogRoot: string,
+  date: string,
+  slug: string,
+): { directory: string; path: string } {
+  const dateMatch = date.match(/^(\d{4})-(\d{2})-\d{2}$/);
+  if (!dateMatch) {
+    throw new Error(`Invalid blog publish date: ${date}`);
+  }
+  if (!slug || /[\\/]/.test(slug) || slug === "." || slug === "..") {
+    throw new Error(`Invalid blog publish slug: ${slug}`);
+  }
+
+  const contentRoot = resolve(blogRoot, "content", "nezus");
+  const directory = resolve(contentRoot, dateMatch[1], dateMatch[2]);
+  const path = resolve(directory, `${slug}.md`);
+  const relativePath = relative(contentRoot, path);
+  if (
+    dirname(path) !== directory ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${/\\/.test(relativePath) ? "\\" : "/"}`) ||
+    isAbsolute(relativePath)
+  ) {
+    throw new Error(`Blog post path escapes content directory: ${date}/${slug}`);
+  }
+  return { directory, path };
 }
 
 async function uploadBlogImages(
@@ -45,7 +83,7 @@ async function uploadBlogImages(
   }
 
   const cosPat = config.cos.pat;
-  if (!cosPat) {
+  if (!cosPat && !dryRun) {
     throw new Error("No COS PAT configured. Set cos.pat in config.");
   }
 
@@ -84,12 +122,12 @@ export async function publishBlogRoute({
 }: BlogPublishContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
-  const category = "nezus";
   const blogRoot = workspacePaths.blogRoot;
-
-  const [year, month] = state.metadata.date.split("-");
-  const blogPostDir = join(blogRoot, "content", category, year, month);
-  const blogPostPath = join(blogPostDir, `${state.metadata.slug}.md`);
+  const { directory: blogPostDir, path: blogPostPath } = resolveBlogPostPath(
+    blogRoot,
+    state.metadata.date,
+    state.metadata.slug,
+  );
 
   const lines = ["---"];
   lines.push(`title: "${state.metadata.title.replace(/"/g, '\\"')}"`);

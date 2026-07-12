@@ -1,6 +1,6 @@
 import { parseArgs, requireArg } from "../args";
 import { printResult, renderTaskShape } from "../output";
-import { readState, writeState } from "../state";
+import { readResolvedState, writeState } from "../state";
 import { getTaskByStatePath } from "../task-manager";
 import { reconcileStateArtifacts } from "../workflow-materials";
 
@@ -17,8 +17,10 @@ Options:
     return;
   }
 
-  const statePath = requireArg(parsed, "state", "state JSON path");
-  const state = await readState(statePath);
+  const requestedStatePath = requireArg(parsed, "state", "state JSON path");
+  const resolved = await readResolvedState(requestedStatePath);
+  const statePath = resolved.path;
+  const state = resolved.state;
   await reconcileStateArtifacts(state);
   await writeState(statePath, state);
 
