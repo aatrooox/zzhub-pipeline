@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.10.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.9.1...v0.10.0)
+
+### Features
+
+- Harden publishing pipeline end to end ([9bbf368](https://github.com/aatrooox/zzhub-pipeline/commit/9bbf368))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.9.1
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.9.0...v0.9.1)
