@@ -34,12 +34,11 @@
     "cos-nodejs-sdk-v5": "^2.15.4"
   },
   "devDependencies": {
-    "@milkdown/crepe": "^7.18.0",
-    "@milkdown/plugin-listener": "^7.18.0",
-    "@milkdown/utils": "^7.18.0",
+    "@milkdown/kit": "^7.18.0",
     "@types/bun": "latest",
     "@types/pngjs": "^6.0.5",
     "changelogen": "^0.6.2",
+    "juice": "11.1.1",
     "typescript": "^5.7.0",
     "vite": "^7.1.10"
   }

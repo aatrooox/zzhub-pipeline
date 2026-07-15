@@ -374,7 +374,7 @@ src/
   wechat-preview/         # 微信文章 HTML 预览，Milkdown + 主题
     index.ts
     themes.ts
-    wechat-formatter.ts
+    wechat-renderer.ts     # 元素 renderer 注册表、CSS 内联和微信安全清理
     frontmatter-handler.ts
     browser/
       editor-export.ts
@@ -409,11 +409,12 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark one or more tasks as abandoned |
 
-`ops` 组，11 个命令：
+`ops` 组，12 个命令：
 
 | 命令 | 说明 |
 | --- | --- |
 | `sync-blog` | Copy post.md to blog repo, publish, and record result in state JSON |
+| `republish` | Publish a completed task to an additional account or platform |
 | `imgx` | Run bundled imgx renderer subcommands |
 | `wechat-export` | Render markdown to WeChat HTML with bundled preview styles |
 | `cos-upload` | Upload a local image to configured COS CDN |
@@ -618,8 +619,56 @@ bun run src/cli.ts hermes-metrics --workspace /abs/workspace
 ### 微信 HTML 预览导出
 
 ```bash
-bun run src/cli.ts wechat-export --body /abs/path/body.md --account default
+bun run src/cli.ts wechat-export \
+  --markdown /abs/path/body.md \
+  --out /abs/path/article.html \
+  --account default \
+  --preview-shell-out /abs/path/article-preview.html
 ```
+
+`--preview-shell-out` 生成最终发布 HTML 的精确预览：预览页直接嵌入 `--out`
+中的内联样式片段，不再加载 Milkdown 编辑器或复制浏览器 bundle。
+
+#### 自定义 CSS
+
+可以通过账号配置或 CLI 覆盖内置样式：
+
+```json
+{
+  "wx": {
+    "accounts": {
+      "default": {
+        "customCss": "./themes/default-wechat.css"
+      }
+    }
+  }
+}
+```
+
+```bash
+bun run src/cli.ts wechat-export \
+  --markdown /abs/path/body.md \
+  --out /abs/path/article.html \
+  --custom-css ./local-wechat.css
+```
+
+样式优先级固定为：内置排版 CSS → 账号主题令牌 → 账号 `customCss`。传入
+`--custom-css` 时，它会替代账号 `customCss`。CLI 相对路径按当前工作目录解析，
+配置中的相对路径按 `config.json` 所在目录解析。
+
+推荐使用语义标签或稳定节点钩子：
+
+```css
+.milkdown .editor p { line-height: 1.9; }
+.milkdown .editor h2 { color: #a94473; }
+.milkdown .editor [data-wechat-node="inline-code"] { background: #f7eef2; }
+.milkdown .editor [data-wechat-node="image-caption"] { font-size: 13px; }
+```
+
+`.milkdown .editor` 只是 CSS 内联阶段的兼容包装；最终 HTML 会移除 `class` 和
+`data-wechat-node`。外部 CSS 支持变量、层叠和常规选择器，随后由 Juice 解析为
+内联样式。最终片段只保留微信稳定标签、图片/链接/表格必要属性和保守 CSS；
+脚本、事件属性、外部 `<style>`、未解析变量、`flex`/`grid`、定位和伪元素都会被移除。
 
 ### COS 图片上传
 
@@ -796,10 +845,23 @@ bun run src/cli.ts init ... --note-id NOTE_ID
 
 ## wechat-preview 子系统
 
-- 基于 Milkdown 的 markdown 到微信 HTML 转换
-- 支持多主题
+- 基于 Milkdown core + CommonMark/GFM 生成语义 HTML，不读取 Crepe/CodeMirror 可视 DOM
+- 固定管线：Markdown → Milkdown HTML → 元素 renderer prepare → Juice 内联 → renderer finalize → 微信白名单清理
+- 元素 renderer 覆盖段落/标题、强调、行内代码、代码块、引用、图片标题、链接脚注、列表、表格、分隔线和页脚
+- 内置默认采用“静默编辑”：深色标题、低装饰引用和中性行内代码，品牌色只用于链接等识别点
+- `default` 与 `ancientone` 共用排版骨架，只通过主题令牌切换品牌色、字体栈和页脚
 - 构建命令：`bun run build:wechat-preview`
-- `wechat-export` 会直接使用这套预览样式
+- `wechat-export` 和微信草稿发布使用同一份最终内联 HTML
+
+`src/wechat-preview/browser/editor-export.css` 会通过 Vite 以 raw CSS 打入浏览器
+bundle。修改该 CSS 或浏览器 renderer 后必须执行：
+
+```bash
+bun run build:wechat-preview
+bun install --global .
+```
+
+全局 `zzp` 使用编译产物；只修改源码而不重新全局安装不会更新全局命令。
 
 ## 插件系统
 

@@ -1,6 +1,10 @@
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
-import { PipelineConfig, ResolvedWorkspacePaths } from "../config";
+import {
+  resolveConfigRelativePath,
+  type PipelineConfig,
+  type ResolvedWorkspacePaths,
+} from "../config";
 import { PublishResult, RenderAsset, RoutePrimary, WorkflowState } from "../state";
 import {
   injectIllustrationImages,
@@ -80,7 +84,7 @@ async function publishWechatArticleRoute({
       outPath: workspacePaths.zotepadExportHtml,
       account,
       title: state.metadata.title,
-      customCss: wxAccount?.customCss ?? null,
+      customCss: resolveConfigRelativePath(wxAccount?.customCss),
       themeOverrides: wxAccount?.theme,
     });
     const response = await createWechatDraft({

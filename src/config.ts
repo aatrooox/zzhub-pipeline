@@ -85,6 +85,18 @@ export function getPipelineConfigPath(): string {
   return join(getBaseConfigDir(PIPELINE_CONFIG_DIR), PIPELINE_CONFIG_FILE);
 }
 
+/** Resolve a file path stored in config relative to the config file directory. */
+export function resolveConfigRelativePath(
+  value: string | null | undefined,
+  configPath: string = getPipelineConfigPath(),
+): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return isAbsolute(trimmed)
+    ? resolve(trimmed)
+    : resolve(dirname(configPath), trimmed);
+}
+
 export function getLegacyZCliConfigPath(): string {
   return join(getBaseConfigDir(LEGACY_ZCLI_CONFIG_DIR), PIPELINE_CONFIG_FILE);
 }

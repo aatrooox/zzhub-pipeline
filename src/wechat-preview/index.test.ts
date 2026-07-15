@@ -6,6 +6,7 @@ import {
   resolveMarkdownAsset,
   rewriteRelativeImagePaths,
   extractRenderResult,
+  buildWechatPreviewShell,
 } from "./index";
 
 describe("escapeInlineJson", () => {
@@ -49,6 +50,10 @@ describe("isExternalUrl", () => {
 
   test("recognizes protocol-relative URLs", () => {
     expect(isExternalUrl("//cdn.example.com/img.png")).toBe(true);
+  });
+
+  test("preserves unknown schemes for the final sanitizer", () => {
+    expect(isExternalUrl("javascript:alert(1)")).toBe(true);
   });
 
   test("rejects relative paths", () => {
@@ -150,5 +155,17 @@ describe("extractRenderResult", () => {
   test("throws when script content is empty", () => {
     const dom = '<script id="zzhub-wechat-export-result" type="application/json"></script>';
     expect(() => extractRenderResult(dom)).toThrow();
+  });
+});
+
+describe("buildWechatPreviewShell", () => {
+  test("embeds the final article fragment verbatim without a renderer bundle", () => {
+    const article = '<section style="color: red;"><p>正文</p></section>';
+    const shell = buildWechatPreviewShell(article, "标题 <安全>");
+
+    expect(shell).toContain(`<main id="wechat-preview-content">${article}</main>`);
+    expect(shell).toContain("标题 &lt;安全&gt;");
+    expect(shell).not.toContain("editor-export.js");
+    expect(shell).not.toContain("browser-dist");
   });
 });

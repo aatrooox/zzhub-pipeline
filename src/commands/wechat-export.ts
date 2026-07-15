@@ -1,13 +1,12 @@
+import { resolve } from "path";
 import { optionalArg, parseArgs, requireArg } from "../args";
 import { printResult, renderWechatExport } from "../output";
-import { loadConfig } from "../config";
+import { loadConfig, resolveConfigRelativePath } from "../config";
 import { resolveMarkdownRenderer } from "../adapter-loader";
 
 const CSS_DEMO = `
-Custom CSS is injected as a <style> tag after the built-in Milkdown styles
-and before the browser renders. WeChat requires inline styles, so the
-rendering pipeline captures computed styles from the DOM — your CSS
-cascades naturally and the final inline-styled HTML will reflect it.
+Custom CSS is cascaded after the built-in theme and converted to conservative
+inline styles. Use semantic selectors or stable data-wechat-node hooks.
 
 Example custom.css:
 
@@ -26,6 +25,17 @@ Example custom.css:
   }
 `.trim();
 
+export function resolveWechatExportCustomCss(
+  cliCustomCss: string | undefined,
+  accountCustomCss: string | null | undefined,
+  cwd: string = process.cwd(),
+  configPath?: string,
+): string | null {
+  return cliCustomCss
+    ? resolve(cwd, cliCustomCss)
+    : resolveConfigRelativePath(accountCustomCss, configPath);
+}
+
 export async function wechatExport(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
 
@@ -38,8 +48,8 @@ Options:
   --out                Path to exported html file (required)
   --account            Account/theme key (optional; default: default)
   --title              Page title for the render shell (optional)
-  --preview-shell-out  Path to full Milkdown preview html (optional)
-  --custom-css         Path to custom CSS file for style overrides (optional)
+  --preview-shell-out  Path to exact final-HTML preview (optional)
+  --custom-css         CSS override path; replaces account customCss (optional)
 
 ${CSS_DEMO}
 `.trim());
@@ -51,10 +61,14 @@ ${CSS_DEMO}
   const account = optionalArg(parsed, "account") ?? "default";
   const title = optionalArg(parsed, "title");
   const previewShellOutPath = optionalArg(parsed, "preview-shell-out");
-  const customCss = optionalArg(parsed, "custom-css");
+  const cliCustomCss = optionalArg(parsed, "custom-css");
 
   const config = loadConfig();
   const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
+  const customCss = resolveWechatExportCustomCss(
+    cliCustomCss,
+    wxAccount?.customCss,
+  );
   const markdownRenderer = await resolveMarkdownRenderer(config);
   const result = await markdownRenderer.render({
     markdownPath,

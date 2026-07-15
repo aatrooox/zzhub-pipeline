@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { extractFrontmatter, parseYAML } from "./wechat-preview/frontmatter-handler";
 import { getWechatPreviewStyleName, getWechatPreviewTheme } from "./wechat-preview/themes";
-import { minifyHtmlPreservingCodeBlocks, resolveImageDimensionStyles } from "./wechat-preview/wechat-formatter";
 
 describe("wechat preview theme mapping", () => {
   test("resolves account-specific theme metadata", () => {
@@ -16,6 +15,24 @@ describe("wechat preview theme mapping", () => {
     expect(theme.account).toBe("default");
     expect(theme.exportTheme.footerText).toBe("公众号 · 早早集市");
   });
+
+  test("uses the quiet editorial typography tokens", () => {
+    const theme = getWechatPreviewTheme("default");
+    expect(theme.exportTheme.bodyLineHeight).toBe("1.84");
+    expect(theme.exportTheme.bodyLetterSpacing).toBe("0.012em");
+    expect(theme.exportTheme.primaryColor).toBe("#a94473");
+    expect(theme.exportTheme.fontFamily).not.toContain("SweiCurveLeg");
+  });
+
+  test("uses quiet editorial accents in the built-in stylesheet", async () => {
+    const css = await Bun.file(
+      new URL("./wechat-preview/browser/editor-export.css", import.meta.url),
+    ).text();
+
+    expect(css).toMatch(/\.milkdown \.editor h2 \{[^}]*padding-left: 0;[^}]*border-left: 0;[^}]*color: #292526;/s);
+    expect(css).toMatch(/\.milkdown \.editor blockquote \{[^}]*border-left: 3px solid #c9c3c5;[^}]*background-color: #fbfafb;/s);
+    expect(css).toMatch(/\[data-wechat-node="inline-code"\] \{[^}]*border: 1px solid #ded9db;[^}]*background-color: #f7f5f6;[^}]*color: #4d484a;/s);
+  });
 });
 
 describe("wechat preview frontmatter helpers", () => {
@@ -29,45 +46,5 @@ describe("wechat preview frontmatter helpers", () => {
     const parsed = parseYAML("slug: hello-world\ntags: [\"a\", \"b\"]");
     expect(parsed.slug).toBe("hello-world");
     expect(parsed.tags).toEqual(["a", "b"]);
-  });
-});
-
-describe("wechat preview html minify", () => {
-  test("keeps indentation inside protected code blocks", () => {
-    const input = `<section>\n  <section data-code-block="true"><pre>if (ok) {\n  return 1;\n}</pre></section>\n  <section>after</section>\n</section>`;
-    const output = minifyHtmlPreservingCodeBlocks(input);
-
-    expect(output).toContain("<pre>if (ok) {\n  return 1;\n}</pre>");
-    expect(output).toContain("</section><section>after</section>");
-  });
-
-  test("does not exit preservation mode on nested section closes inside code blocks", () => {
-    const input = `<section data-code-block="true"><section><section>  const a = 1;</section><section>  return a;</section></section></section><section>after</section>`;
-    const output = minifyHtmlPreservingCodeBlocks(input);
-
-    expect(output).toContain("<section>  const a = 1;</section><section>  return a;</section>");
-    expect(output).toContain("</section><section>after</section>");
-  });
-});
-
-describe("wechat preview image dimensions", () => {
-  test("preserves Crepe image-block height when width is implicit", () => {
-    const styles = resolveImageDimensionStyles({
-      styleHeight: "180.5px",
-      renderedWidth: 320,
-      renderedHeight: 120,
-    });
-
-    expect(styles).toEqual(["width: 320px", "max-width: 100%", "height: 180.5px"]);
-  });
-
-  test("uses Crepe image-block data-height when inline height is absent", () => {
-    const styles = resolveImageDimensionStyles({
-      dataHeight: "210.25",
-      renderedWidth: 360,
-      renderedHeight: 140,
-    });
-
-    expect(styles).toEqual(["width: 360px", "max-width: 100%", "height: 210.25px"]);
   });
 });
