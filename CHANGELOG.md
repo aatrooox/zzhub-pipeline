@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.10.1
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.10.0...v0.10.1)
+
+### Features
+
+- Redesign WeChat markdown HTML rendering ([a3b2ae3](https://github.com/aatrooox/zzhub-pipeline/commit/a3b2ae3))
+
+### Fixes
+
+- Preserve explicit blog publishing route ([2d7298d](https://github.com/aatrooox/zzhub-pipeline/commit/2d7298d))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.10.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.9.1...v0.10.0)
