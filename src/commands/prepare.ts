@@ -69,15 +69,16 @@ function getManagedFormattedBodyPath(workspaceRoot: string, runId: string): stri
 }
 
 function shouldPreserveExistingRoute(params: {
-  intentText: string;
+  hasExplicitPublishTargets: boolean;
+  hasIntentOverride: boolean;
   routeOverride?: RoutePrimary;
   extrasRaw?: string;
   accountOverride?: string;
   assetPath: string;
 }): boolean {
   return (
-    Boolean(params.assetPath) &&
-    !params.intentText.trim() &&
+    (params.hasExplicitPublishTargets || Boolean(params.assetPath)) &&
+    !params.hasIntentOverride &&
     !params.routeOverride &&
     !params.extrasRaw &&
     !params.accountOverride
@@ -133,7 +134,8 @@ Options:
   const resolved = await readResolvedState(requestedStatePath);
   const statePath = resolved.path;
   const state = resolved.state;
-  const intentText = optionalArg(parsed, "intent-text") ?? state.intent.intent_text ?? "";
+  const intentTextOverride = optionalArg(parsed, "intent-text");
+  const intentText = intentTextOverride ?? state.intent.intent_text ?? "";
   const resolvedBodyPath = bodyPath
     ? await stageManagedBodyFile(state.workspace_root, state.run_id, bodyPath)
     : state.source_body_path;
@@ -154,7 +156,8 @@ Options:
 
   // ── Step 1: Channel route (1st pass) ──
   const route = shouldPreserveExistingRoute({
-    intentText,
+    hasExplicitPublishTargets: state.publish_targets.length > 0,
+    hasIntentOverride: intentTextOverride !== undefined,
     routeOverride,
     extrasRaw,
     accountOverride,

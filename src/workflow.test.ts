@@ -101,22 +101,22 @@ describe("route resolution", () => {
     expect(route.primary).toBe("wechat-article");
   });
 
-  test("ignores blog-only target in workflow routing and keeps article on wechat route", () => {
+  test("routes a blog-only target through the blog workflow", () => {
     const route = resolveFullRoute("", {
       contentForm: "article",
       targets: ["blog"],
     });
-    expect(route.primary).toBe("wechat-article");
+    expect(route.primary).toBe("blog");
     expect(route.extras).toEqual([]);
   });
 
-  test("does not open a second blog workflow branch for mixed targets", () => {
+  test("adds blog as an extra workflow route for mixed targets", () => {
     const route = resolveFullRoute("", {
       contentForm: "article",
       targets: ["wechat", "blog"],
     });
     expect(route.primary).toBe("wechat-article");
-    expect(route.extras).toEqual([]);
+    expect(route.extras).toEqual(["blog"]);
   });
 
   test("treats explicit newspic big-account intent as deterministic", () => {
@@ -2532,13 +2532,52 @@ describe("init with multi-target --targets", () => {
       "--content-origin", "user",
     ])).rejects.toThrow("cannot mix wechat-article and wechat-newspic");
   });
+
+  test("preserves an explicit blog-only target through prepare", async () => {
+    const tmpDir = await makeTempDir("zzhub-test-init-blog-");
+    const output = await captureJsonOutput<any>(() =>
+      init([
+        "--workspace", tmpDir,
+        "--task-kind", "publish",
+        "--content-form", "article",
+        "--targets", "blog@default",
+        "--content-origin", "user",
+        "--intent-text", "发布博客",
+        "--requires-publish",
+      ]),
+    );
+
+    await captureJsonOutput(() => attachBody([
+      "--state", output.state_path,
+      "--body-text", "# Blog post\n\nBody",
+    ]));
+    await captureJsonOutput(() => prepare(["--state", output.state_path]));
+
+    const state = await readState(output.state_path);
+    expect(state.route.primary).toBe("blog");
+    expect(state.intent.requires.render).toBe(false);
+    expect(getStatePublishTargets(state)).toEqual([
+      { route: "blog", account: "default" },
+    ]);
+  });
 });
 
-test("getStatePublishTargets retains the primary target", () => {
+test("getStatePublishTargets prefers explicit publish targets", () => {
   const state = defaultState();
   state.route.primary = "wechat-article";
   state.route.account = "default";
   state.publish_targets = [{ route: "blog", account: "default" }];
+
+  expect(getStatePublishTargets(state)).toEqual([
+    { route: "blog", account: "default" },
+  ]);
+});
+
+test("getStatePublishTargets derives targets from the route as a fallback", () => {
+  const state = defaultState();
+  state.route.primary = "wechat-article";
+  state.route.extras = ["blog"];
+  state.route.account = "default";
 
   expect(getStatePublishTargets(state)).toEqual([
     { route: "wechat-article", account: "default" },

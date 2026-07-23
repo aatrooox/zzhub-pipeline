@@ -38,12 +38,13 @@ bun install --global .
 
 这是一个状态机模型，输入是任务意图、正文、图片、路由和发布要求，输出是可恢复的工作流状态、渲染产物和发布结果。
 
-当前只有两条主工作流路由：
+当前有三条主工作流路由：
 
 - `wechat-article` — 公众号文章草稿（HTML）
 - `wechat-newspic` — 公众号图片消息（PNG 卡片/图集）
+- `blog` — 将 Markdown 同步到配置的博客项目并执行发布命令
 
-`blog` 只做事后同步（`sync-blog`），不参与主工作流分支，但同步结果会写回 `workflow-state.json` 的 `publish.results`。
+`blog` 参与统一的 `prepare → publish` 工作流；作为唯一目标时跳过 render。`sync-blog` 继续保留为事后同步命令，两种路径都会把结果写回 `workflow-state.json` 的 `publish.results`。
 
 状态文件分两类：
 

@@ -126,13 +126,12 @@ export function getStatePublishTargets(state: {
   publish_targets: PublishTarget[];
   route: { primary: RoutePrimary; extras: RoutePrimary[]; account: string };
 }): PublishTarget[] {
-  const targets = [
-    ...[state.route.primary, ...state.route.extras].map((route) => ({
+  const targets = state.publish_targets.length > 0
+    ? state.publish_targets
+    : [state.route.primary, ...state.route.extras].map((route) => ({
       route,
       account: state.route.account,
-    })),
-    ...state.publish_targets,
-  ];
+    }));
   const seen = new Set<string>();
   return targets.filter((target) => {
     const key = `${target.route}@${target.account}`;

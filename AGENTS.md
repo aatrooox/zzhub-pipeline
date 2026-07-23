@@ -191,20 +191,21 @@ Temporary (prepare phase)              Canonical (after prepare-finalize)
 
 ## Workflow routes and targets
 
-Only two active workflow routes exist:
+Three active workflow routes exist:
 
 - `wechat-article`, WeChat public account article, HTML export.
 - `wechat-newspic`, WeChat image message, multi-page PNG set.
+- `blog`, Markdown sync to the configured blog project and publish command.
 
-`blog` is not a workflow route. It is only a post-hoc sync via `sync-blog`; sync results are written back to `publish.results` in state JSON.
+`blog` participates in the normal `prepare → publish` workflow and skips render when it is the only target. The legacy `sync-blog` command remains available for post-hoc sync; both paths write results to `publish.results` in state JSON.
 
 ## Three-phase pipeline
 
-The active pipeline is: `prepare → render → publish → done` (or `failed`).
+The active pipeline is: `prepare → render → publish → done` (or `failed`). Routes that do not require render, such as blog-only publishing, go directly from prepare to publish.
 
 ### prepare sub-steps (executed sequentially inside `prepare` command)
 
-1. `channel-route` — resolve route and WeChat account
+1. `channel-route` — resolve route and target account
 2. `author-select` — determine rewrite permission and style mode
 3. `format` — text formatting rules
 4. `asset-meta` — extract title/date/summary

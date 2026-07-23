@@ -205,12 +205,13 @@ export function routePlanFromTargets(
 ): { primary: RoutePrimary; extras: RoutePrimary[] } | null {
   const uniqueTargets = [...new Set(targets)];
   const wantsWechat = uniqueTargets.includes("wechat");
+  const wantsBlog = uniqueTargets.includes("blog");
 
   if (form === "article") {
     if (wantsWechat) {
       return {
         primary: "wechat-article",
-        extras: [],
+        extras: wantsBlog ? ["blog"] : [],
       };
     }
   }
@@ -218,6 +219,13 @@ export function routePlanFromTargets(
   if (form === "newspic" && wantsWechat) {
     return {
       primary: "wechat-newspic",
+      extras: wantsBlog ? ["blog"] : [],
+    };
+  }
+
+  if (wantsBlog) {
+    return {
+      primary: "blog",
       extras: [],
     };
   }
