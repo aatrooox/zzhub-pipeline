@@ -1512,6 +1512,11 @@ describe("publish validation", () => {
     expect(updated.phase.publish.status).toBe("pending");
     expect(updated.publish.results[0]?.status).toBe("failed");
     expect(updated.publish.results[0]?.detail).toContain("blog publish command failed");
+    const blogPost = await readFile(
+      join(blogRoot, "content", "nezus", "2026", "04", "existing.md"),
+      "utf-8",
+    );
+    expect(blogPost).toContain("author: Kairos");
 
     const task = await getTaskByStatePath(statePath);
     expect(task.blockers).toEqual([]);
