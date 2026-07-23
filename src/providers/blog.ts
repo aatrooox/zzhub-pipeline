@@ -141,8 +141,7 @@ export async function publishBlogRoute({
       lines.push(`  - ${tag}`);
     }
   }
-  const author = state.route.content_profile || "default";
-  lines.push(`author: ${author}`);
+  lines.push("author: Kairos");
   lines.push("---");
 
   const bodyWithFrontmatter = `${lines.join("\n")}\n\n${stripFrontmatter(postContent)}`;
