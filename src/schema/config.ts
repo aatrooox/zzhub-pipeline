@@ -39,6 +39,8 @@ const WechatExportThemeOverridesSchema = z.object({
   fontFamily: z.string().optional(),
   bodyColor: z.string().optional(),
   mutedColor: z.string().optional(),
+  h2Color: z.string().optional(),
+  h3Color: z.string().optional(),
   primaryColor: z.string().optional(),
   dividerColor: z.string().optional(),
   blockquoteBorderColor: z.string().optional(),

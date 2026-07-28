@@ -42,6 +42,8 @@ describe("wechat element renderer registry", () => {
 
     expect(css).toContain(".milkdown .editor");
     expect(css).toContain("--wx-body-line-height: 1.84");
+    expect(css).toContain("--wx-h2-color: #1f1b1c");
+    expect(css).toContain("--wx-h3-color: #5c5658");
     expect(css).toContain("--wx-brand-ink: #a94473");
     expect(css).toContain('[data-wechat-node="footer"]');
   });

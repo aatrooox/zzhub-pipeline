@@ -534,6 +534,8 @@ function themeVariableDeclarations(
     `--wx-font-family: ${theme.fontFamily};`,
     `--wx-body-color: ${theme.bodyColor};`,
     `--wx-muted-color: ${theme.mutedColor};`,
+    `--wx-h2-color: ${theme.h2Color};`,
+    `--wx-h3-color: ${theme.h3Color};`,
     `--wx-brand-ink: ${theme.primaryColor};`,
     `--wx-brand-accent: ${editorVars["--brand"] ?? "#ca6093"};`,
     `--wx-divider-color: ${theme.dividerColor};`,

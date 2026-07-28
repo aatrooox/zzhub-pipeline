@@ -5,6 +5,10 @@ export interface WechatExportTheme {
   fontFamily: string;
   bodyColor: string;
   mutedColor: string;
+  /** Major section heading (H2); slightly deeper than body */
+  h2Color: string;
+  /** In-section heading (H3); between body and muted */
+  h3Color: string;
   primaryColor: string;
   dividerColor: string;
   blockquoteBorderColor: string;
@@ -104,6 +108,8 @@ const THEMES: Record<string, WechatPreviewTheme> = {
         "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif",
       bodyColor: "#292526",
       mutedColor: "#6f696b",
+      h2Color: "#1f1b1c",
+      h3Color: "#5c5658",
       primaryColor: "#a94473",
       dividerColor: "#e2dcdf",
       blockquoteBorderColor: "#ca6093",
@@ -148,6 +154,8 @@ const THEMES: Record<string, WechatPreviewTheme> = {
         "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif",
       bodyColor: "#30292b",
       mutedColor: "#756b6e",
+      h2Color: "#241f21",
+      h3Color: "#61585b",
       primaryColor: "#8f4d63",
       dividerColor: "#dfd7da",
       blockquoteBorderColor: "#b86f86",
