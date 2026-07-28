@@ -79,7 +79,7 @@ async function publishWechatArticleRoute({
   try {
     const markdownRenderer = await resolveMarkdownRenderer(config);
     const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
-    const { html } = await markdownRenderer.render({
+    const rendered = await markdownRenderer.render({
       markdownPath: exportPostPath,
       outPath: workspacePaths.zotepadExportHtml,
       account,
@@ -87,6 +87,34 @@ async function publishWechatArticleRoute({
       customCss: resolveConfigRelativePath(wxAccount?.customCss),
       themeOverrides: wxAccount?.theme,
     });
+    const { html } = rendered;
+
+    // Register with local preview server unless explicitly disabled.
+    if (process.env.ZZHUB_WECHAT_PREVIEW_ON_PUBLISH !== "0") {
+      try {
+        const { registerPreviewEntry } = await import("../wechat-preview/server");
+        await registerPreviewEntry(
+          {
+            title: `[publish] ${state.metadata.title || "untitled"}`,
+            account,
+            status: "success",
+            duration_ms: rendered.durationMs ?? 0,
+            markdown_path: exportPostPath,
+            html_path: workspacePaths.zotepadExportHtml,
+            preview_style: rendered.previewStyle,
+            html,
+            debug: {
+              bundle_rebuilt: rendered.bundleRebuilt,
+              bundle_stale: rendered.bundleStale,
+            },
+          },
+          { autoStart: process.env.ZZHUB_WECHAT_PREVIEW_AUTO_START !== "0" },
+        );
+      } catch {
+        // preview registration must never block publish
+      }
+    }
+
     const response = await createWechatDraft({
       account,
       title: state.metadata.title,

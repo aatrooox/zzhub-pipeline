@@ -418,18 +418,21 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 - Multi-theme support
 - Build command: `bun run build:wechat-preview`
 - `wechat-export` uses this preview style directly
+- Local preview server: `wechat-preview serve` (default `http://127.0.0.1:18765`)
+- `wechat-export` registers success/failure entries on the server by default (`--no-preview` to skip)
+- Bundle dirty detection: source newer than dist → auto rebuild; rebuild failure falls back to existing dist with `bundle_stale`
 
 ### Style modification requires rebuild
 
 The wechat-preview CSS lives in `src/wechat-preview/browser/editor-export.css` and is **bundled by Vite into the browser-dist output** at build time (`cssCodeSplit: false` → `assets/style-*.css`). The runtime `wechat-export` command loads the built CSS, not the source file.
 
-**Editing `editor-export.css` has no effect until you rebuild:**
+**Editing `editor-export.css` has no effect until you rebuild (or until auto dirty rebuild succeeds):**
 
 ```bash
 bun run build:wechat-preview
 ```
 
-This also applies when `ensureBundle()` auto-builds on first export (if `manifest.json` is missing), but relying on that is fragile — always rebuild explicitly after CSS changes.
+This also applies when `ensureBundle()` auto-builds on first export (if `manifest.json` is missing) or when sources are newer than dist. Prefer explicit rebuild after CSS changes.
 
 ## Publish providers
 

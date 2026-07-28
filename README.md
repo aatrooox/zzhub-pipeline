@@ -418,6 +418,7 @@ src/
 | `republish` | Publish a completed task to an additional account or platform |
 | `imgx` | Run bundled imgx renderer subcommands |
 | `wechat-export` | Render markdown to WeChat HTML with bundled preview styles |
+| `wechat-preview` | Local singleton server to preview exported WeChat HTML |
 | `cos-upload` | Upload a local image to configured COS CDN |
 | `config` | Read or update pipeline config |
 | `doctor` | Inspect resolved paths and provider health |
@@ -629,6 +630,47 @@ bun run src/cli.ts wechat-export \
 
 `--preview-shell-out` 生成最终发布 HTML 的精确预览：预览页直接嵌入 `--out`
 中的内联样式片段，不再加载 Milkdown 编辑器或复制浏览器 bundle。
+
+默认会将导出结果登记到本地 **单例预览服务**（`http://127.0.0.1:18765`），可在浏览器
+侧栏切换多篇产物，无需发到微信草稿箱。服务未启动时会自动拉起；失败导出也会登记并展示
+`error_kind` / timeout / Chrome stderr 等调试信息。
+
+```bash
+# 显式启动预览服务（全局只允许一个实例；重复启动会复用）
+bun run src/cli.ts wechat-preview serve --open
+
+# 导出并打开该条目
+bun run src/cli.ts wechat-export \
+  --markdown /abs/path/body.md \
+  --out /tmp/article.html \
+  --account default \
+  --open
+
+# 调试中间产物
+bun run src/cli.ts wechat-export \
+  --markdown /abs/path/body.md \
+  --out /tmp/article.html \
+  --debug-dir /tmp/wx-debug \
+  --timeout-ms 20000
+
+# 关闭预览登记
+bun run src/cli.ts wechat-export ... --no-preview
+```
+
+| 子命令 | 说明 |
+| --- | --- |
+| `wechat-preview serve` | 启动/复用单例服务 |
+| `wechat-preview status` | 是否在运行 |
+| `wechat-preview open` | 打开 dashboard |
+| `wechat-preview list` | 列出条目 |
+| `wechat-preview clear` | 清空条目 |
+
+环境变量：`ZZHUB_WECHAT_PREVIEW_PORT`（默认 18765）、`ZZHUB_WECHAT_PREVIEW_HOST`、
+`ZZHUB_WECHAT_PREVIEW_DIR`（锁与条目落盘目录）。发布草稿时默认也会登记一条
+`[publish] ...` 预览；设 `ZZHUB_WECHAT_PREVIEW_ON_PUBLISH=0` 可关闭。
+
+源码（CSS/browser 入口）新于 dist 时会自动尝试 rebuild；失败则回退已有 bundle 并标记
+`bundle_stale`。手动重建：`bun run build:wechat-preview`。
 
 #### 自定义 CSS
 

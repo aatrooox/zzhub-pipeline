@@ -25,6 +25,7 @@ import { syncBlog } from "./commands/sync-blog";
 import { tasks } from "./commands/tasks";
 import { topic } from "./commands/topic";
 import { wechatExport } from "./commands/wechat-export";
+import { wechatPreview } from "./commands/wechat-preview";
 import { wxDrafts } from "./commands/wx-drafts";
 import { wxDraftDelete } from "./commands/wx-draft-delete";
 
@@ -71,6 +72,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "republish", summary: "Publish completed task to additional accounts/platforms", plugin: "ops", handler: republish },
         { name: "imgx", summary: "Run bundled imgx renderer subcommands", plugin: "ops", handler: imgxCommand },
         { name: "wechat-export", summary: "Render markdown to WeChat HTML with bundled preview styles", plugin: "ops", handler: wechatExport },
+        { name: "wechat-preview", summary: "Local singleton server to preview exported WeChat HTML", plugin: "ops", handler: wechatPreview },
         { name: "cos-upload", summary: "Upload a local image to configured COS CDN", plugin: "ops", handler: cosUpload },
         { name: "config", summary: "Read or update pipeline config", plugin: "ops", handler: configCommand },
         { name: "doctor", summary: "Inspect resolved paths and provider health", plugin: "ops", handler: doctor },
