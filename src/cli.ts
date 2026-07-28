@@ -3,6 +3,7 @@
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { getDailyLogPath, runWithCommandLog } from "./logger";
 import { formatUsage, getCommandRegistry } from "./plugins";
 
 const COMMANDS = getCommandRegistry();
@@ -36,10 +37,13 @@ async function main() {
   }
 
   try {
-    await command.handler(args.slice(1));
+    await runWithCommandLog(cmd, args.slice(1), async () => {
+      await command.handler(args.slice(1));
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[zzhub-pipeline ${cmd}] Error: ${msg}`);
+    console.error(`[zzhub-pipeline ${cmd}] Full log: ${getDailyLogPath()}`);
     process.exit(1);
   }
 }
