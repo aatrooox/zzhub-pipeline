@@ -424,12 +424,14 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 
 ### Shared article styles
 
-Typography is owned by the sibling package **`@zzclub/milkdown-article-style`**
-(`../milkdown-article-style`: `article.css` + `tokens-default.css`). Pipeline
-export and Nezus Milkdown both depend on it so writing preview matches WeChat
-output. Edit CSS only in that package; do not fork rules into this repo.
+Typography is owned by **`@zzclub/milkdown-article-style`** on npm
+(`article.css` + `tokens-default.css`). Pipeline export and Nezus Milkdown both
+depend on it so writing preview matches WeChat output. Edit CSS only in that
+package (repo: `milkdown-article-style`); do not fork rules into this repo.
 
-Local link: `"@zzclub/milkdown-article-style": "file:../milkdown-article-style"`.
+```json
+"@zzclub/milkdown-article-style": "^0.1.0"
+```
 
 ### Style modification requires rebuild
 
