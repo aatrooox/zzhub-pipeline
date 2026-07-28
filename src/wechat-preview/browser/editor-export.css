@@ -59,20 +59,24 @@
 .milkdown .editor h2 {
   margin: 2.25em 0 0.85em;
   padding-left: 0;
+  padding-bottom: 0;
   border-left: 0;
+  border-bottom: none;
   color: #292526;
   font-size: 21px;
   line-height: 1.45;
   letter-spacing: 0.015em;
+  text-decoration: none;
 }
 
 .milkdown .editor h3 {
   margin: 2em 0 0.72em;
-  padding-bottom: 0.42em;
-  border-bottom: 1px solid var(--wx-divider-color);
+  padding-bottom: 0;
+  border-bottom: none;
   font-size: 18px;
   line-height: 1.5;
   letter-spacing: 0.012em;
+  text-decoration: none;
 }
 
 .milkdown .editor h4,

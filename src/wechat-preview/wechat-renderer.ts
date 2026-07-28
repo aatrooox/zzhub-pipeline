@@ -324,6 +324,50 @@ const blockquoteRenderer: WechatElementRenderer = {
   },
 };
 
+/** Normalize URL for reference dedupe (same target → one footnote entry). */
+export function normalizeReferenceUrl(href: string): string {
+  const trimmed = href.trim();
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    url.hash = "";
+    // Stable host casing; keep path/query as-is except trailing slash noise.
+    url.hostname = url.hostname.toLowerCase();
+    let path = url.pathname;
+    if (path.length > 1 && path.endsWith("/")) {
+      path = path.slice(0, -1);
+    }
+    url.pathname = path;
+    return url.toString();
+  } catch {
+    return trimmed.replace(/\/+$/, "") || trimmed;
+  }
+}
+
+/**
+ * Register or reuse a related-link reference for an external URL.
+ * Same URL (even with different anchor text) maps to one index.
+ */
+export function resolveLinkReference(
+  href: string,
+  text: string,
+  references: WechatLinkReference[],
+): WechatLinkReference {
+  const normalizedUrl = normalizeReferenceUrl(href);
+  const existing = references.find(
+    (item) => normalizeReferenceUrl(item.url) === normalizedUrl,
+  );
+  if (existing) return existing;
+
+  const reference: WechatLinkReference = {
+    index: references.length + 1,
+    text: text.trim() || href,
+    url: href,
+  };
+  references.push(reference);
+  return reference;
+}
+
 const linkRenderer: WechatElementRenderer = {
   kind: "link",
   selector: "a",
@@ -334,12 +378,12 @@ const linkRenderer: WechatElementRenderer = {
       return;
     }
 
-    const reference: WechatLinkReference = {
-      index: context.references.length + 1,
-      text: element.textContent?.trim() || href,
-      url: href,
-    };
-    context.references.push(reference);
+    const reference = resolveLinkReference(
+      href,
+      element.textContent?.trim() || href,
+      context.references,
+    );
+
     setNodeKind(element, "external-link");
 
     const marker = context.document.createElement("span");
