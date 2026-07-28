@@ -2,7 +2,7 @@ import { defaultValueCtx, Editor, rootCtx } from "@milkdown/kit/core";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { getHTML } from "@milkdown/kit/utils";
-import articleCss from "@zzhub/milkdown-article-style/article.css?raw";
+import articleCss from "@zzclub/milkdown-article-style/article.css?raw";
 import { renderWechatHtml } from "../wechat-renderer";
 import type { WechatExportTheme } from "../themes";
 

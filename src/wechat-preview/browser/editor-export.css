@@ -1,9 +1,9 @@
 /*
  * Thin re-export for tooling that still points at browser/editor-export.css.
- * Canonical source: package @zzhub/milkdown-article-style (article.css).
+ * Canonical source: package @zzclub/milkdown-article-style (article.css).
  *
  * The Vite export entry imports the package directly (?raw does not resolve
  * @import). Do not add rules here.
  */
 
-@import "@zzhub/milkdown-article-style/article.css";
+@import "@zzclub/milkdown-article-style/article.css";

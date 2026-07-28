@@ -424,16 +424,16 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 
 ### Shared article styles
 
-Typography is owned by the sibling package **`@zzhub/milkdown-article-style`**
+Typography is owned by the sibling package **`@zzclub/milkdown-article-style`**
 (`../milkdown-article-style`: `article.css` + `tokens-default.css`). Pipeline
 export and Nezus Milkdown both depend on it so writing preview matches WeChat
 output. Edit CSS only in that package; do not fork rules into this repo.
 
-Local link: `"@zzhub/milkdown-article-style": "file:../milkdown-article-style"`.
+Local link: `"@zzclub/milkdown-article-style": "file:../milkdown-article-style"`.
 
 ### Style modification requires rebuild
 
-The export entry imports `@zzhub/milkdown-article-style/article.css` and
+The export entry imports `@zzclub/milkdown-article-style/article.css` and
 **bundles it into** `browser-dist/editor-export.js` at build time. The runtime
 `wechat-export` command loads the built bundle, not the package CSS file.
 

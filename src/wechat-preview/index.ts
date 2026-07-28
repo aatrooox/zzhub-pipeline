@@ -115,13 +115,13 @@ export interface ExportMarkdownToWechatHtmlResult {
 
 const requireFromHere = createRequire(import.meta.url);
 
-/** Absolute path to shared article.css (@zzhub/milkdown-article-style). */
+/** Absolute path to shared article.css (@zzclub/milkdown-article-style). */
 export function resolveMilkdownArticleStylePath(): string {
   try {
-    return requireFromHere.resolve("@zzhub/milkdown-article-style/article.css");
+    return requireFromHere.resolve("@zzclub/milkdown-article-style/article.css");
   } catch {
     // Bun / Node may need package root + relative when exports are CSS-only.
-    const pkgRoot = dirname(requireFromHere.resolve("@zzhub/milkdown-article-style/package.json"));
+    const pkgRoot = dirname(requireFromHere.resolve("@zzclub/milkdown-article-style/package.json"));
     return join(pkgRoot, "article.css");
   }
 }
