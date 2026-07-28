@@ -896,7 +896,7 @@ bun run src/cli.ts init ... --note-id NOTE_ID
 - 构建命令：`bun run build:wechat-preview`
 - `wechat-export` 和微信草稿发布使用同一份最终内联 HTML
 
-`src/wechat-preview/browser/editor-export.css` 会通过 Vite 以 raw CSS 打入浏览器
+`@zzhub/milkdown-article-style`（`article.css`）会通过 Vite 以 raw CSS 打入浏览器
 bundle。修改该 CSS 或浏览器 renderer 后必须执行：
 
 ```bash

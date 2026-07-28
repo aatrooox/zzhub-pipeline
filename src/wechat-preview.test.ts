@@ -25,13 +25,14 @@ describe("wechat preview theme mapping", () => {
   });
 
   test("uses quiet editorial accents in the built-in stylesheet", async () => {
-    const css = await Bun.file(
-      new URL("./wechat-preview/browser/editor-export.css", import.meta.url),
-    ).text();
+    const { resolveMilkdownArticleStylePath } = await import("./wechat-preview/index");
+    const css = await Bun.file(resolveMilkdownArticleStylePath()).text();
 
     expect(css).toMatch(/\.milkdown \.editor h2 \{[^}]*padding-left: 0;[^}]*border-left: 0;[^}]*color: #292526;/s);
     expect(css).toMatch(/\.milkdown \.editor blockquote \{[^}]*border-left: 3px solid #c9c3c5;[^}]*background-color: #fbfafb;/s);
-    expect(css).toMatch(/\[data-wechat-node="inline-code"\] \{[^}]*border: 1px solid #ded9db;[^}]*background-color: #f7f5f6;[^}]*color: #4d484a;/s);
+    expect(css).toContain('code:not(pre code)');
+    expect(css).toContain('[data-wechat-node="inline-code"]');
+    expect(css).toMatch(/border: 1px solid #ded9db;[^}]*background-color: #f7f5f6;[^}]*color: #4d484a;/s);
   });
 });
 

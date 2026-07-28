@@ -1,5 +1,6 @@
 import { existsSync, statSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
+import { createRequire } from "module";
 import { dirname, isAbsolute, join, resolve } from "path";
 import { pathToFileURL } from "url";
 import {
@@ -112,11 +113,24 @@ export interface ExportMarkdownToWechatHtmlResult {
   semanticHtml?: string;
 }
 
+const requireFromHere = createRequire(import.meta.url);
+
+/** Absolute path to shared article.css (@zzhub/milkdown-article-style). */
+export function resolveMilkdownArticleStylePath(): string {
+  try {
+    return requireFromHere.resolve("@zzhub/milkdown-article-style/article.css");
+  } catch {
+    // Bun / Node may need package root + relative when exports are CSS-only.
+    const pkgRoot = dirname(requireFromHere.resolve("@zzhub/milkdown-article-style/package.json"));
+    return join(pkgRoot, "article.css");
+  }
+}
+
 /** Source files that feed the browser Vite bundle. */
 export function getWechatPreviewBundleSources(): string[] {
   return [
     join(WECHAT_PREVIEW_DIR, "browser/editor-export.ts"),
-    join(WECHAT_PREVIEW_DIR, "browser/editor-export.css"),
+    resolveMilkdownArticleStylePath(),
     join(WECHAT_PREVIEW_DIR, "wechat-renderer.ts"),
   ];
 }

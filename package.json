@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",
+    "@zzhub/milkdown-article-style": "file:../milkdown-article-style",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",
     "zod": "^4.4.2"

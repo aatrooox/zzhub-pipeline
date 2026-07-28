@@ -422,11 +422,23 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 - `wechat-export` registers success/failure entries on the server by default (`--no-preview` to skip)
 - Bundle dirty detection: source newer than dist → auto rebuild; rebuild failure falls back to existing dist with `bundle_stale`
 
+### Shared article styles
+
+Typography is owned by the sibling package **`@zzhub/milkdown-article-style`**
+(`../milkdown-article-style`: `article.css` + `tokens-default.css`). Pipeline
+export and Nezus Milkdown both depend on it so writing preview matches WeChat
+output. Edit CSS only in that package; do not fork rules into this repo.
+
+Local link: `"@zzhub/milkdown-article-style": "file:../milkdown-article-style"`.
+
 ### Style modification requires rebuild
 
-The wechat-preview CSS lives in `src/wechat-preview/browser/editor-export.css` and is **bundled by Vite into the browser-dist output** at build time (`cssCodeSplit: false` → `assets/style-*.css`). The runtime `wechat-export` command loads the built CSS, not the source file.
+The export entry imports `@zzhub/milkdown-article-style/article.css` and
+**bundles it into** `browser-dist/editor-export.js` at build time. The runtime
+`wechat-export` command loads the built bundle, not the package CSS file.
 
-**Editing `editor-export.css` has no effect until you rebuild (or until auto dirty rebuild succeeds):**
+**Editing the package CSS has no effect on export until you rebuild
+(or until auto dirty rebuild succeeds):**
 
 ```bash
 bun run build:wechat-preview
