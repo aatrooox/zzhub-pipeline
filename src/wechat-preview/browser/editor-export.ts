@@ -19,7 +19,11 @@ declare global {
   }
 }
 
-function setResult(result: { status: "success"; html: string } | { status: "error"; error: string }): void {
+function setResult(
+  result:
+    | { status: "success"; html: string; semanticHtml?: string }
+    | { status: "error"; error: string },
+): void {
   const el = document.getElementById("zzhub-wechat-export-result");
   if (!el) {
     return;
@@ -55,7 +59,7 @@ async function main(): Promise<void> {
     theme: payload.exportTheme,
   });
   await editor.destroy();
-  setResult({ status: "success", html });
+  setResult({ status: "success", html, semanticHtml });
 }
 
 void main().catch((error: unknown) => {

@@ -304,10 +304,30 @@ export function screenshotHtml(options: {
   rmSync(tempShotDir, { recursive: true, force: true });
 }
 
+export class ChromeDumpError extends Error {
+  readonly stderr: string;
+  readonly tempHtmlPath?: string;
+  readonly exitCode: number | null;
+
+  constructor(message: string, options: {
+    stderr: string;
+    tempHtmlPath?: string;
+    exitCode: number | null;
+  }) {
+    super(message);
+    this.name = "ChromeDumpError";
+    this.stderr = options.stderr;
+    this.tempHtmlPath = options.tempHtmlPath;
+    this.exitCode = options.exitCode;
+  }
+}
+
 export function dumpHtmlDom(options: {
   chromePath: string;
   html: string;
   virtualTimeBudgetMs?: number;
+  /** When true, leave the temp shell HTML on disk if Chrome fails (caller must clean up). */
+  keepTempOnError?: boolean;
 }): string {
   const tempHtml = writeTempHtml(injectStaticRenderStyle(options.html));
   const fileUrl = pathToFileURL(tempHtml).href;
@@ -329,12 +349,20 @@ export function dumpHtmlDom(options: {
     stdout: "pipe",
     stderr: "pipe",
   });
-  cleanupTempFile(tempHtml);
   if (result.exitCode !== 0) {
     const stderr = new TextDecoder().decode(result.stderr);
-    throw new Error(`Chrome dump-dom failed:\n${stderr}`);
+    if (!options.keepTempOnError) {
+      cleanupTempFile(tempHtml);
+    }
+    throw new ChromeDumpError(`Chrome dump-dom failed (exit ${result.exitCode}):\n${stderr}`, {
+      stderr,
+      tempHtmlPath: options.keepTempOnError ? tempHtml : undefined,
+      exitCode: result.exitCode,
+    });
   }
-  return new TextDecoder().decode(result.stdout);
+  const dom = new TextDecoder().decode(result.stdout);
+  cleanupTempFile(tempHtml);
+  return dom;
 }
 
 export function cropTop(options: {

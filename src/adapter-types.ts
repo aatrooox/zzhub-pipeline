@@ -143,6 +143,12 @@ export interface MarkdownRenderInput {
     editorVars?: Record<string, string>;
     exportTheme?: Record<string, string>;
   };
+
+  /** Chrome virtual-time-budget in ms */
+  timeoutMs?: number;
+
+  /** Write intermediate artifacts for debugging */
+  debugDir?: string;
 }
 
 /**
@@ -164,6 +170,21 @@ export interface MarkdownRenderOutput {
 
   /** Path to preview shell HTML (if generated) */
   previewShellPath?: string;
+
+  /** Wall-clock render duration */
+  durationMs?: number;
+
+  /** Whether the browser bundle was rebuilt during this render */
+  bundleRebuilt?: boolean;
+
+  /** Whether the browser bundle was stale before render */
+  bundleStale?: boolean;
+
+  /** Debug directory if requested */
+  debugDir?: string;
+
+  /** Semantic HTML from Milkdown before WeChat finalize (when available) */
+  semanticHtml?: string;
 }
 
 export interface MarkdownRenderPlugin {

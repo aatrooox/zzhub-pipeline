@@ -51,6 +51,8 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
       previewShellOutPath: input.previewShellOutPath,
       customCss: input.customCss,
       themeOverrides: input.themeOverrides,
+      timeoutMs: input.timeoutMs,
+      debugDir: input.debugDir ?? undefined,
     });
 
     return {
@@ -59,6 +61,11 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
       account: result.account,
       previewStyle: result.previewStyle,
       previewShellPath: result.previewShellPath,
+      durationMs: result.durationMs,
+      bundleRebuilt: result.bundleRebuilt,
+      bundleStale: result.bundleStale,
+      debugDir: result.debugDir,
+      semanticHtml: result.semanticHtml,
     };
   },
 };
