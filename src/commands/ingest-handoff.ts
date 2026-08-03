@@ -6,16 +6,12 @@ import { loadConfig, resolveWorkspacePaths, resolveWorkspaceRoot } from "../conf
 import { printResult } from "../output";
 import { resolveFullRoute } from "../routes";
 import {
-  defaultArtifacts,
   defaultContentReview,
-  defaultImages,
-  defaultMetadata,
-  defaultPhase,
-  defaultPublish,
   defaultState,
   generateRunId,
   getRunStatePath,
   readResolvedState,
+  resetDerivedState,
   writeState,
   type ContentForm,
   type HandoffAuthoringPolicy,
@@ -300,22 +296,6 @@ function routesEqual(a: WorkflowState["route"], b: WorkflowState["route"]): bool
     a.content_profile === b.content_profile &&
     arraysEqual(a.extras, b.extras)
   );
-}
-
-function resetDerivedState(state: WorkflowState): void {
-  state.mode = "active";
-  state.phase = defaultPhase();
-  state.asset_path = "";
-  state.formatted_body_path = null;
-  state.metadata = {
-    ...defaultMetadata(),
-    title: state.metadata.title,
-  };
-  state.artifacts = defaultArtifacts();
-  state.images = defaultImages();
-  state.publish = defaultPublish();
-  state.content_review = defaultContentReview();
-  state.redo_hint = null;
 }
 
 async function resolveExistingStatePath(

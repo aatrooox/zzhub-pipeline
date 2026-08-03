@@ -22,6 +22,7 @@
 import { parseArgs, requireArg } from "../args";
 import { printResult, renderReset } from "../output";
 import {
+  acquireStateOperationLock,
   defaultContentReview,
   readResolvedState,
   reenterPrepare,
@@ -29,6 +30,7 @@ import {
   reenterRender,
   writeState,
 } from "../state";
+import { loadTaskState } from "../task-manager";
 
 type ResetMode =
   | "content"
@@ -84,7 +86,10 @@ Modes:
     );
   }
 
-  const resolved = await readResolvedState(requestedStatePath);
+  const initialResolved = await readResolvedState(requestedStatePath);
+  const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
+  try {
+  const resolved = await loadTaskState(initialResolved.path);
   const statePath = resolved.path;
   const state = resolved.state;
 
@@ -149,4 +154,7 @@ Modes:
   };
 
   printResult(output, renderReset);
+  } finally {
+    await releaseOperationLock();
+  }
 }

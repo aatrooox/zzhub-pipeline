@@ -31,6 +31,7 @@ import {
   type NewspicRenderSpec,
   type WorkflowState,
 } from "../state";
+import { loadTaskState } from "../task-manager";
 import {
   stripFrontmatter,
   generateCoverTitle,
@@ -66,7 +67,7 @@ Options:
   const initialResolved = await readResolvedState(requestedStatePath);
   const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
   try {
-  const resolved = await readResolvedState(initialResolved.path);
+  const resolved = await loadTaskState(initialResolved.path);
   const statePath = resolved.path;
   const state = resolved.state;
 

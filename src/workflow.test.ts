@@ -733,6 +733,62 @@ describe("prepare", () => {
 
     expect((await readState(statePath)).content_review.status).toBe("unchecked");
   });
+
+  test("prepare --body clears a pending writer/style redo_hint so status does not loop to revise-content", async () => {
+    const workspace = await makeTempDir("zzhub-prepare-redohint-");
+    const statePath = join(workspace, "state.json");
+    const bodyPath = join(workspace, "revised.md");
+    const state = defaultState();
+    state.run_id = "run-redohint";
+    state.workspace_root = workspace;
+    state.state_path = statePath;
+    state.source_body_path = join(workspace, "old.md");
+    state.intent.content_form = "article";
+    state.intent.content_origin = "user";
+    state.redo_hint = "style";
+    state.phase.prepare.status = "pending";
+    await writeState(statePath, state);
+    await writeFile(bodyPath, "# Revised\n\nPolished body", "utf-8");
+
+    await prepare(["--state", statePath, "--body", bodyPath]);
+
+    const updated = await readState(statePath);
+    expect(updated.redo_hint).toBeNull();
+    const task = await getTaskByStatePath(statePath);
+    expect(task.next_action.action).not.toBe("revise-content");
+  });
+
+  test("prepare recomputes requires.render/publish from route instead of OR-accumulating", async () => {
+    const workspace = await makeTempDir("zzhub-prepare-requires-");
+    const statePath = join(workspace, "state.json");
+    const bodyPath = join(workspace, "post.md");
+    const state = defaultState();
+    state.run_id = "run-requires";
+    state.workspace_root = workspace;
+    state.state_path = statePath;
+    state.source_body_path = bodyPath;
+    state.intent.task_kind = "publish";
+    state.intent.content_form = "article";
+    state.intent.content_origin = "user";
+    // Previously required render for a wechat route.
+    state.intent.requires.render = true;
+    state.intent.requires.publish = true;
+    state.phase.prepare.status = "pending";
+    // Switch the task to an explicit blog-only target.
+    state.publish_targets = [{ route: "blog", account: "default" }];
+    state.route.primary = "blog";
+    state.route.extras = [];
+    state.route.account = "default";
+    await writeState(statePath, state);
+    await writeFile(bodyPath, "# Blog only\n\nBody", "utf-8");
+
+    await prepare(["--state", statePath]);
+
+    const updated = await readState(statePath);
+    expect(updated.route.primary).toBe("blog");
+    expect(updated.intent.requires.render).toBe(false);
+    expect(updated.intent.requires.publish).toBe(true);
+  });
 });
 
 describe("render", () => {

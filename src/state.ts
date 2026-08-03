@@ -370,6 +370,30 @@ export function reenterPublish(state: WorkflowState): void {
   state.redo_hint = null;
 }
 
+/**
+ * Reset every derived artifact when the core inputs (body, title, route, intent,
+ * explicit constraints) have changed. The run identity (run_id/workspace_root/
+ * state_path) and the current title are preserved; everything produced by
+ * prepare/render/publish is wiped so the workflow re-runs from prepare.
+ *
+ * Used by ingest-handoff resume when it detects an upstream input change.
+ */
+export function resetDerivedState(state: WorkflowState): void {
+  state.mode = "active";
+  state.phase = defaultPhase();
+  state.asset_path = "";
+  state.formatted_body_path = null;
+  state.metadata = {
+    ...defaultMetadata(),
+    title: state.metadata.title,
+  };
+  state.artifacts = defaultArtifacts();
+  state.images = defaultImages();
+  state.publish = defaultPublish();
+  state.content_review = defaultContentReview();
+  state.redo_hint = null;
+}
+
 // ── Run ID ────────────────────────────────────────────────────────
 
 /**

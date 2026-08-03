@@ -5,11 +5,25 @@ import { loadConfig, resolveWorkspacePaths, resolveWorkspaceRoot } from "./confi
 import {
   readResolvedState,
   type PhaseName,
+  type ResolvedState,
   type ValidationError,
   validateForPhase,
   type WorkflowState,
 } from "./state";
 import { reconcileStateArtifacts } from "./workflow-materials";
+
+/**
+ * Load workflow state and apply in-memory artifact reconciliation so every
+ * command sees the same reconciled view of body_inputs/render_assets that
+ * `status` produces. Use this instead of `readResolvedState` in commands that
+ * read state and then make a decision based on it. `writeState`'s own
+ * optimistic re-read deliberately stays un-reconciled.
+ */
+export async function loadTaskState(path: string): Promise<ResolvedState> {
+  const resolved = await readResolvedState(path);
+  await reconcileStateArtifacts(resolved.state);
+  return resolved;
+}
 
 export type TaskFileSource = "run" | "canonical";
 
@@ -491,14 +505,18 @@ function buildTaskStatus(summary: TaskSummary, state: WorkflowState): TaskStatus
       },
     };
   } else {
+    // Reached only when prepare/render/publish all report done (or aren't
+    // required) yet mode/phase hasn't advanced to done — an inconsistent state.
+    // Re-running prepare here would reenterPrepare and wipe render_assets,
+    // forcing a wasteful re-render. Route to a read-only checkpoint instead.
     nextAction = {
-      action: "prepare",
-      reason: "Task is active and should continue from the current phase.",
-      executor: "cli",
-      command: `zzhub-pipeline prepare --state "${summary.state_path}"`,
+      action: "checkpoint",
+      reason: "Phases report done but the task is not marked complete; inspect state before mutating it.",
+      executor: "repair",
+      command: `zzhub-pipeline checkpoint --state "${summary.state_path}"`,
       params: {
         state_path: summary.state_path,
-        on_complete: "After the command succeeds, re-run status to determine the next step.",
+        on_complete: "Inspect the checkpoint output, then reset or repair the inconsistent phase before continuing.",
       },
     };
   }

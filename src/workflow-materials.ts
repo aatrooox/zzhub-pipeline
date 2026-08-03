@@ -240,6 +240,18 @@ export async function reconcileStateArtifacts(state: WorkflowState): Promise<voi
     return;
   }
 
+  // Only self-heal render assets from disk when the render phase is actually done.
+  // If render is pending (e.g. after a content reset), leftover images on disk from
+  // a previous render must NOT be reported as rendered, or the agent would skip
+  // render and publish stale cover/pages.
+  if (state.phase.render.status !== "done") {
+    if (state.images.plan.needed && state.images.plan.status === "rendered") {
+      state.images.plan.status = "planned";
+      state.images.render_assets = [];
+    }
+    return;
+  }
+
   const renderAssets = await discoverRenderAssets(state);
   if (hasRequiredRenderAssets(state, renderAssets)) {
     state.images.render_assets = renderAssets;

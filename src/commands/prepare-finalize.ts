@@ -31,6 +31,7 @@ import {
   writeState,
   getCanonicalStatePath,
 } from "../state";
+import { loadTaskState } from "../task-manager";
 import {
   extractHighlightWords,
   buildFrontmatter,
@@ -195,7 +196,7 @@ Options:
   const initialResolved = await readResolvedState(requestedStatePath);
   const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
   try {
-  const resolved = await readResolvedState(initialResolved.path);
+  const resolved = await loadTaskState(initialResolved.path);
   const statePath = resolved.path;
   const state = resolved.state;
   if (state.content_review.status !== "passed") {

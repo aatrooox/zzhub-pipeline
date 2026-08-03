@@ -6,6 +6,7 @@ import {
   readResolvedState,
   updateState,
 } from "../state";
+import { loadTaskState } from "../task-manager";
 import { publishBlogRoute } from "../providers/blog";
 
 export async function syncBlog(args: string[]): Promise<void> {
@@ -31,7 +32,7 @@ Options:
   const initialResolved = await readResolvedState(requestedStatePath);
   const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
   try {
-  const resolved = await readResolvedState(initialResolved.path);
+  const resolved = await loadTaskState(initialResolved.path);
   const statePath = resolved.path;
   const state = resolved.state;
 

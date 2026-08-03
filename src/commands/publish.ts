@@ -33,7 +33,7 @@ import {
   executePublishTargets,
   upsertPublishResult,
 } from "../providers/publish-core";
-import { reconcileStateArtifacts } from "../workflow-materials";
+import { loadTaskState } from "../task-manager";
 
 export async function publish(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -60,10 +60,9 @@ Options:
   const initialResolved = await readResolvedState(requestedStatePath);
   const releaseOperationLock = await acquireStateOperationLock(initialResolved.path);
   try {
-  const resolved = await readResolvedState(initialResolved.path);
+  const resolved = await loadTaskState(initialResolved.path);
   const statePath = resolved.path;
   const state = resolved.state;
-  await reconcileStateArtifacts(state);
   const config = loadConfig();
   const workspacePaths = resolveWorkspacePaths(state.workspace_root, config);
 

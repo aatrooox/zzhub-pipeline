@@ -1,8 +1,7 @@
 import { parseArgs, requireArg } from "../args";
 import { printResult, renderTaskShape } from "../output";
-import { readResolvedState, writeState } from "../state";
-import { getTaskByStatePath } from "../task-manager";
-import { reconcileStateArtifacts } from "../workflow-materials";
+import { writeState } from "../state";
+import { getTaskByStatePath, loadTaskState } from "../task-manager";
 
 export async function reconcile(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -18,10 +17,9 @@ Options:
   }
 
   const requestedStatePath = requireArg(parsed, "state", "state JSON path");
-  const resolved = await readResolvedState(requestedStatePath);
+  const resolved = await loadTaskState(requestedStatePath);
   const statePath = resolved.path;
   const state = resolved.state;
-  await reconcileStateArtifacts(state);
   await writeState(statePath, state);
 
   const task = await getTaskByStatePath(statePath);

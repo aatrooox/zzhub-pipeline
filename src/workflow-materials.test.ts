@@ -9,7 +9,7 @@ import {
   discoverRenderAssets,
   reconcileStateArtifacts,
 } from "./workflow-materials";
-import { defaultState } from "./state";
+import { defaultState, type ImagePlanStatus } from "./state";
 
 async function makeTempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
@@ -263,5 +263,56 @@ describe("reconcileStateArtifacts", () => {
       pageOne,
       pageTwo,
     ]);
+  });
+
+  test("does not resurrect stale on-disk images when render is pending (after content reset)", async () => {
+    const workspace = await makeTempDir("zzhub-reconcile-stale-");
+    const assetPath = join(workspace, "posts", "2026-04-10-stale");
+    const imageDir = join(assetPath, "images", "wechat");
+    await mkdir(imageDir, { recursive: true });
+    await writeFile(join(imageDir, "cover.png"), "old-cover", "utf-8");
+
+    const state = defaultState();
+    state.route.primary = "wechat-article";
+    state.asset_path = assetPath;
+    // prepare is done, but render was reset back to pending by a content reset.
+    state.phase.prepare.status = "done";
+    state.phase.render.status = "pending";
+    state.phase.publish.status = "pending";
+    state.phase.current = "prepare";
+    state.images.plan.needed = true;
+    state.images.plan.status = "planned";
+    state.images.render_assets = [];
+
+    await reconcileStateArtifacts(state);
+
+    // The leftover cover.png must NOT be reported as rendered.
+    expect(state.images.render_assets).toEqual([]);
+    expect(state.images.plan.status).toBe("planned");
+  });
+
+  test("re-discovers render assets from disk when render phase is done but state lost them", async () => {
+    const workspace = await makeTempDir("zzhub-reconcile-rediscover-");
+    const assetPath = join(workspace, "posts", "2026-04-10-redis");
+    const imageDir = join(assetPath, "images", "wechat");
+    await mkdir(imageDir, { recursive: true });
+    await writeFile(join(imageDir, "cover.png"), "cover", "utf-8");
+
+    const state = defaultState();
+    state.route.primary = "wechat-article";
+    state.asset_path = assetPath;
+    state.phase.prepare.status = "done";
+    state.phase.render.status = "done";
+    state.phase.publish.status = "pending";
+    state.phase.current = "publish";
+    state.images.plan.needed = true;
+    state.images.plan.status = "planned" as ImagePlanStatus; // lost the "rendered" marker
+    state.images.render_assets = []; // lost the recorded asset
+
+    await reconcileStateArtifacts(state);
+
+    expect(state.images.render_assets).toHaveLength(1);
+    expect(state.images.render_assets[0]?.kind).toBe("cover");
+    expect(state.images.plan.status).toBe("rendered");
   });
 });

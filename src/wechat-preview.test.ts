@@ -24,15 +24,21 @@ describe("wechat preview theme mapping", () => {
     expect(theme.exportTheme.fontFamily).not.toContain("SweiCurveLeg");
   });
 
-  test("uses quiet editorial accents in the built-in stylesheet", async () => {
+  test("ships the article stylesheet wired to the export wrapper and node hooks", async () => {
+    // Only assert the integration contract this repo depends on:
+    //   - the stylesheet resolves and targets the `.milkdown .editor` wrapper,
+    //   - it styles both bare <code> (live editor) and the export-only
+    //     [data-wechat-node] hooks emitted by wechat-renderer.
+    // Exact colors/padding values belong to the external
+    // @zzclub/milkdown-article-style package and must NOT be pinned here, or a
+    // package theme bump breaks this repo for no functional reason.
     const { resolveMilkdownArticleStylePath } = await import("./wechat-preview/index");
     const css = await Bun.file(resolveMilkdownArticleStylePath()).text();
 
-    expect(css).toMatch(/\.milkdown \.editor h2 \{[^}]*padding-left: 0;[^}]*border-left: 0;[^}]*color: #292526;/s);
-    expect(css).toMatch(/\.milkdown \.editor blockquote \{[^}]*border-left: 3px solid #c9c3c5;[^}]*background-color: #fbfafb;/s);
-    expect(css).toContain('code:not(pre code)');
+    expect(css).toContain(".milkdown .editor");
+    expect(css).toContain("code:not(pre code)");
     expect(css).toContain('[data-wechat-node="inline-code"]');
-    expect(css).toMatch(/border: 1px solid #ded9db;[^}]*background-color: #f7f5f6;[^}]*color: #4d484a;/s);
+    expect(css).toContain('[data-wechat-node="code-block"]');
   });
 });
 

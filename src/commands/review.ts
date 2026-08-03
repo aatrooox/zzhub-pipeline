@@ -17,7 +17,8 @@
 
 import { parseArgs, requireArg, optionalArg } from "../args";
 import { printResult, renderReview } from "../output";
-import { readResolvedState, writeState, type ContentReviewStatus } from "../state";
+import { writeState, type ContentReviewStatus } from "../state";
+import { loadTaskState } from "../task-manager";
 
 const VALID_STATUSES: ContentReviewStatus[] = [
   "passed",
@@ -59,7 +60,7 @@ Statuses:
     );
   }
 
-  const resolved = await readResolvedState(requestedStatePath);
+  const resolved = await loadTaskState(requestedStatePath);
   const statePath = resolved.path;
   const state = resolved.state;
 

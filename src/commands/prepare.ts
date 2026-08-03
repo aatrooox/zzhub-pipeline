@@ -31,10 +31,10 @@ import { printResult, renderPrepare } from "../output";
 import { resolveWorkspacePaths } from "../config";
 import {
   defaultBodyInputs,
-  readResolvedState,
   reenterPrepare,
   writeState,
 } from "../state";
+import { loadTaskState } from "../task-manager";
 import { resolveFullRoute } from "../routes";
 import { resolveAuthoring, hasStyleRequest } from "../profiles";
 import { parseAccountName, parseRoutePrimary } from "../publish-targets";
@@ -131,7 +131,7 @@ Options:
     : undefined;
 
   // Read state and body
-  const resolved = await readResolvedState(requestedStatePath);
+  const resolved = await loadTaskState(requestedStatePath);
   const statePath = resolved.path;
   const state = resolved.state;
   const intentTextOverride = optionalArg(parsed, "intent-text");
@@ -144,9 +144,18 @@ Options:
   }
   const bodyRaw = await readFile(resolvedBodyPath, "utf-8");
   const cleanBody = stripFrontmatter(bodyRaw);
+  const incomingBody = Boolean(bodyPath);
+  // A newly supplied body satisfies a pending writer/style revision. Clearing
+  // these hints prevents status from looping back to revise-content after the
+  // body has already been handed in via prepare --body. (format/asset-meta/
+  // channel-route hints are cleared below after prepare runs their steps.)
+  const effectiveRedoHint = incomingBody &&
+      (state.redo_hint === "writer" || state.redo_hint === "style")
+    ? null
+    : state.redo_hint;
   reenterPrepare(state, {
-    redoHint: state.redo_hint,
-    resetReview: Boolean(bodyPath),
+    redoHint: effectiveRedoHint,
+    resetReview: incomingBody,
   });
   if (bodyPath && state.handoff.review_policy === "trust_user") {
     state.content_review = { status: "passed", feedback: null };
@@ -180,16 +189,15 @@ Options:
     state.route.highlight_words = highlightWordsOverride;
   }
 
-  // Re-derive requires.render and requires.publish based on resolved route.
-  // requires.research is intentional (set at init from user request), not touched here.
-  // Same for render/publish: if the orchestrator set them at init, keep that value.
-  // wechat-article always needs render regardless.
-  state.intent.requires.render =
-    state.intent.requires.render ||
-    route.primary === "wechat-article";
-  state.intent.requires.publish =
-    state.intent.requires.publish ||
-    state.intent.task_kind === "publish";
+  // Re-derive requires.render and requires.publish deterministically from the
+  // resolved route/task kind rather than OR-accumulating: a flag set true for a
+  // previous route must not linger after the route changes (e.g. switching a
+  // task to blog-only would otherwise keep requires.render=true forever).
+  // requires.research is intentional (set at init from the user request) and is
+  // intentionally not recomputed here.
+  const allRoutes = [route.primary, ...route.extras];
+  state.intent.requires.render = allRoutes.some((r) => r !== "blog");
+  state.intent.requires.publish = state.intent.task_kind === "publish";
 
   // ── Step 2: Author select ──
   const styleRequest =
