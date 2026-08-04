@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.10.2
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.10.1...v0.10.2)
+
+### Features
+
+- **logger:** Add daily rolling CLI command logs ([b1ee39c](https://github.com/aatrooox/zzhub-pipeline/commit/b1ee39c))
+- **wechat-preview:** Harden export with diagnostics and stale bundles ([bfa56a8](https://github.com/aatrooox/zzhub-pipeline/commit/bfa56a8))
+- **wechat-preview:** Add local singleton HTML preview server ([6103a63](https://github.com/aatrooox/zzhub-pipeline/commit/6103a63))
+- **wechat:** Adopt milkdown-article-style 0.1.1 heading hierarchy ([d2c6966](https://github.com/aatrooox/zzhub-pipeline/commit/d2c6966))
+
+### Fixes
+
+- Use Kairos as blog author ([8da5ed0](https://github.com/aatrooox/zzhub-pipeline/commit/8da5ed0))
+- **wechat-preview:** Dedupe external link footnotes by URL ([b982459](https://github.com/aatrooox/zzhub-pipeline/commit/b982459))
+- **state:** Harden workflow recovery against stale assets and stale flags ([a979528](https://github.com/aatrooox/zzhub-pipeline/commit/a979528))
+
+### Refactors
+
+- **wechat-preview:** Depend on @zzhub/milkdown-article-style ([fc14924](https://github.com/aatrooox/zzhub-pipeline/commit/fc14924))
+
+### Documentation
+
+- Document npm dependency for milkdown-article-style ([12d73da](https://github.com/aatrooox/zzhub-pipeline/commit/12d73da))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.10.1
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.10.0...v0.10.1)
