@@ -20,6 +20,7 @@ export type ObstacleFlowRuntime = {
 export function createObstacleFlowRuntime(options: {
   prepareWithSegments: (...args: any[]) => any;
   layoutNextLineRange: (...args: any[]) => any;
+  materializeLineRange: (...args: any[]) => { text: string };
   obstacleGap: number;
   minSlotWidth: number;
   renderLine: (...args: any[]) => void;

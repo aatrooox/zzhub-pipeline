@@ -24,7 +24,7 @@
     "release:major": "changelogen --release --major --push"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.5",
+    "@chenglou/pretext": "^0.0.8",
     "@zzclub/milkdown-article-style": "0.1.1",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",

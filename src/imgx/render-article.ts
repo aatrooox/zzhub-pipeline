@@ -27,7 +27,7 @@ import {
   screenshotHtml,
   TEMPLATES_DIR,
 } from "./runtime";
-import { layoutNextLineRange, prepareWithSegments } from "./pretext-adapter";
+import { layoutNextLineRange, materializeLineRange, prepareWithSegments } from "./pretext-adapter";
 import { ensurePretextRuntime } from "./pretext-runtime";
 
 const DEFAULT_CONTENT_WIDTH = getLongformGeometry(getLongformTheme("paper-sage")).contentWidth;
@@ -849,6 +849,7 @@ function measureLongformPages(params: {
   const flow = createObstacleFlowRuntime({
     prepareWithSegments,
     layoutNextLineRange,
+    materializeLineRange,
     obstacleGap,
     minSlotWidth,
     renderLine() {},

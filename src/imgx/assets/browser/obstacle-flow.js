@@ -2,13 +2,12 @@ export function createObstacleFlowRuntime(options) {
   const {
     prepareWithSegments,
     layoutNextLineRange,
+    materializeLineRange,
     obstacleGap,
     minSlotWidth,
     renderLine,
     renderImage,
   } = options;
-
-  const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
   function compareCursor(a, b) {
     if (a.segmentIndex !== b.segmentIndex) return a.segmentIndex - b.segmentIndex;
@@ -95,30 +94,8 @@ export function createObstacleFlowRuntime(options) {
     return Array.from(graphemeSegmenter.segment(text), entry => entry.segment);
   }
 
-  function materializeLineText(prepared, line) {
-    if (line.start.segmentIndex === line.end.segmentIndex) {
-      const segment = prepared.segments[line.start.segmentIndex] || "";
-      const graphemes = segmentToGraphemes(segment);
-      return graphemes.slice(line.start.graphemeIndex, line.end.graphemeIndex).join("");
-    }
-
-    const parts = [];
-    for (let segmentIndex = line.start.segmentIndex; segmentIndex <= line.end.segmentIndex; segmentIndex++) {
-      const segment = prepared.segments[segmentIndex] || "";
-      const graphemes = segmentToGraphemes(segment);
-      if (segmentIndex === line.start.segmentIndex) {
-        parts.push(graphemes.slice(line.start.graphemeIndex).join(""));
-        continue;
-      }
-      if (segmentIndex === line.end.segmentIndex) {
-        parts.push(graphemes.slice(0, line.end.graphemeIndex).join(""));
-        continue;
-      }
-      parts.push(segment);
-    }
-    return parts.join("");
-  }
-
+  // Kept for reference; text materialization now goes through pretext's public
+  // materializeLineRange() so we no longer reach into prepared.segments internals.
   function normalizeObstacles(width, height, bodyImages) {
     const obstacles = [];
     for (const bodyImage of bodyImages) {
@@ -194,7 +171,7 @@ export function createObstacleFlowRuntime(options) {
         const choice = chooseLine(block.prepared, cursor, intervals);
         if (choice === null || compareCursor(choice.line.end, cursor) <= 0) break;
         lines.push({
-          text: materializeLineText(block.prepared, choice.line),
+          text: materializeLineRange(block.prepared, choice.line).text,
           x: choice.interval.left,
           y,
           className: block.className,
