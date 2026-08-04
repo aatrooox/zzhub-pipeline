@@ -27,6 +27,7 @@ import {
   normalizeNewspicRenderSpec,
   readResolvedState,
   validateForPhase,
+  waitForRemoteRender,
   writeState,
   type NewspicRenderSpec,
   type WorkflowState,
@@ -238,6 +239,22 @@ Options:
     theme: routePrimary === "wechat-newspic" ? getLongformTheme(state.route.account) : undefined,
     template,
   });
+
+  // Remote backends may defer rasterization to a browser client. Record the
+  // broker job id and enter handoff; the client submits assets later.
+  if (renderResult.pending) {
+    waitForRemoteRender(state, renderResult.pending.job_id);
+    await writeState(statePath, state);
+    printResult({
+      plan: state.images.plan,
+      pending: renderResult.pending,
+      render_job_id: state.render_job_id,
+      phase: state.phase.current,
+      waiting_for_client: true,
+    }, renderRender);
+    return;
+  }
+
   const routeAssets = renderResult.assets.filter(
     (asset) => asset.route === routePrimary && asset.path.trim().length > 0,
   );

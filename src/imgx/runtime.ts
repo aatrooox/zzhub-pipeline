@@ -249,6 +249,63 @@ function measureChromeViewportInsets(chromePath: string): { width: number; heigh
   return inset;
 }
 
+/**
+ * A self-contained render intent: fully-resolved HTML plus the exact viewport
+ * dimensions to rasterize. The local backend screenshots it with Chrome; the
+ * remote backend ships this same HTML (+ asset URLs) to a browser client.
+ *
+ * `captureHeight` covers the wechat-cover-split quirk: Chrome must render a
+ * taller window (so in-page pretext layout settles) and the result is cropped
+ * back to `height`.
+ */
+export interface RasterTask {
+  html: string;
+  width: number;
+  height: number;
+  captureHeight?: number;
+  virtualTimeBudgetMs?: number;
+}
+
+/**
+ * Local Chrome rasterizer: turn a RasterTask into a PNG on disk.
+ * Remote backends do not call this; they hand the task to a browser client.
+ * When `captureHeight` exceeds `height` (wechat-cover-split in-page pretext
+ * needs a taller window to settle), the taller capture is cropped to final.
+ */
+export function rasterizeLocal(
+  task: RasterTask,
+  outPath: string,
+  chromePath: string,
+): void {
+  if (!task.captureHeight || task.captureHeight <= task.height) {
+    screenshotHtml({
+      chromePath,
+      html: task.html,
+      outPath,
+      width: task.width,
+      height: task.height,
+      virtualTimeBudgetMs: task.virtualTimeBudgetMs,
+    });
+    return;
+  }
+
+  const tempShotDir = mkdtempSync(join(tmpdir(), "zzhub-media-raster-"));
+  const rawPath = join(tempShotDir, "shot.png");
+  try {
+    screenshotHtml({
+      chromePath,
+      html: task.html,
+      outPath: rawPath,
+      width: task.width,
+      height: task.captureHeight,
+      virtualTimeBudgetMs: task.virtualTimeBudgetMs,
+    });
+    cropTop({ inputPath: rawPath, outPath, width: task.width, height: task.height });
+  } finally {
+    rmSync(tempShotDir, { recursive: true, force: true });
+  }
+}
+
 export function screenshotHtml(options: {
   chromePath: string;
   html: string;

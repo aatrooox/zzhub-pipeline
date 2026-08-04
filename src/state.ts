@@ -371,6 +371,19 @@ export function reenterPublish(state: WorkflowState): void {
 }
 
 /**
+ * Put the workflow into handoff while a remote renderer produces images.
+ * The render phase is marked "handoff" (a valid PhaseStatus) and the broker
+ * job id is recorded so the result can be correlated on submission.
+ */
+export function waitForRemoteRender(state: WorkflowState, jobId: string): void {
+  state.mode = "handoff";
+  state.phase.render = { status: "handoff", error: null };
+  state.phase.current = "render";
+  state.render_job_id = jobId;
+  state.redo_hint = null;
+}
+
+/**
  * Reset every derived artifact when the core inputs (body, title, route, intent,
  * explicit constraints) have changed. The run identity (run_id/workspace_root/
  * state_path) and the current title are preserved; everything produced by

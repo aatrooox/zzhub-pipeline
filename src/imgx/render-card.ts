@@ -1,23 +1,23 @@
 #!/usr/bin/env bun
-import { rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { getArg, getArgs, hasFlag, parseArgs, requireArg } from "./cli";
 import { buildPosterConfig, serializePosterConfig, type TipItem } from "./poster-recipe";
 import {
   PACKAGE_ROOT,
-  cropTop,
   ensureParentDir,
   escapeHtml,
   findChrome,
   FONTS_DIR,
   ICONS_DIR,
   printSaved,
+  rasterizeLocal,
   readUtf8,
   renderTemplate,
   resolveInputPath,
-  screenshotHtml,
   TEMPLATES_DIR,
+  type RasterTask,
 } from "./runtime";
 
 const SIZE_MAP: Record<string, { width: number; height: number }> = {
@@ -100,26 +100,42 @@ function splitWechatTitle(text: string): { line1: string; line2: string } {
   };
 }
 
-export function runRenderCardCli(argv: string[]): void {
-  const parsed = parseArgs(argv);
-  const template = getArg(parsed, "template", "poster-3-4");
-  const outPath = requireArg(parsed, "out");
-  let line1 = getArg(parsed, "line1");
-  let line2 = getArg(parsed, "line2");
-  let line3 = getArg(parsed, "line3");
-  let hl2 = hasFlag(parsed, "hl2");
-  let hl3 = hasFlag(parsed, "hl3");
-  const text = getArg(parsed, "text").replace(/\\n/g, "\n");
-  const highlight = getArg(parsed, "highlight", "#22a854");
-  const bg = getArg(parsed, "bg", "#e6f5ef");
-  const footer = getArg(parsed, "footer", "公众号 · 早早集市");
-  const fallbackIcon = getArg(parsed, "fallback-icon");
-  const highlightWords = getArg(parsed, "highlight-words");
-  const tips: TipItem[] = getArgs(parsed, "tip").map(raw => {
-    const sep = raw.indexOf("::");
-    if (sep === -1) return { title: raw.trim(), description: "" };
-    return { title: raw.slice(0, sep).trim(), description: raw.slice(sep + 2).trim() };
-  });
+export interface CardRasterInput {
+  template?: string;
+  outPath?: string;
+  line1?: string;
+  line2?: string;
+  line3?: string;
+  hl1?: boolean;
+  hl2?: boolean;
+  hl3?: boolean;
+  text: string;
+  highlight?: string;
+  bg?: string;
+  footer?: string;
+  fallbackIcon?: string;
+  icon?: string;
+  highlightWords?: string;
+  tips?: TipItem[];
+}
+
+/**
+ * Build the fully-resolved HTML + dimensions for a card/cover render, without
+ * rasterizing. Both the local CLI (Chrome) and the remote image renderer
+ * (browser client) consume this so templates/title-splitting stay in one place.
+ */
+export function buildCardRasterTask(input: CardRasterInput): RasterTask {
+  const template = input.template ?? "poster-3-4";
+  let line1 = input.line1 ?? "";
+  let line2 = input.line2 ?? "";
+  let line3 = input.line3 ?? "";
+  let hl2 = input.hl2 ?? false;
+  const hl3 = input.hl3 ?? false;
+  const text = input.text.replace(/\\n/g, "\n");
+  const highlight = input.highlight ?? "#22a854";
+  const bg = input.bg ?? "#e6f5ef";
+  const footer = input.footer ?? "公众号 · 早早集市";
+  const tips = input.tips ?? [];
 
   if (template === "wechat-cover-split") {
     if (!line1 && !line2 && !line3 && text.trim().length > 0) {
@@ -132,35 +148,20 @@ export function runRenderCardCli(argv: string[]): void {
     line2 = lines.slice(1).join("");
     line3 = "";
     hl2 = hl2 || hl3;
-    hl3 = false;
   }
 
-  const chromePath = findChrome();
-  if (chromePath === null) {
-    throw new Error("Chrome/Chromium not found");
-  }
-  const usesPretext = template === "poster-3-4" || template === "wechat-cover-split" || template === "tips-3-4";
-
-  const iconPath = resolveInputPath(getArg(parsed, "icon") || detectIcon(template, text, line1, line2, line3, fallbackIcon));
+  const iconPath = resolveInputPath(
+    input.icon || detectIcon(template, text, line1, line2, line3, input.fallbackIcon ?? ""),
+  );
   const templatePath = join(TEMPLATES_DIR, `${template}.html`);
   const templateHtml = readUtf8(templatePath);
-
-  const debugArgsPath = process.env.TEST_RENDER_CARD_ARGS_PATH;
-  if (debugArgsPath) {
-    ensureParentDir(debugArgsPath);
-    writeFileSync(debugArgsPath, JSON.stringify(argv), "utf-8");
-  }
-  if (process.env.TEST_RENDER_CARD_STUB === "1") {
-    ensureParentDir(outPath);
-    writeFileSync(outPath, "stub", "utf-8");
-    return;
-  }
+  const usesPretext = template === "poster-3-4" || template === "wechat-cover-split" || template === "tips-3-4";
 
   const html = renderTemplate(templateHtml, {
     "{{MAIN_TEXT_LINE1}}": escapeHtml(line1),
     "{{MAIN_TEXT_LINE2}}": escapeHtml(line2),
     "{{MAIN_TEXT_LINE3}}": escapeHtml(line3),
-    "{{LINE1_CLASS}}": hasFlag(parsed, "hl1") ? "highlight" : "",
+    "{{LINE1_CLASS}}": input.hl1 ? "highlight" : "",
     "{{LINE2_CLASS}}": hl2 ? "highlight" : "",
     "{{LINE3_CLASS}}": hl3 ? "highlight" : "",
     "{{HIGHLIGHT_COLOR}}": highlight,
@@ -175,10 +176,10 @@ export function runRenderCardCli(argv: string[]): void {
         line1,
         line2,
         line3,
-        hl1: hasFlag(parsed, "hl1"),
+        hl1: input.hl1 ?? false,
         hl2,
         hl3,
-        highlightWords,
+        highlightWords: input.highlightWords ?? "",
         highlightColor: highlight,
         tips,
       }),
@@ -189,37 +190,65 @@ export function runRenderCardCli(argv: string[]): void {
   });
 
   const size = SIZE_MAP[template] ?? DEFAULT_SIZE;
-  ensureParentDir(outPath);
+  return {
+    html,
+    width: size.width,
+    height: size.height,
+    ...(template === "wechat-cover-split"
+      ? { captureHeight: size.height + WECHAT_SPLIT_WINDOW_EXTRA_HEIGHT }
+      : {}),
+    ...(usesPretext ? { virtualTimeBudgetMs: PRETEXT_SCREENSHOT_VIRTUAL_TIME_BUDGET_MS } : {}),
+  };
+}
 
-  if (template === "wechat-cover-split") {
-    const rawPath = outPath.replace(/(\.[^.]+)?$/, ".raw$1");
-    screenshotHtml({
-      chromePath,
-      html,
-      outPath: rawPath,
-      width: size.width,
-      height: size.height + WECHAT_SPLIT_WINDOW_EXTRA_HEIGHT,
-      virtualTimeBudgetMs: usesPretext ? PRETEXT_SCREENSHOT_VIRTUAL_TIME_BUDGET_MS : undefined,
-    });
-    cropTop({
-      inputPath: rawPath,
-      outPath,
-      width: size.width,
-      height: size.height,
-    });
-    rmSync(rawPath, { force: true });
-    printSaved(outPath);
+export function runRenderCardCli(argv: string[]): void {
+  const parsed = parseArgs(argv);
+  const template = getArg(parsed, "template", "poster-3-4");
+  const outPath = requireArg(parsed, "out");
+  const text = getArg(parsed, "text");
+  const highlightWords = getArg(parsed, "highlight-words");
+  const tips: TipItem[] = getArgs(parsed, "tip").map(raw => {
+    const sep = raw.indexOf("::");
+    if (sep === -1) return { title: raw.trim(), description: "" };
+    return { title: raw.slice(0, sep).trim(), description: raw.slice(sep + 2).trim() };
+  });
+
+  const debugArgsPath = process.env.TEST_RENDER_CARD_ARGS_PATH;
+  if (debugArgsPath) {
+    ensureParentDir(debugArgsPath);
+    writeFileSync(debugArgsPath, JSON.stringify(argv), "utf-8");
+  }
+  if (process.env.TEST_RENDER_CARD_STUB === "1") {
+    ensureParentDir(outPath);
+    writeFileSync(outPath, "stub", "utf-8");
     return;
   }
 
-  screenshotHtml({
-    chromePath,
-    html,
-    outPath,
-    width: size.width,
-    height: size.height,
-    virtualTimeBudgetMs: usesPretext ? PRETEXT_SCREENSHOT_VIRTUAL_TIME_BUDGET_MS : undefined,
+  const task = buildCardRasterTask({
+    template,
+    line1: getArg(parsed, "line1"),
+    line2: getArg(parsed, "line2"),
+    line3: getArg(parsed, "line3"),
+    hl1: hasFlag(parsed, "hl1"),
+    hl2: hasFlag(parsed, "hl2"),
+    hl3: hasFlag(parsed, "hl3"),
+    text,
+    highlight: getArg(parsed, "highlight", "#22a854"),
+    bg: getArg(parsed, "bg", "#e6f5ef"),
+    footer: getArg(parsed, "footer", "公众号 · 早早集市"),
+    fallbackIcon: getArg(parsed, "fallback-icon"),
+    icon: getArg(parsed, "icon"),
+    highlightWords,
+    tips,
   });
+
+  const chromePath = findChrome();
+  if (chromePath === null) {
+    throw new Error("Chrome/Chromium not found");
+  }
+
+  ensureParentDir(outPath);
+  rasterizeLocal(task, outPath, chromePath);
   printSaved(outPath);
 }
 

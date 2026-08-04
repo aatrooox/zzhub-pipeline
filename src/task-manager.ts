@@ -482,6 +482,20 @@ function buildTaskStatus(summary: TaskSummary, state: WorkflowState): TaskStatus
         },
       };
     }
+  } else if (state.phase.render.status === "handoff" || state.render_job_id) {
+    nextAction = {
+      action: "await-render-client",
+      reason: state.render_job_id
+        ? `Render is delegated to a remote client (job ${state.render_job_id}); waiting for assets.`
+        : "Render is waiting on a remote client to produce assets.",
+      executor: "await-input",
+      command: null,
+      params: {
+        state_path: summary.state_path,
+        required_inputs: state.render_job_id ? [] : ["render_job_id"],
+        on_complete: "Once the client submits rendered assets, re-run status to advance to publish or done.",
+      },
+    };
   } else if (state.intent.requires.render && state.phase.render.status !== "done") {
     nextAction = {
       action: "render",

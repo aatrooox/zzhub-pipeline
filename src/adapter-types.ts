@@ -83,12 +83,17 @@ export interface ImageRenderInput {
 
 /**
  * Output from image rendering.
+ *
+ * A renderer may return `pending` instead of final assets when it cannot
+ * produce the images in-process (e.g. a remote backend waiting for a browser
+ * client to rasterize). The command records the job id and enters handoff;
+ * the result is submitted later through the render broker.
  */
 export interface ImageRenderOutput {
-  /** Rendered assets (cover image + page images) */
+  /** Rendered assets (cover image + page images). Empty when pending. */
   assets: RenderAsset[];
 
-  /** Number of pages rendered */
+  /** Number of pages rendered. 0 when pending. */
   pageCount: number;
 
   /** Per-page summary */
@@ -97,6 +102,13 @@ export interface ImageRenderOutput {
     imageCount: number;
     imageSources: string[];
   }>;
+
+  /** When set, rendering is deferred and must be completed externally. */
+  pending?: {
+    job_id: string;
+    /** Human-readable reason shown to the orchestrator (e.g. "waiting for client"). */
+    reason?: string;
+  };
 }
 
 export interface ImageRenderPlugin {

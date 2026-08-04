@@ -339,6 +339,12 @@ export const WorkflowStateSchema = z.object({
   publish_targets: z.array(PublishTargetSchema).default([]),
   content_review: ContentReviewSchema,
   redo_hint: z.string().nullable().default(null),
+  /**
+   * Set when render is deferred to a remote client (ImageRenderOutput.pending).
+   * The broker persists a render job with this id; render enters handoff and
+   * resumes when the client submits the resulting PNGs.
+   */
+  render_job_id: z.string().nullable().default(null),
 });
 
 export type WorkflowState = z.infer<typeof WorkflowStateSchema>;
