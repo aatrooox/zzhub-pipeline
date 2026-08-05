@@ -23,6 +23,7 @@ import { loadConfig } from "../config";
 import { resolveImageRenderer } from "../adapter-loader";
 import {
   acquireStateOperationLock,
+  completeRender,
   defaultBodyInputs,
   normalizeNewspicRenderSpec,
   readResolvedState,
@@ -30,6 +31,7 @@ import {
   waitForRemoteRender,
   writeState,
   type NewspicRenderSpec,
+  type RenderAsset,
   type WorkflowState,
 } from "../state";
 import { loadTaskState } from "../task-manager";
@@ -281,13 +283,7 @@ Options:
 
   // ── Update state ────────────────────────────────────────────────
 
-  state.images.render_assets = routeAssets;
-  state.images.plan.status = "rendered";
-  state.phase.render = { status: "done", error: null };
-  state.phase.current = state.intent.requires.publish ? "publish" : "done";
-  state.mode = state.phase.current === "done" ? "done" : "active";
-  state.redo_hint = null;
-  state.artifacts.render_version += 1;
+  completeRender(state, routeAssets as RenderAsset[]);
 
   await writeState(statePath, state);
 

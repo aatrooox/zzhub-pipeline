@@ -127,6 +127,29 @@ const ImgxConfigSchema = withObjectDefault(
   }),
 );
 
+/**
+ * Render backend selection.
+ * - local:   use headless Chrome directly (default; requires Chrome installed).
+ * - remote:  dispatch raster tasks to a connected browser client via the broker.
+ * - auto:    use local when Chrome is available, otherwise remote.
+ */
+const RenderBackendSchema = z.enum(["local", "remote", "auto"]).default("local");
+
+const RenderConfigSchema = withObjectDefault(
+  z.object({
+    backend: RenderBackendSchema,
+    /** Base URL of the render broker/serve API (remote backend). */
+    brokerUrl: nullableTrimmedString,
+    /** Bearer token for broker API calls. */
+    brokerToken: z.string().default(""),
+    /** How long to wait for a connected client before returning handoff (ms). */
+    dispatchTimeoutMs: z.preprocess(
+      (val) => (typeof val === "number" && Number.isFinite(val) && val > 0 ? val : undefined),
+      z.number().default(15_000),
+    ),
+  }),
+);
+
 // ── Top-level schema ──────────────────────────────────────────────
 
 export const PipelineConfigSchema = z.object({
@@ -137,6 +160,7 @@ export const PipelineConfigSchema = z.object({
   cos: CosConfigSchema,
   plugins: PluginsConfigSchema,
   imgx: ImgxConfigSchema,
+  render: RenderConfigSchema,
 });
 
 export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
@@ -151,6 +175,8 @@ export type PipelineCommandConfig = z.infer<typeof PipelineCommandConfigSchema>;
 export type CosConfig = z.infer<typeof CosConfigSchema>;
 export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
 export type ImgxConfig = z.infer<typeof ImgxConfigSchema>;
+export type RenderConfig = z.infer<typeof RenderConfigSchema>;
+export type RenderBackend = z.infer<typeof RenderBackendSchema>;
 export type WechatExportThemeOverrides = z.infer<typeof WechatExportThemeOverridesSchema>;
 export type WechatThemeOverrides = z.infer<typeof WechatThemeOverridesSchema>;
 

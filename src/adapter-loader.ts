@@ -16,6 +16,7 @@ import type {
 } from "./adapter-types";
 import { builtinImageRenderer } from "./adapters/builtin-image-renderer";
 import { builtinMarkdownRenderer } from "./adapters/builtin-markdown-renderer";
+import { remoteImageRenderer } from "./adapters/remote-image-renderer";
 
 // ── Validation ───────────────────────────────────────────────────
 
@@ -67,8 +68,13 @@ async function importPlugin(specifier: string): Promise<unknown> {
 
 /**
  * Resolve the image renderer plugin.
- * If config.plugins.imageRenderer is set, loads it via dynamic import.
- * Otherwise returns the built-in imgx adapter.
+ *
+ * Priority:
+ * 1. User-provided plugin via config.plugins.imageRenderer (dynamic import).
+ * 2. config.render.backend:
+ *    - "remote" → built-in browser-client adapter
+ *    - "auto"   → local Chrome when available, otherwise remote
+ *    - "local"  → built-in Chrome imgx adapter (default)
  */
 export async function resolveImageRenderer(
   config: PipelineConfig,
@@ -80,6 +86,14 @@ export async function resolveImageRenderer(
     return validateImageRenderPlugin(mod, specifier.trim());
   }
 
+  const backend = config.render.backend;
+  if (backend === "remote") {
+    return remoteImageRenderer;
+  }
+  if (backend === "auto") {
+    const { findChrome } = await import("./imgx/runtime");
+    return findChrome() ? builtinImageRenderer : remoteImageRenderer;
+  }
   return builtinImageRenderer;
 }
 

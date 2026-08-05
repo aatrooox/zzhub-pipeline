@@ -18,6 +18,7 @@ import type {
   WorkflowState,
   NewspicRenderSpec,
   PhaseName,
+  RenderAsset,
 } from "./schema/state";
 
 // ── Re-export types from schema ───────────────────────────────────
@@ -381,6 +382,25 @@ export function waitForRemoteRender(state: WorkflowState, jobId: string): void {
   state.phase.current = "render";
   state.render_job_id = jobId;
   state.redo_hint = null;
+}
+
+/**
+ * Apply the render-complete state transition. Shared by the local `render`
+ * command and the remote broker's submit path so both advance the workflow
+ * identically. Mutates `state`; caller persists.
+ */
+export function completeRender(
+  state: WorkflowState,
+  routeAssets: RenderAsset[],
+): void {
+  state.images.render_assets = routeAssets;
+  state.images.plan.status = "rendered";
+  state.phase.render = { status: "done", error: null };
+  state.phase.current = state.intent.requires.publish ? "publish" : "done";
+  state.mode = state.phase.current === "done" ? "done" : "active";
+  state.redo_hint = null;
+  state.render_job_id = null;
+  state.artifacts.render_version += 1;
 }
 
 /**

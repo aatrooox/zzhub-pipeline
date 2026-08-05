@@ -1457,6 +1457,12 @@ describe("config", () => {
         imgx: {
           icon: null,
         },
+        render: {
+          backend: "local",
+          brokerUrl: null,
+          brokerToken: "",
+          dispatchTimeoutMs: 15000,
+        },
       },
       {
         date: "2026-04-08",

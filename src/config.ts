@@ -168,6 +168,12 @@ function normalizeConfig(value: unknown, legacyValue?: unknown): PipelineConfig 
     ...(isPlainObject(source.imgx) ? source.imgx : {}),
   };
 
+  // Merge render: source wins, legacy fills gaps
+  const mergedRender = {
+    ...(isPlainObject(legacy.render) ? legacy.render : {}),
+    ...(isPlainObject(source.render) ? source.render : {}),
+  };
+
   // Parse through Zod schema — applies defaults and validation
   return PipelineConfigSchema.parse({
     paths: mergedPaths,
@@ -177,6 +183,7 @@ function normalizeConfig(value: unknown, legacyValue?: unknown): PipelineConfig 
     cos: mergedCos,
     plugins: mergedPlugins,
     imgx: mergedImgx,
+    render: mergedRender,
   });
 }
 
