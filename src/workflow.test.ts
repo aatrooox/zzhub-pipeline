@@ -1437,6 +1437,7 @@ describe("config", () => {
           defaultAccount: "default",
           accounts: {
             default: {
+              name: "",
               pat: "",
               appId: "",
               appSecret: "",

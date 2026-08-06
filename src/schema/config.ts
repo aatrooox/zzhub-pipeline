@@ -56,6 +56,12 @@ const WechatThemeOverridesSchema = withObjectDefault(
 );
 
 const WxAccountConfigSchema = z.object({
+  /**
+   * Optional Chinese display name for UIs (e.g. 大号（早早集市）).
+   * Config map key remains the stable account id (default / ancientone).
+   * Whitespace is trimmed in normalizeConfig when soft-filling / merging.
+   */
+  name: z.string().default(""),
   pat: z.string().default(""),
   appId: z.string().default(""),
   appSecret: z.string().default(""),
@@ -74,9 +80,9 @@ const WxConfigSchema = withObjectDefault(
       z.number().default(30000),
     ),
     defaultAccount: trimmedNonEmptyString("default"),
-    accounts: z
-      .record(z.string(), WxAccountConfigSchema)
-      .default({ default: { pat: "", appId: "", appSecret: "", customCss: null, theme: { editorVars: {}, exportTheme: {} } } }),
+    accounts: z.record(z.string(), WxAccountConfigSchema).default(() => ({
+      default: WxAccountConfigSchema.parse({}),
+    })),
   }),
 );
 

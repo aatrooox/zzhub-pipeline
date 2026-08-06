@@ -5,12 +5,16 @@ import {
   configSummary,
   getConfigValue,
   loadConfig,
-  PipelineConfigSchema,
+  normalizeConfig,
   redactConfig,
   redactConfigValue,
   saveConfig,
   setConfigValue,
 } from "../config";
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export async function configCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
@@ -26,6 +30,11 @@ Options:
   --export     Print full config as JSON (secrets redacted; use --raw to show all)
   --import     Path to a JSON file to merge into current config
   --raw        Show secrets unredacted (use with --export)
+
+Examples:
+  zzhub-pipeline config --key wx.defaultAccount
+  zzhub-pipeline config --key wx.accounts.default.name --value "大号（早早集市）"
+  zzhub-pipeline config --export
 `.trim());
     return;
   }
@@ -50,27 +59,45 @@ Options:
       throw new Error(`Failed to read import file: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    // Merge: existing values win, imported fills gaps
-    const importedObj = (typeof imported === "object" && imported !== null ? imported : {}) as Record<string, unknown>;
-    const mergedWx = {
-      ...config.wx,
-      ...(importedObj.wx as Record<string, unknown> ?? {}),
-      accounts: {
-        ...config.wx.accounts,
-        ...((importedObj.wx as Record<string, unknown>)?.accounts as Record<string, unknown> ?? {}),
-      },
-    };
+    // Merge: top-level shallow; wx.accounts deep-merge per key so partial imports
+    // keep existing fields (e.g. display `name`) unless overridden.
+    const importedObj = isPlainObject(imported) ? imported : {};
+    const importedWx = isPlainObject(importedObj.wx) ? importedObj.wx : {};
+    const importedAccounts = isPlainObject(importedWx.accounts) ? importedWx.accounts : {};
+    const mergedAccounts: Record<string, unknown> = { ...config.wx.accounts };
+    for (const [key, value] of Object.entries(importedAccounts)) {
+      const accountKey = key.trim();
+      if (!accountKey) continue;
+      const existing = isPlainObject(mergedAccounts[accountKey])
+        ? mergedAccounts[accountKey]
+        : {};
+      const incoming = isPlainObject(value) ? value : {};
+      mergedAccounts[accountKey] = { ...existing, ...incoming };
+    }
     const raw = {
-      paths: { ...config.paths, ...(importedObj.paths ?? {}) },
-      services: { ...config.services, ...(importedObj.services ?? {}) },
-      commands: { ...config.commands, ...(importedObj.commands ?? {}) },
-      wx: mergedWx,
-      cos: { ...config.cos, ...(importedObj.cos ?? {}) },
-      plugins: { ...config.plugins, ...(importedObj.plugins ?? {}) },
-      imgx: { ...config.imgx, ...(importedObj.imgx ?? {}) },
+      paths: { ...config.paths, ...(isPlainObject(importedObj.paths) ? importedObj.paths : {}) },
+      services: {
+        ...config.services,
+        ...(isPlainObject(importedObj.services) ? importedObj.services : {}),
+      },
+      commands: {
+        ...config.commands,
+        ...(isPlainObject(importedObj.commands) ? importedObj.commands : {}),
+      },
+      wx: {
+        ...config.wx,
+        ...importedWx,
+        accounts: mergedAccounts,
+      },
+      cos: { ...config.cos, ...(isPlainObject(importedObj.cos) ? importedObj.cos : {}) },
+      plugins: {
+        ...config.plugins,
+        ...(isPlainObject(importedObj.plugins) ? importedObj.plugins : {}),
+      },
+      imgx: { ...config.imgx, ...(isPlainObject(importedObj.imgx) ? importedObj.imgx : {}) },
     };
-    // Validate through Zod schema — strips unknown fields, applies defaults
-    const merged = PipelineConfigSchema.parse(raw);
+    // Soft-fill known account display names + Zod defaults / strip unknowns
+    const merged = normalizeConfig(raw);
 
     saveConfig(merged);
     printResult(configSummary(merged), renderConfig);

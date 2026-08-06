@@ -43,6 +43,15 @@ export interface ResolvedWorkspacePaths {
 
 const DEFAULT_WX_ACCOUNT_NAME = "default";
 
+/**
+ * Soft display names for known account keys when `name` is missing/empty.
+ * Never overrides a user-set name.
+ */
+export const SUGGESTED_ACCOUNT_NAMES: Record<string, string> = {
+  default: "大号（早早集市）",
+  ancientone: "小号（古一）",
+};
+
 export const DEFAULT_CONFIG: PipelineConfig = PipelineConfigSchema.parse({});
 
 const PIPELINE_CONFIG_DIR = "zzhub-pipeline";
@@ -104,8 +113,9 @@ export function getLegacyZCliConfigPath(): string {
 /**
  * Merge source config with legacy config, then normalize through Zod schema.
  * Legacy values fill gaps where source has nothing.
+ * Soft-fills known account display `name` only when missing/empty.
  */
-function normalizeConfig(value: unknown, legacyValue?: unknown): PipelineConfig {
+export function normalizeConfig(value: unknown, legacyValue?: unknown): PipelineConfig {
   const source = isPlainObject(value) ? value : {};
   const legacy = isPlainObject(legacyValue) ? legacyValue : {};
 
@@ -122,7 +132,16 @@ function normalizeConfig(value: unknown, legacyValue?: unknown): PipelineConfig 
     if (!accountName) continue;
     const legacyAccount = isPlainObject(legacyAccounts[accountName]) ? legacyAccounts[accountName] : {};
     const sourceAccount = isPlainObject(sourceAccounts[accountName]) ? sourceAccounts[accountName] : {};
-    mergedAccounts[accountName] = { ...legacyAccount, ...sourceAccount };
+    const merged = { ...legacyAccount, ...sourceAccount };
+    // Trim + soft-fill display name for known keys only when missing/empty (never override user-set name).
+    if (typeof merged.name === "string") {
+      merged.name = merged.name.trim();
+    }
+    const existingName = typeof merged.name === "string" ? merged.name : "";
+    if (!existingName && SUGGESTED_ACCOUNT_NAMES[accountName]) {
+      merged.name = SUGGESTED_ACCOUNT_NAMES[accountName];
+    }
+    mergedAccounts[accountName] = merged;
   }
 
   // Merge wx config: source wins, legacy fills gaps

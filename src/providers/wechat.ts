@@ -161,8 +161,10 @@ export function normalizeAccountName(value: string): string {
   return account;
 }
 
-function fillWxAccountConfig(source?: WxAccountConfig): WxAccountConfig {
+/** Fill missing wx account fields with defaults. Preserves optional display `name`. */
+export function fillWxAccountConfig(source?: WxAccountConfig): WxAccountConfig {
   return {
+    name: source?.name ?? "",
     pat: source?.pat ?? "",
     appId: source?.appId ?? "",
     appSecret: source?.appSecret ?? "",
