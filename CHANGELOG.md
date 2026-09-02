@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.11.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.10.2...v0.11.0)
+
+### Features
+
+- **config:** Add optional wx account display name ([115c2e5](https://github.com/aatrooox/zzhub-pipeline/commit/115c2e5))
+- **skills:** Add wechat HTML style guide and auto AI daily publish ([5fcc529](https://github.com/aatrooox/zzhub-pipeline/commit/5fcc529))
+- Remove topic and analytics modules ([d6e545c](https://github.com/aatrooox/zzhub-pipeline/commit/d6e545c))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.10.2
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.10.1...v0.10.2)
