@@ -8,6 +8,7 @@ logs/
 .env.*
 .claude/
 .sisyphus/
+.workbuddy/
 *.local.json
 .idea/
 .vscode/

@@ -1,5 +1,4 @@
 import { abandon } from "./commands/abandon";
-import { analytics } from "./commands/analytics";
 import { attachBody } from "./commands/attach-body";
 import { attachBodyImages } from "./commands/attach-body-images";
 import { attachNewspicSpec } from "./commands/attach-newspic-spec";
@@ -23,7 +22,6 @@ import { review } from "./commands/review";
 import { status } from "./commands/status";
 import { syncBlog } from "./commands/sync-blog";
 import { tasks } from "./commands/tasks";
-import { topic } from "./commands/topic";
 import { wechatExport } from "./commands/wechat-export";
 import { wechatPreview } from "./commands/wechat-preview";
 import { wxDrafts } from "./commands/wx-drafts";
@@ -79,8 +77,6 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "hermes-metrics", summary: "Show Hermes execution metrics per task", plugin: "ops", handler: hermesMetrics },
         { name: "wx-drafts", summary: "List or get drafts from WeChat draft box", plugin: "ops", handler: wxDrafts },
         { name: "wx-draft-delete", summary: "Delete a draft from WeChat draft box", plugin: "ops", handler: wxDraftDelete },
-        { name: "topic", summary: "Manage topics (add, list, update, schedule, retro, abandon)", plugin: "ops", handler: topic },
-        { name: "analytics", summary: "Record and analyze post-publish metrics", plugin: "ops", handler: analytics },
       ],
     },
   ];

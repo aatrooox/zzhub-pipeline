@@ -293,7 +293,7 @@ src/
 | `review` | Update content review status |
 | `abandon` | Mark tasks as abandoned |
 
-### ops group (12 commands)
+### ops group (11 commands)
 
 | Command | Description |
 |---|---|
@@ -301,14 +301,13 @@ src/
 | `republish` | Publish completed task to additional accounts/platforms |
 | `imgx` | Run bundled imgx renderer subcommands |
 | `wechat-export` | Render markdown to WeChat HTML |
+| `wechat-preview` | Run the local WeChat HTML preview server |
 | `cos-upload` | Upload image to COS CDN |
 | `config` | Read or update pipeline config |
 | `doctor` | Inspect resolved paths and provider health |
 | `hermes-metrics` | Show Hermes execution metrics per task |
 | `wx-drafts` | List or get drafts from WeChat draft box |
 | `wx-draft-delete` | Delete a draft from WeChat draft box |
-| `topic` | Manage content topics (add, list, update, schedule, retro, abandon) |
-| `analytics` | Record and analyze post-publish metrics |
 
 ### Reset modes
 
