@@ -19,6 +19,8 @@ import {
   screenshotHtml,
   TEMPLATES_DIR,
 } from "./runtime";
+import { notifyProgress } from "../monitor/recorder";
+import type { MonitorProgress } from "../monitor/types";
 
 const SIZE_MAP: Record<string, { width: number; height: number }> = {
   "poster-3-4": { width: 900, height: 1200 },
@@ -100,7 +102,8 @@ function splitWechatTitle(text: string): { line1: string; line2: string } {
   };
 }
 
-export function runRenderCardCli(argv: string[]): void {
+export function runRenderCardCli(argv: string[], onProgress?: (progress: MonitorProgress) => void): void {
+  notifyProgress(onProgress, { stage: "render.cover", message: "正在生成封面", current: 0, total: 1, unit: "pages" });
   const parsed = parseArgs(argv);
   const template = getArg(parsed, "template", "poster-3-4");
   const outPath = requireArg(parsed, "out");
@@ -209,6 +212,7 @@ export function runRenderCardCli(argv: string[]): void {
     });
     rmSync(rawPath, { force: true });
     printSaved(outPath);
+    notifyProgress(onProgress, { stage: "render.cover", current: 1, total: 1, unit: "pages" });
     return;
   }
 
@@ -221,6 +225,7 @@ export function runRenderCardCli(argv: string[]): void {
     virtualTimeBudgetMs: usesPretext ? PRETEXT_SCREENSHOT_VIRTUAL_TIME_BUDGET_MS : undefined,
   });
   printSaved(outPath);
+  notifyProgress(onProgress, { stage: "render.cover", current: 1, total: 1, unit: "pages" });
 }
 
 if (import.meta.main) {

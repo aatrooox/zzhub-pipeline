@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { basename } from "path";
 import COS from "cos-nodejs-sdk-v5";
+import { reportProgress } from "../monitor/recorder";
 
 const STS_PATH = "/api/v1/upload/cos";
 const STS_TIMEOUT = 30000;
@@ -142,6 +143,7 @@ export async function uploadFileToCos(input: {
   }
 
   const sts = await requestSts(baseUrl, cosPat, filename, folder);
+  reportProgress({ stage: "upload.cos", message: "正在上传 COS 文件" });
   const buffer = readFileSync(localPath);
 
   const cos = new COS({
@@ -165,6 +167,7 @@ export async function uploadFileToCos(input: {
         Key: sts.Key,
         Body: buffer,
         ContentType: contentType,
+        onProgress: ({ loaded, total }) => reportProgress({ stage: "upload.cos", current: loaded, total, unit: "bytes" }),
       },
       (err) => {
         if (settled) return;

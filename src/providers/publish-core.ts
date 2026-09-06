@@ -7,6 +7,7 @@
 import type { PipelineConfig, ResolvedWorkspacePaths } from "../config";
 import type { PublishResult, PublishTarget, WorkflowState } from "../state";
 import { getPublishProvider, type PublishRouteContext } from "./index";
+import { reportProgress } from "../monitor/recorder";
 
 export interface PublishTargetError {
   route: string;
@@ -102,6 +103,7 @@ export async function executePublishTargets(
   const errors: PublishTargetError[] = [];
 
   for (const target of filtered) {
+    reportProgress({ stage: "publish.targets", message: "正在发布", current: results.length, total: filtered.length, unit: "targets", route: target.route, account: target.account });
     let result: PublishResult;
     try {
       const provider = getPublishProvider(target.route);
@@ -135,10 +137,14 @@ export async function executePublishTargets(
         content_version: state.artifacts.content_version,
         render_version: state.artifacts.render_version,
       };
-      errors.push(error);
+    }
+    // provider 返回 failed 与抛出异常使用同一条错误汇总路径。
+    if (result.status === "failed") {
+      errors.push({ route: target.route, account: target.account, error: result.detail || "发布失败，provider 未提供原因" });
     }
     results.push(result);
     await onResult?.(result);
+    reportProgress({ stage: "publish.targets", message: result.status === "failed" ? "目标发布失败" : "目标处理完成", current: results.length, total: filtered.length, unit: "targets", route: target.route, account: target.account });
   }
 
   return { results, errors };

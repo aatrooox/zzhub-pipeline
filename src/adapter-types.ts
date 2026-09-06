@@ -9,6 +9,7 @@
  */
 
 import type { RenderAsset, RoutePrimary, WorkflowState } from "./state";
+import type { MonitorProgress } from "./monitor/types";
 
 // ── Doctor check ──────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ export interface PipelinePluginDoctorCheck {
  * to runRenderArticleCli and runRenderCardCli via CLI argv.
  */
 export interface ImageRenderInput {
+  /** 可选进度通知，旧插件可忽略。 */
+  onProgress?: (progress: MonitorProgress) => void;
   /** Workflow state providing context (route, metadata, etc.) */
   state: WorkflowState;
 
@@ -117,6 +120,8 @@ export interface ImageRenderPlugin {
  * Maps to ExportMarkdownToWechatHtmlInput from wechat-preview.
  */
 export interface MarkdownRenderInput {
+  /** 可选进度通知，旧插件可忽略。 */
+  onProgress?: (progress: MonitorProgress) => void;
   /** Path to the markdown source file */
   markdownPath: string;
 

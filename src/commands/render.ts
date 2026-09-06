@@ -38,6 +38,8 @@ import {
 } from "../text";
 import { getLongformTheme } from "../routes";
 import { collectNewspicRequiredMarkers } from "../workflow-materials";
+import type { CommandOutcome } from "../command-outcome";
+import { reportProgress } from "../monitor/recorder";
 
 function getNewspicRenderSpec(state: WorkflowState): NewspicRenderSpec {
   const spec = normalizeNewspicRenderSpec(state.intent.newspic_render);
@@ -47,7 +49,7 @@ function getNewspicRenderSpec(state: WorkflowState): NewspicRenderSpec {
   };
 }
 
-export async function render(args: string[]): Promise<void> {
+export async function render(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -182,7 +184,7 @@ Options:
         message: `Waiting for ${markers.length} body image(s)`,
         phase: state.phase.current,
       }, renderRender);
-      return;
+      return { status: "waiting" };
     }
   } else if (state.images.body_inputs.scope === "newspic-longform") {
     state.images.body_inputs = defaultBodyInputs();
@@ -196,13 +198,14 @@ Options:
       skip_render: true,
       phase: state.phase.current,
     }, renderRender);
-    return;
+    return { status: "skipped" };
   }
 
   // ── Invoke image renderer adapter ───────────────────────────────
 
   const config = loadConfig();
   const imageRenderer = await resolveImageRenderer(config);
+  reportProgress({ stage: "render.adapter", message: "开始生成图片" });
 
   const bodyImages = (
     state.images.body_inputs.scope === "newspic-longform" &&
@@ -212,6 +215,7 @@ Options:
     : [];
 
   const renderResult = await imageRenderer.render({
+    onProgress: reportProgress,
     state,
     bodyText: cleanBody,
     outputDir,

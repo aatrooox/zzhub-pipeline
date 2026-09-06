@@ -9,6 +9,7 @@
 
 import { access, mkdir, open, readFile, rename, rm, stat, writeFile } from "fs/promises";
 import { dirname, isAbsolute, resolve } from "path";
+import { observeState } from "./monitor/recorder";
 import {
   WorkflowStateSchema,
   NewspicRenderSpecSchema,
@@ -245,6 +246,8 @@ export async function readResolvedState(path: string): Promise<ResolvedState> {
     state.state_path = currentPath;
   }
 
+  observeState(state, currentPath);
+
   return {
     path: currentPath,
     requested_path: requestedPath,
@@ -310,6 +313,7 @@ export async function writeState(
   } finally {
     await releaseLock();
   }
+  observeState(validated, normalizedPath);
 }
 
 /**

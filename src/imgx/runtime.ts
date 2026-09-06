@@ -407,7 +407,7 @@ export function resolveInputPath(path: string): string {
 }
 
 export function printSaved(outPath: string): void {
-  console.log(`✅ Saved to ${outPath}`);
+  console.error(`✅ Saved to ${outPath}`);
 }
 
 export function readImageSize(path: string): { width: number; height: number } | null {

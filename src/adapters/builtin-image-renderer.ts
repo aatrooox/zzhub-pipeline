@@ -138,6 +138,7 @@ async function renderCover(
   outputDir: string,
   visualParams: AccountVisualParams | null,
   highlightWords: string[],
+  onProgress?: ImageRenderInput["onProgress"],
 ): Promise<RenderAsset> {
   const coverOut = join(outputDir, "cover.png");
   const route = template === "wechat-cover-split" ? "wechat-article" : "wechat-newspic";
@@ -152,12 +153,12 @@ async function renderCover(
     }
     cmdParts.push("--highlight-words", highlightWords.join(","));
     cmdParts.push("--out", coverOut);
-    runRenderCardCli(cmdParts);
+    runRenderCardCli(cmdParts, onProgress);
   } else {
     const cmdParts = ["--template", "poster-3-4", "--text", title];
     appendPosterVisualArgs(cmdParts, visualParams, highlightWords);
     cmdParts.push("--out", coverOut);
-    runRenderCardCli(cmdParts);
+    runRenderCardCli(cmdParts, onProgress);
   }
 
   return { kind: "cover", route: route as RenderAsset["route"], path: coverOut };
@@ -231,7 +232,7 @@ async function renderLongformPages(
 
   let result: RenderArticleResult;
   try {
-    result = runRenderArticleCli(pageParts);
+    result = runRenderArticleCli(pageParts, input.onProgress);
   } finally {
     if (!keepTempFiles) {
       await rm(tempDir, { recursive: true, force: true });
@@ -309,7 +310,7 @@ export const builtinImageRenderer: ImageRenderPlugin = {
 
     if (route === "wechat-article") {
       // Article: cover only (wechat-cover-split)
-      const cover = await renderCover("wechat-cover-split", title, outputDir, vp, highlightWords);
+      const cover = await renderCover("wechat-cover-split", title, outputDir, vp, highlightWords, input.onProgress);
       return { assets: [cover], pageCount: 1, pages: [{ page: 1, imageCount: 0, imageSources: [] }] };
     }
 
@@ -339,13 +340,13 @@ export const builtinImageRenderer: ImageRenderPlugin = {
     if (!isLong) {
       // Short: single poster cover
       const coverTitle = generateCoverTitle(title);
-      const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords);
+      const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords, input.onProgress);
       return { assets: [cover], pageCount: 1, pages: [{ page: 1, imageCount: 0, imageSources: [] }] };
     }
 
     // Long: cover + article pages
     const coverTitle = generateCoverTitle(title);
-    const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords);
+    const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords, input.onProgress);
 
     const bodyImages = input.bodyImages ?? [];
     const pageResult = await renderLongformPages(input, outputDir, newspicRenderSpec, bodyImages, vp);

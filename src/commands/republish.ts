@@ -36,8 +36,9 @@ import {
   upsertPublishResult,
 } from "../providers/publish-core";
 import { loadTaskState } from "../task-manager";
+import { publishOutcome, type CommandOutcome } from "../command-outcome";
 
-export async function republish(args: string[]): Promise<void> {
+export async function republish(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -182,6 +183,8 @@ Examples:
     output.errors = errors;
   }
   printResult(output);
+  return publishOutcome(dryRun ? results : state.publish.results.filter((result) => newTargets.some((target) =>
+    target.route === result.route && target.account === result.account)), dryRun || results.length === 0);
   } finally {
     await releaseOperationLock();
   }

@@ -866,6 +866,13 @@ bun install --global .
 
 Markdown → WeChat HTML 转换通过插件系统完成（默认使用内置 `builtin-wechat-preview` 适配器）。
 
+## 本机多任务监控
+
+`zzp monitor start` 按需启动共享 HTTP/SSE 服务，`monitor status` 查看状态，`monitor stop` 只停止监控。
+CLI 独立记录执行和错误，GUI 可同时订阅多个任务。新版业务失败会退出 1，调用方仍应读取失败响应和最新任务状态。
+
+详见 [监控接口与退出码迁移](docs/monitor.md)。
+
 ## 测试与验证
 
 ```bash

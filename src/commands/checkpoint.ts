@@ -15,8 +15,9 @@ import { getTaskByStatePath } from "../task-manager";
 import { parseTaskViewMode, renderTaskStatusMarkdown } from "../task-views";
 import type { PhaseName } from "../state";
 import { validateForPhase } from "../state";
+import type { CommandOutcome } from "../command-outcome";
 
-export async function checkpoint(args: string[]): Promise<void> {
+export async function checkpoint(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -61,6 +62,6 @@ Options:
   }
 
   if (errors.length > 0) {
-    process.exit(1);
+    return { status: "failed", errors: errors.map((error) => ({ code: "CHECKPOINT_FAILED", message: `${error.field}: ${error.message}`, stage: phase })) };
   }
 }

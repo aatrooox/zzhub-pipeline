@@ -2,6 +2,8 @@ import { spawn } from "child_process";
 import { resolve } from "path";
 import { flagArg, optionalArg, parseArgs, requireArg } from "../args";
 import { printResult, renderWechatExport } from "../output";
+import { commandError, type CommandOutcome } from "../command-outcome";
+import { reportProgress } from "../monitor/recorder";
 import { loadConfig, resolveConfigRelativePath } from "../config";
 import { resolveMarkdownRenderer } from "../adapter-loader";
 import { WechatExportError } from "../wechat-preview";
@@ -54,7 +56,7 @@ async function openUrl(url: string): Promise<void> {
   }
 }
 
-export async function wechatExport(args: string[]): Promise<void> {
+export async function wechatExport(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -114,6 +116,7 @@ ${CSS_DEMO}
 
   try {
     const result = await markdownRenderer.render({
+      onProgress: reportProgress,
       markdownPath,
       outPath,
       account,
@@ -154,6 +157,7 @@ ${CSS_DEMO}
         if (open && preview_url) await openUrl(preview_url);
       } else {
         preview_register_error = reg.error;
+        console.warn(`微信预览登记失败：${reg.error || "未知原因"}`);
       }
     }
 
@@ -197,8 +201,7 @@ ${CSS_DEMO}
           renderWechatExport,
         );
         if (open && reg.preview_url) await openUrl(reg.preview_url);
-        process.exitCode = 1;
-        return;
+        return { status: "failed", errors: [commandError(error, error.kind)] };
       }
     }
     throw error;

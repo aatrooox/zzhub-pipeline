@@ -7,6 +7,7 @@
 
 import { exportMarkdownToWechatHtml } from "../wechat-preview";
 import { findChrome } from "../imgx/runtime";
+import { notifyProgress } from "../monitor/recorder";
 import type {
   MarkdownRenderPlugin,
   MarkdownRenderInput,
@@ -43,6 +44,7 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
   },
 
   async render(input: MarkdownRenderInput): Promise<MarkdownRenderOutput> {
+    notifyProgress(input.onProgress, { stage: "render.html", message: "正在导出微信 HTML" });
     const result = await exportMarkdownToWechatHtml({
       markdownPath: input.markdownPath,
       outPath: input.outPath,
@@ -54,6 +56,7 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
       timeoutMs: input.timeoutMs,
       debugDir: input.debugDir ?? undefined,
     });
+    notifyProgress(input.onProgress, { stage: "render.html", message: "微信 HTML 导出完成", current: 1, total: 1, unit: "files" });
 
     return {
       html: result.html,

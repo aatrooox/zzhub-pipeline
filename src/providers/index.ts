@@ -11,6 +11,7 @@ import {
   prepareBodyForNewspic,
 } from "../text";
 import { resolveMarkdownRenderer } from "../adapter-loader";
+import { reportProgress } from "../monitor/recorder";
 import { publishBlogRoute } from "./blog";
 import { createWechatDraft, createWechatNewspic, extractImageUrls, mergePhotoLists } from "./wechat";
 
@@ -80,6 +81,7 @@ async function publishWechatArticleRoute({
     const markdownRenderer = await resolveMarkdownRenderer(config);
     const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
     const rendered = await markdownRenderer.render({
+      onProgress: reportProgress,
       markdownPath: exportPostPath,
       outPath: workspacePaths.zotepadExportHtml,
       account,
@@ -93,7 +95,7 @@ async function publishWechatArticleRoute({
     if (process.env.ZZHUB_WECHAT_PREVIEW_ON_PUBLISH !== "0") {
       try {
         const { registerPreviewEntry } = await import("../wechat-preview/server");
-        await registerPreviewEntry(
+        const registration = await registerPreviewEntry(
           {
             title: `[publish] ${state.metadata.title || "untitled"}`,
             account,
@@ -110,8 +112,10 @@ async function publishWechatArticleRoute({
           },
           { autoStart: process.env.ZZHUB_WECHAT_PREVIEW_AUTO_START !== "0" },
         );
-      } catch {
-        // preview registration must never block publish
+        if (!registration.ok) console.warn(`微信预览登记失败：${registration.error || "未知原因"}`);
+      } catch (error) {
+        // 预览故障只记录警告，不改变发布结果。
+        console.warn("微信预览登记失败：", error);
       }
     }
 

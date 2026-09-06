@@ -34,8 +34,9 @@ import {
   upsertPublishResult,
 } from "../providers/publish-core";
 import { loadTaskState } from "../task-manager";
+import { publishOutcome, type CommandOutcome } from "../command-outcome";
 
-export async function publish(args: string[]): Promise<void> {
+export async function publish(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -119,7 +120,7 @@ Options:
       dry_run: true,
       ...(errors.length > 0 ? { errors } : {}),
     }, renderPublish);
-    return;
+    return publishOutcome(results, true);
   }
 
   // Check if all targets are done
@@ -151,6 +152,8 @@ Options:
     output.errors = errors;
   }
   printResult(output, renderPublish);
+  return publishOutcome(state.publish.results.filter((result) => targets.some((target) =>
+    target.route === result.route && target.account === result.account)), results.length === 0);
   } finally {
     await releaseOperationLock();
   }

@@ -12,6 +12,8 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
+import { outcomeExitCode, type CommandOutcome } from "./command-outcome";
+import { observeCommand, reportLog } from "./monitor/recorder";
 
 const APP_DIR = "zzhub-pipeline";
 const LOG_DIR_NAME = "logs";
@@ -118,6 +120,7 @@ function installConsoleTee(write: (chunk: string) => void): () => void {
         const text = args
           .map((arg) => {
             if (typeof arg === "string") return arg;
+            if (arg instanceof Error) return formatError(arg);
             try {
               return JSON.stringify(arg);
             } catch {
@@ -126,6 +129,8 @@ function installConsoleTee(write: (chunk: string) => void): () => void {
           })
           .join(" ");
         write(`[console.${method}] ${text}`);
+        // stdout 包含完整业务 JSON；只采集诊断通道，避免正文或配置进入监控。
+        if (method !== "log") reportLog(method, text);
       } catch {
         // ignore
       }
@@ -147,32 +152,40 @@ function installConsoleTee(write: (chunk: string) => void): () => void {
 export async function runWithCommandLog(
   command: string,
   args: string[],
-  handler: () => Promise<void>,
-): Promise<void> {
-  const startedAt = new Date();
-  const startedMs = Date.now();
-  const logPath = getDailyLogPath(startedAt);
-  const write = (message: string) => {
-    appendLogLine(`[${new Date().toISOString()}] ${message}`, startedAt);
-  };
+  handler: () => Promise<void | CommandOutcome>,
+): Promise<CommandOutcome> {
+  return observeCommand(command, async () => {
+    const startedAt = new Date();
+    const startedMs = Date.now();
+    const logPath = getDailyLogPath(startedAt);
+    const write = (message: string) => {
+      appendLogLine(`[${new Date().toISOString()}] ${message}`, startedAt);
+    };
 
-  write(`=== START command=${command} ===`);
-  write(`log_file=${logPath}`);
-  write(`cwd=${process.cwd()}`);
-  write(`argv=${JSON.stringify(args)}`);
-  if (process.env.ZZHUB_PIPELINE_ROOT) {
-    write(`ZZHUB_PIPELINE_ROOT=${process.env.ZZHUB_PIPELINE_ROOT}`);
-  }
+    write(`=== START command=${command} ===`);
+    write(`log_file=${logPath}`);
+    write(`cwd=${process.cwd()}`);
+    write(`argv=${JSON.stringify(args)}`);
+    if (process.env.ZZHUB_PIPELINE_ROOT) {
+      write(`ZZHUB_PIPELINE_ROOT=${process.env.ZZHUB_PIPELINE_ROOT}`);
+    }
 
-  const restoreConsole = installConsoleTee(write);
-  try {
-    await handler();
-    write(`=== OK command=${command} duration_ms=${Date.now() - startedMs} ===`);
-  } catch (err) {
-    write(`=== FAIL command=${command} duration_ms=${Date.now() - startedMs} ===`);
-    write(formatError(err));
-    throw err;
-  } finally {
-    restoreConsole();
-  }
+    const restoreConsole = installConsoleTee(write);
+    try {
+      let outcome: CommandOutcome = await handler() ?? { status: "success" };
+      if (Number(process.exitCode || 0) !== 0 && !outcomeExitCode(outcome)) {
+        outcome = { status: "failed", errors: [{ code: "PROCESS_EXIT", message: `进程退出：${process.exitCode}` }] };
+      }
+      const label = outcomeExitCode(outcome) ? "FAIL" : outcome.status === "success" ? "OK" : outcome.status.toUpperCase();
+      write(`=== ${label} command=${command} duration_ms=${Date.now() - startedMs} ===`);
+      for (const error of outcome.errors ?? []) write(`${error.code}: ${error.message}${error.cause ? `\n${error.cause}` : ""}`);
+      return outcome;
+    } catch (err) {
+      write(`=== FAIL command=${command} duration_ms=${Date.now() - startedMs} ===`);
+      write(formatError(err));
+      throw err;
+    } finally {
+      restoreConsole();
+    }
+  });
 }

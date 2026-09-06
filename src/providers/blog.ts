@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 import { PipelineConfig, ResolvedWorkspacePaths } from "../config";
 import { spawnSync } from "../spawn";
+import { reportProgress } from "../monitor/recorder";
 import { PublishResult, WorkflowState } from "../state";
 import { stripFrontmatter } from "../text";
 import { uploadFileToCos } from "./cos";
@@ -171,14 +172,16 @@ export async function publishBlogRoute({
 
   await mkdir(blogPostDir, { recursive: true });
   await writeFile(blogPostPath, blogContent, "utf-8");
+  reportProgress({ stage: "publish.script", message: "正在运行博客发布命令" });
   const result = spawnSync(config.commands.blogPublish, { cwd: blogRoot });
+  reportProgress({ stage: "publish.script", message: result.exitCode === 0 ? "博客发布命令完成" : "博客发布命令失败", current: 1, total: 1, unit: "targets" });
 
   if (result.exitCode !== 0) {
     return {
       route: "blog",
       account: "default",
       status: "failed",
-      detail: `blog publish command failed: ${config.commands.blogPublish.join(" ")}`,
+      detail: `blog publish command failed: ${config.commands.blogPublish[0]} (exit=${result.exitCode ?? "unknown"}, signal=${result.signal ?? "none"}${result.error ? `, cause=${result.error.message}` : ""})`,
       published_at: null,
       content_version: state.artifacts.content_version,
       render_version: state.artifacts.render_version,

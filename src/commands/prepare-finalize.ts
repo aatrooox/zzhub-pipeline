@@ -32,6 +32,7 @@ import {
   getCanonicalStatePath,
 } from "../state";
 import { loadTaskState } from "../task-manager";
+import { reportProgress } from "../monitor/recorder";
 import {
   extractHighlightWords,
   buildFrontmatter,
@@ -330,6 +331,7 @@ Options:
   });
 
   // Write post.md
+  reportProgress({ stage: "prepare.save", message: "保存文章和工作流状态" });
   const postContent = `${frontmatter}\n\n${removePageMarkers(body)}`;
   const postPath = join(assetPath, "post.md");
   const postTempPath = `${postPath}.${process.pid}.${crypto.randomUUID()}.tmp`;

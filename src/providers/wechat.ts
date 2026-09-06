@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { basename, extname } from "path";
 import { PipelineConfig, WxAccountConfig } from "../config";
+import { reportProgress } from "../monitor/recorder";
 
 const TOKEN_PATH = "/api/v1/wx/cgi-bin/token";
 const MATERIAL_PATH = "/api/v1/wx/cgi-bin/material/add_material";
@@ -542,6 +543,7 @@ async function uploadPhotos(
       continue;
     }
 
+    reportProgress({ stage: "publish.upload", message: "正在上传微信图片", current: index, total: photos.length, unit: "files" });
     const payload = await resolvePhotoPayload(photoUrl, index);
     const formData = new FormData();
     formData.append("access_token", accessToken);
@@ -576,6 +578,7 @@ async function uploadPhotos(
       index,
     });
     imageUrlMap[photoUrl] = wxUrl || photoUrl;
+    reportProgress({ stage: "publish.upload", current: index + 1, total: photos.length, unit: "files" });
   }
 
   return {
@@ -783,7 +786,7 @@ async function notifyNezusPublishResult(params: {
     console.error(`[nezus] publish-result callback OK for note ${params.noteId}`);
   } catch (err) {
     // Non-fatal: the draft was created successfully even if the callback failed
-    console.error(`[nezus] publish-result callback failed for note ${params.noteId}:`, err);
+    console.warn(`[nezus] publish-result callback failed for note ${params.noteId}:`, err);
   }
 }
 

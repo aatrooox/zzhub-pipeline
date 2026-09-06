@@ -17,6 +17,7 @@ import { parseArgs, optionalArg } from "../args";
 import { printResult, renderAbandon } from "../output";
 import { filterActiveTasks, getTaskByStatePath, listTasks, type ListedTask } from "../task-manager";
 import { updateState } from "../state";
+import type { CommandOutcome } from "../command-outcome";
 
 // ── Result type ───────────────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ async function runInteractive(items: ListedTask[]): Promise<ListedTask[]> {
 
 // ── Command entry point ───────────────────────────────────────────────────────
 
-export async function abandon(args: string[]): Promise<void> {
+export async function abandon(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -184,7 +185,7 @@ Options:
     }
     const result = await abandonTask(task);
     printResult([result], renderAbandon);
-    return;
+    return abandonOutcome([result]);
   }
 
   // ── Interactive: TTY checkbox ─────────────────────────────────────────────
@@ -199,4 +200,14 @@ Options:
 
   const results = await Promise.all(chosen.map(abandonTask));
   printResult(results, renderAbandon);
+  return abandonOutcome(results);
+}
+
+/** 批量操作保留成功项，失败项决定本次执行结果。 */
+function abandonOutcome(results: AbandonResult[]): CommandOutcome {
+  const failed = results.filter((result) => !result.ok);
+  return {
+    status: failed.length ? (failed.length < results.length ? "partial_failure" : "failed") : "success",
+    errors: failed.map((result) => ({ code: "ABANDON_FAILED", message: result.error || "放弃任务失败" })),
+  };
 }

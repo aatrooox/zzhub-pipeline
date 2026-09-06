@@ -8,8 +8,9 @@ import {
 } from "../state";
 import { loadTaskState } from "../task-manager";
 import { publishBlogRoute } from "../providers/blog";
+import { publishOutcome, type CommandOutcome } from "../command-outcome";
 
-export async function syncBlog(args: string[]): Promise<void> {
+export async function syncBlog(args: string[]): Promise<void | CommandOutcome> {
   const parsed = parseArgs(args);
 
   if (parsed.help) {
@@ -50,7 +51,7 @@ Options:
 
   if (dryRun) {
     printResult({ ...result, mode: state.mode }, renderSyncBlog);
-    return;
+    return publishOutcome([result], true);
   }
 
   // Write result back to state
@@ -67,6 +68,7 @@ Options:
     ...result,
     mode: finalState.mode,
   }, renderSyncBlog);
+  return publishOutcome([result]);
   } finally {
     await releaseOperationLock();
   }

@@ -42,6 +42,7 @@ export interface SpawnOptions {
 
 export interface SpawnResult {
   exitCode: number | null;
+  signal?: NodeJS.Signals | null;
   error?: Error;
 }
 
@@ -81,20 +82,21 @@ export function resolveBunBinary(): string {
 function normalizeResult(result: SpawnSyncReturns<Buffer>): SpawnResult {
   return {
     exitCode: result.status,
+    signal: result.signal,
     ...(result.error ? { error: result.error } : {}),
   };
 }
 
 /**
  * Run a command synchronously with enriched PATH.
- * stdout and stderr are inherited (printed to terminal).
+ * 子脚本诊断输出统一写入 stderr，保留 CLI stdout 的 JSON 契约。
  *
  * Returns a normalized spawn result.
  */
 export function spawnSync(cmd: string[], opts?: SpawnOptions): SpawnResult {
   const [binary, ...args] = cmd;
   const result = nodeSpawnSync(binary, args, {
-    stdio: "inherit",
+    stdio: ["inherit", 2, 2],
     env: enrichedEnv(),
     ...(opts?.cwd ? { cwd: opts.cwd } : {}),
   });

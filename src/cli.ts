@@ -5,6 +5,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { getDailyLogPath, runWithCommandLog } from "./logger";
 import { formatUsage, getCommandRegistry } from "./plugins";
+import { outcomeExitCode } from "./command-outcome";
 
 const COMMANDS = getCommandRegistry();
 
@@ -37,14 +38,19 @@ async function main() {
   }
 
   try {
-    await runWithCommandLog(cmd, args.slice(1), async () => {
-      await command.handler(args.slice(1));
-    });
+    // monitor 输出包含本机认证令牌，不能经过日志复制或监控自身。
+    const outcome = cmd === "monitor"
+      ? await command.handler(args.slice(1))
+      : await runWithCommandLog(cmd, args.slice(1), () => command.handler(args.slice(1)));
+    if (outcome) {
+      process.exitCode = outcomeExitCode(outcome);
+      for (const error of outcome.errors ?? []) console.error(`[zzhub-pipeline ${cmd}] ${error.code}: ${error.message}`);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[zzhub-pipeline ${cmd}] Error: ${msg}`);
     console.error(`[zzhub-pipeline ${cmd}] Full log: ${getDailyLogPath()}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

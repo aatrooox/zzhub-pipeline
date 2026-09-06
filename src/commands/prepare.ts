@@ -35,6 +35,7 @@ import {
   writeState,
 } from "../state";
 import { loadTaskState } from "../task-manager";
+import { reportProgress } from "../monitor/recorder";
 import { resolveFullRoute } from "../routes";
 import { resolveAuthoring, hasStyleRequest } from "../profiles";
 import { parseAccountName, parseRoutePrimary } from "../publish-targets";
@@ -200,6 +201,7 @@ Options:
   state.intent.requires.publish = state.intent.task_kind === "publish";
 
   // ── Step 2: Author select ──
+  reportProgress({ stage: "prepare.author", message: "确定写作规则" });
   const styleRequest =
     isStyleRequest || hasStyleRequest(intentText);
 
@@ -219,6 +221,7 @@ Options:
   // In the current workflow, Writer/Style already own the LLM rewrite.
   // Prepare records the authoring snapshot, then always formats the final body.
   const bodyFormatted = formatArticle(cleanBody);
+  reportProgress({ stage: "prepare.metadata", message: "整理文章元信息" });
 
   // ── Step 4: Asset meta ──
   // Determine title

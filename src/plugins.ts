@@ -26,12 +26,14 @@ import { wechatExport } from "./commands/wechat-export";
 import { wechatPreview } from "./commands/wechat-preview";
 import { wxDrafts } from "./commands/wx-drafts";
 import { wxDraftDelete } from "./commands/wx-draft-delete";
+import type { CommandOutcome } from "./command-outcome";
+import { monitor } from "./commands/monitor";
 
 export interface CommandDefinition {
   name: string;
   summary: string;
   plugin: string;
-  handler: (args: string[]) => Promise<void>;
+  handler: (args: string[]) => Promise<void | CommandOutcome>;
 }
 
 export interface CommandPlugin {
@@ -66,6 +68,7 @@ export function getCommandPlugins(): CommandPlugin[] {
     {
       name: "ops",
       commands: [
+        { name: "monitor", summary: "Manage local HTTP/SSE multi-task monitoring", plugin: "ops", handler: monitor },
         { name: "sync-blog", summary: "Copy post.md to blog repo, publish, and record result in state JSON", plugin: "ops", handler: syncBlog },
         { name: "republish", summary: "Publish completed task to additional accounts/platforms", plugin: "ops", handler: republish },
         { name: "imgx", summary: "Run bundled imgx renderer subcommands", plugin: "ops", handler: imgxCommand },

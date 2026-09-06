@@ -29,6 +29,8 @@ import {
 } from "./runtime";
 import { layoutNextLineRange, prepareWithSegments } from "./pretext-adapter";
 import { ensurePretextRuntime } from "./pretext-runtime";
+import { notifyProgress } from "../monitor/recorder";
+import type { MonitorProgress } from "../monitor/types";
 
 const DEFAULT_CONTENT_WIDTH = getLongformGeometry(getLongformTheme("paper-sage")).contentWidth;
 
@@ -1170,7 +1172,8 @@ function renderPage(params: {
   });
 }
 
-export function runRenderArticleCli(argv: string[]): RenderArticleResult {
+export function runRenderArticleCli(argv: string[], onProgress?: (progress: MonitorProgress) => void): RenderArticleResult {
+  notifyProgress(onProgress, { stage: "render.layout", message: "正在计算分页" });
   const parsed = parseArgs(argv);
   const title = getArg(parsed, "title");
   if (title.length === 0) throw new Error("需要 --title");
@@ -1312,6 +1315,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
   };
 
   if (outPath.length > 0) {
+    notifyProgress(onProgress, { stage: "render.pages", current: 0, total: 1, unit: "pages" });
     const requestedPage = pageNum > 0 ? pageNum : 1;
     const page = pages[Math.max(0, Math.min(requestedPage - 1, pages.length - 1))]!;
     const total = pageTotal > 0 ? pageTotal : pages.length;
@@ -1328,6 +1332,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
       highlightWords,
     });
     printSaved(outPath);
+    notifyProgress(onProgress, { stage: "render.pages", current: 1, total: 1, unit: "pages" });
     return result;
   }
 
@@ -1336,6 +1341,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
     throw new Error("需要 --out (单页模式) 或 --out-dir (批量模式)");
   }
   for (let index = 0; index < pages.length; index++) {
+    notifyProgress(onProgress, { stage: "render.pages", message: `正在渲染第 ${index + 1} 页`, current: index, total: pages.length, unit: "pages" });
     const pageOut = join(outDir, `article-${String(index + 1).padStart(2, "0")}.png`);
     // DEBUG: dump layout coordinates
     const dbgPage = pages[index]!;
@@ -1355,6 +1361,7 @@ export function runRenderArticleCli(argv: string[]): RenderArticleResult {
       highlightWords,
     });
     printSaved(pageOut);
+    notifyProgress(onProgress, { stage: "render.pages", current: index + 1, total: pages.length, unit: "pages" });
   }
   return result;
 }
