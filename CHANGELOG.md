@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.12.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.11.0...v0.12.0)
+
+### Features
+
+- Add isolated multi-task monitoring and reliable command outcomes ([1b42ccd](https://github.com/aatrooox/zzhub-pipeline/commit/1b42ccd))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.11.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.10.2...v0.11.0)
