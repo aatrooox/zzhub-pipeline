@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.13.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.12.0...v0.13.0)
+
+### Features
+
+- **render:** Add configurable cover themes ([ad68d3c](https://github.com/aatrooox/zzhub-pipeline/commit/ad68d3c))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.12.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.11.0...v0.12.0)
