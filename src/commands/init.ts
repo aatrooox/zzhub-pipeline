@@ -28,6 +28,7 @@ import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderInit } from "../output";
 import { loadConfig, resolveWorkspaceRoot } from "../config";
 import { resolveFullRoute } from "../routes";
+import { resolveCoverTheme } from "../schema/cover-theme";
 import {
   parseAccountName,
   parseContentForm,
@@ -60,6 +61,7 @@ Options:
   --account          Explicit account override (optional)
   --newspic-render-spec-file  JSON file for newspic pagination / page-image intent (optional)
   --style-hint       e.g. fact_report (optional)
+  --cover-theme      Cover theme ID (optional)
   --requires-research  Flag
   --requires-style     Flag
   --requires-render    Flag
@@ -76,11 +78,13 @@ Options:
   const intentText = optionalArg(parsed, "intent-text") ?? "";
   const accountOverride = optionalArg(parsed, "account");
   const styleHint = optionalArg(parsed, "style-hint") ?? null;
+  const coverTheme = parsed["cover-theme"] === undefined ? null : requireArg(parsed, "cover-theme", "cover theme ID").trim();
   const newspicRenderSpecFile = optionalArg(parsed, "newspic-render-spec-file");
   const existingDraftMediaId = optionalArg(parsed, "existing-draft-media-id") ?? null;
   const noteId = optionalArg(parsed, "note-id") ?? null;
   const config = loadConfig();
   const workspace = resolveWorkspaceRoot(optionalArg(parsed, "workspace"), config);
+  if (coverTheme !== null) resolveCoverTheme(config.render.cover, "poster-3-4", accountOverride, coverTheme);
 
   const defaultAccount = parseAccountName(accountOverride ?? "default");
   const parsedTargets = parsePublishTargets(targetsRaw, {
@@ -126,6 +130,7 @@ Options:
     intent_text: intentText || null,
     explicit_constraints: [],
     style_hint: styleHint,
+    cover_theme: coverTheme,
     newspic_render: newspicRender,
     requires: {
       research: flagArg(parsed, "requires-research"),

@@ -20,12 +20,15 @@ import { join } from "path";
 import { parseArgs, requireArg, flagArg } from "../args";
 import { printResult, renderRender } from "../output";
 import { loadConfig } from "../config";
+import { resolveRenderBranding } from "../render-branding";
+import { resolveCoverTheme } from "../schema/cover-theme";
 import { resolveImageRenderer } from "../adapter-loader";
 import {
   acquireStateOperationLock,
   defaultBodyInputs,
   normalizeNewspicRenderSpec,
   readResolvedState,
+  reenterRender,
   validateForPhase,
   writeState,
   type NewspicRenderSpec,
@@ -59,6 +62,7 @@ Usage: zzhub-pipeline render [options]
 Options:
   --state        Path to state JSON (required)
   --skip-render  Plan only, don't invoke renderer (optional)
+  --cover-theme  Cover theme ID; saves the task choice (optional)
 `.trim());
     return;
   }
@@ -88,6 +92,20 @@ Options:
   // ── Image Plan ──────────────────────────────────────────────────
 
   const routePrimary = state.route.primary;
+  const config = loadConfig();
+  const requestedTheme = parsed["cover-theme"] === undefined ? undefined : requireArg(parsed, "cover-theme", "cover theme ID").trim();
+  const coverTheme = routePrimary === "blog" ? undefined : resolveCoverTheme(
+    config.render.cover,
+    routePrimary === "wechat-article" ? "wechat-cover-split" : "poster-3-4",
+    state.route.account,
+    requestedTheme ?? state.intent.cover_theme,
+  );
+  if (requestedTheme !== undefined && requestedTheme !== state.intent.cover_theme) {
+    if (!coverTheme) throw new Error("blog 路由不需要封面主题");
+    state.intent.cover_theme = requestedTheme;
+    reenterRender(state);
+    await writeState(statePath, state);
+  }
 
   if (routePrimary === "blog") {
     // Blog doesn't need images by default
@@ -143,6 +161,7 @@ Options:
     template,
     cover_template: coverTemplate,
     cover_title: coverTitle,
+    cover_theme: coverTheme?.id ?? null,
     output_dir: outputDir,
     preview_required: false,
     status: "planned",
@@ -203,7 +222,6 @@ Options:
 
   // ── Invoke image renderer adapter ───────────────────────────────
 
-  const config = loadConfig();
   const imageRenderer = await resolveImageRenderer(config);
   reportProgress({ stage: "render.adapter", message: "开始生成图片" });
 
@@ -214,7 +232,9 @@ Options:
     ? state.images.body_inputs.received
     : [];
 
+  const branding = resolveRenderBranding(config, state.route.account);
   const renderResult = await imageRenderer.render({
+    coverTheme,
     onProgress: reportProgress,
     state,
     bodyText: cleanBody,
@@ -231,14 +251,12 @@ Options:
     bodyImages,
     minPages: newspicRenderSpec.min_pages,
     maxPages: newspicRenderSpec.max_pages,
-    accountVisualParams: state.route.account_visual_params
-      ? {
-          footer: state.route.account_visual_params.footer,
-          bg: state.route.account_visual_params.bg,
-          highlight: state.route.account_visual_params.highlight,
-          fallbackIcon: state.route.account_visual_params.fallback_icon,
-        }
-      : undefined,
+    accountVisualParams: {
+      footer: branding.footerText,
+      bg: state.route.account_visual_params?.bg,
+      highlight: state.route.account_visual_params?.highlight,
+      fallbackIcon: branding.logo,
+    },
     theme: routePrimary === "wechat-newspic" ? getLongformTheme(state.route.account) : undefined,
     template,
   });

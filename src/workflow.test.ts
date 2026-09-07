@@ -988,7 +988,7 @@ describe("render", () => {
 
     const args = JSON.parse(await readFile(argsLogPath, "utf-8")) as string[];
     expect(args).toContain("--text");
-    expect(args[args.indexOf("--text") + 1]).toBe("Recordly");
+    expect(args[args.indexOf("--text") + 1]).toBe("Recordly：开源跨平台录屏与演示视频编辑工具");
     expect(args).toContain("--footer");
     expect(args[args.indexOf("--footer") + 1]).toBe("公众号 · 早早集市");
     expect(args.filter((value) => value === "--highlight-words")).toHaveLength(1);
@@ -1458,6 +1458,7 @@ describe("config", () => {
         imgx: {
           icon: null,
         },
+        render: loadConfig().render,
       },
       {
         date: "2026-04-08",

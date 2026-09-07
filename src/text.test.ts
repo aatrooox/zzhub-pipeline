@@ -394,17 +394,17 @@ describe("generateCoverTitle", () => {
     expect(generateCoverTitle("短标题")).toBe("短标题");
   });
 
-  test("takes part before colon", () => {
-    expect(generateCoverTitle("主标题：副标题")).toBe("主标题");
+  test("preserves subtitle after colon", () => {
+    expect(generateCoverTitle("主标题：副标题")).toBe("主标题：副标题");
   });
 
-  test("takes part before ASCII colon", () => {
-    expect(generateCoverTitle("Main: Subtitle")).toBe("Main");
+  test("preserves subtitle after ASCII colon", () => {
+    expect(generateCoverTitle("Main: Subtitle")).toBe("Main: Subtitle");
   });
 
-  test("removes common suffixes", () => {
-    expect(generateCoverTitle("功能发布")).toBe("功能");
-    expect(generateCoverTitle("版本更新")).toBe("版本");
+  test("preserves original suffixes", () => {
+    expect(generateCoverTitle("功能发布")).toBe("功能发布");
+    expect(generateCoverTitle("版本更新")).toBe("版本更新");
   });
 
   test("returns full title if result > 15 chars", () => {

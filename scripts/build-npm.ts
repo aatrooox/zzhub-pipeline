@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
- * npm 构建脚本 — 编译 TS → JS，复制静态资产（不含字体），用于 npm publish。
+ * npm 构建脚本 — 编译 TS → JS，复制静态资产和内置字体，用于 npm publish。
  *
  * 产物结构:
  *   dist/cli.js                          # 编译后的 CLI（单文件 bundle）
- *   dist/assets/imgx/assets/             # templates + icons + browser（无字体）
+ *   dist/assets/imgx/assets/             # templates + icons + browser + fonts
  *   dist/assets/wechat-preview/assets/   # templates + browser-dist（无字体）
  *   dist/node_modules/@chenglou/pretext/ # Chrome file:// 加载
  *
@@ -86,11 +86,12 @@ if (buildResult.exitCode !== 0) {
 }
 console.log("  → dist/cli.js");
 
-// ── Step 3: Copy static assets (no fonts) ───────────────────────
+// ── Step 3: Copy static assets ─────────────────────────────────
 
 console.log("\nStep 3: Copy static assets...");
 
 const copies: Array<[string, string, string]> = [
+  ["src/imgx/assets/fonts",                  "dist/assets/imgx/assets/fonts",      "imgx/fonts"],
   ["src/imgx/assets/templates",              "dist/assets/imgx/assets/templates",  "imgx/templates"],
   ["src/imgx/assets/icons",                  "dist/assets/imgx/assets/icons",      "imgx/icons"],
   ["src/imgx/assets/browser",                "dist/assets/imgx/assets/browser",    "imgx/browser"],

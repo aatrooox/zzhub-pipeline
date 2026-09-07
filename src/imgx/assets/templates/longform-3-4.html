@@ -9,8 +9,7 @@
   Parameters:
     {{THEME_CSS_VARS}}       — 主题变量
     {{FOOTER_TEXT}}          — 底部文字
-    {{ICON_PATH}}            — 顶部 logo
-    {{AVATAR_PATH}}          — 底部头像
+    {{ICON_PATH}}            — 署名图标
     {{FONT_PATH}}            — 顶部/底部字体
     {{BODY_FONT_PATH}}       — 正文字体
     {{LONGFORM_STAGE_HTML}}  — 已排版页 HTML
@@ -46,18 +45,6 @@
     padding: var(--body-padding-y) var(--body-padding-x) 0;
     flex-shrink: 0;
   }
-  .deco-top {
-    width: 100%;
-    height: var(--logo-size);
-    display: flex;
-    align-items: flex-start;
-  }
-  .deco-top img {
-    width: var(--logo-size);
-    height: var(--logo-size);
-    border-radius: 50%;
-    object-fit: cover;
-  }
   .content {
     min-height: 0;
     width: 100%;
@@ -78,31 +65,23 @@
     position: absolute;
     left: 0;
     font-family: "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif;
-    font-size: 32px;
-    line-height: 1.75;
+
     color: var(--body-color);
     white-space: pre;
   }
-  .body-heading {
+  .body-heading, .body-subheading, .body-minor-heading {
     position: absolute;
-    left: 0;
-    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
-    font-size: 38px;
-    line-height: 1.47;
     color: var(--accent-color);
     white-space: pre;
   }
   .body-quote {
     position: absolute;
     left: 0;
-    padding-left: 20px;
-    border-left: 4px solid color-mix(in srgb, var(--accent-color) 38%, white);
     font-family: "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif;
-    font-size: 30px;
-    line-height: 1.73;
     color: var(--quote-color);
     white-space: pre;
   }
+  .body-quote::before { content: ""; position: absolute; left: -24px; top: 8px; bottom: 8px; border-left: 3px solid var(--accent-color); }
   .body-list-bullet {
     position: absolute;
     min-width: 24px;
@@ -118,9 +97,9 @@
   .body-caption {
     position: absolute;
     left: 0;
-    font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
-    font-size: 20px;
-    line-height: 1.35;
+    font-family: "LXGWNeoZhiSongPlus", "PingFang SC", serif;
+    font-size: 28px;
+    line-height: 40px;
     color: var(--caption-color);
     white-space: normal;
     text-align: center;
@@ -150,20 +129,18 @@
     border-radius: 50%;
     object-fit: cover;
   }
+  .watermark .page-number { margin-left: auto; font-variant-numeric: tabular-nums; }
   .watermark span {
-    font-size: 24px;
+    font-size: 26px;
+    line-height: 36px;
     color: var(--watermark-color);
     font-family: "AlimamaShuHeiTi", "PingFang SC", sans-serif;
-    letter-spacing: 1px;
+    letter-spacing: 0;
   }
 </style>
 </head>
 <body>
-  <div class="header-shell">
-    <div class="deco-top">
-      <img src="{{ICON_PATH}}" alt="icon">
-    </div>
-  </div>
+  <div class="header-shell"></div>
 
   <main class="content">
     <div class="content-stage" id="content-stage">{{LONGFORM_STAGE_HTML}}</div>
@@ -171,8 +148,9 @@
 
   <div class="footer-shell">
     <div class="watermark">
-      <img src="{{AVATAR_PATH}}" alt="Jinx">
+      {{BRAND_IMAGE}}
       <span>{{FOOTER_TEXT}}</span>
+      <span class="page-number">{{PAGE_LABEL}}</span>
     </div>
   </div>
 </body>

@@ -5,6 +5,7 @@ import { parseArgs, optionalArg, requireArg } from "../args";
 import { loadConfig, resolveWorkspacePaths, resolveWorkspaceRoot } from "../config";
 import { printResult } from "../output";
 import { resolveFullRoute } from "../routes";
+import { resolveCoverTheme } from "../schema/cover-theme";
 import {
   defaultContentReview,
   defaultState,
@@ -12,6 +13,7 @@ import {
   getRunStatePath,
   readResolvedState,
   resetDerivedState,
+  reenterRender,
   writeState,
   type ContentForm,
   type HandoffAuthoringPolicy,
@@ -23,6 +25,7 @@ import {
 import { findTask, getTaskByStatePath } from "../task-manager";
 
 interface PublishHandoffInput {
+  cover_theme?: string | null;
   content_form: ContentForm;
   body_path: string;
   target_account: string;
@@ -34,6 +37,7 @@ interface PublishHandoffInput {
 type WorkflowHandoffMode = "new" | "resume";
 
 interface WorkflowHandoffInput {
+  cover_theme?: string | null;
   mode?: WorkflowHandoffMode;
   state_path?: string;
   run_id?: string;
@@ -50,6 +54,7 @@ interface WorkflowHandoffInput {
 }
 
 interface ResolvedWorkflowHandoff {
+  cover_theme?: string | null;
   source: "publish_handoff" | "workflow_handoff";
   mode: WorkflowHandoffMode;
   state_path?: string;
@@ -162,6 +167,7 @@ function parsePublishHandoff(raw: unknown): ResolvedWorkflowHandoff {
 
   return {
     source: "publish_handoff",
+    cover_theme: input.cover_theme === null ? null : cleanString(input.cover_theme, "publish_handoff.cover_theme"),
     mode: "new",
     content_form: contentForm,
     body_path: bodyPath,
@@ -193,6 +199,7 @@ function parseWorkflowHandoff(raw: unknown): ResolvedWorkflowHandoff {
       : "new");
   const handoff: ResolvedWorkflowHandoff = {
     source: "workflow_handoff",
+    cover_theme: input.cover_theme === null ? null : cleanString(input.cover_theme, "workflow_handoff.cover_theme"),
     mode,
     state_path: cleanString(input.state_path, "workflow_handoff.state_path"),
     run_id: cleanString(input.run_id, "workflow_handoff.run_id"),
@@ -319,6 +326,11 @@ async function applyHandoffToState(
 ): Promise<void> {
   const targets: Target[] = state.intent.targets.length > 0 ? state.intent.targets : ["wechat"];
   let restartFromPrepare = false;
+  const themeChanged = handoff.cover_theme !== undefined && handoff.cover_theme !== state.intent.cover_theme;
+  if (themeChanged) {
+    resolveCoverTheme(loadConfig().render.cover, "poster-3-4", handoff.target_account ?? state.route.account, handoff.cover_theme);
+    state.intent.cover_theme = handoff.cover_theme ?? null;
+  }
 
   const nextContentForm = handoff.content_form ?? state.intent.content_form;
   if (handoff.content_form && handoff.content_form !== state.intent.content_form) {
@@ -409,6 +421,9 @@ async function applyHandoffToState(
 
   if (restartFromPrepare) {
     resetDerivedState(state);
+  } else if (themeChanged && state.asset_path && state.content_review.status === "passed") {
+    // 仅更换主题时保留正文、审核和 prepare 产物。
+    reenterRender(state);
   }
 
   if (state.handoff.review_policy === "trust_user" && state.source_body_path) {

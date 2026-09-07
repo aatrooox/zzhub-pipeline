@@ -46,7 +46,6 @@ function registerLongformFonts(): void {
   const { GlobalFonts } = getCanvas();
   GlobalFonts.registerFromPath(`${FONTS_DIR}/AlimamaShuHeiTi-Bold.ttf`, "AlimamaShuHeiTi");
   GlobalFonts.registerFromPath(`${FONTS_DIR}/LXGWNeoZhiSongPlus.ttf`, "LXGWNeoZhiSongPlus");
-  GlobalFonts.registerFromPath(`${FONTS_DIR}/LXGWWenKai-Regular.ttf`, "LXGWWenKai");
 }
 
 export function ensurePretextRuntime(): void {

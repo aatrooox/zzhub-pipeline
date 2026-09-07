@@ -10,6 +10,7 @@
 
 import type { RenderAsset, RoutePrimary, WorkflowState } from "./state";
 import type { MonitorProgress } from "./monitor/types";
+import type { ResolvedCoverTheme } from "./schema/cover-theme";
 
 // ── Doctor check ──────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ export interface PipelinePluginDoctorCheck {
  * to runRenderArticleCli and runRenderCardCli via CLI argv.
  */
 export interface ImageRenderInput {
+  /** 已解析的封面主题；旧插件可忽略。 */
+  coverTheme?: ResolvedCoverTheme;
   /** 可选进度通知，旧插件可忽略。 */
   onProgress?: (progress: MonitorProgress) => void;
   /** Workflow state providing context (route, metadata, etc.) */

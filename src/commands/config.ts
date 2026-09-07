@@ -1,4 +1,7 @@
 import { readFileSync } from "fs";
+import { z } from "zod";
+import { CoverConfigSchema, mergeCoverSettings } from "../schema/cover-theme";
+import { RenderBrandingSchema, RenderConfigSchema } from "../schema/config";
 import { parseArgs, optionalArg, flagArg } from "../args";
 import { printResult, renderConfig } from "../output";
 import {
@@ -29,6 +32,7 @@ Options:
   --json       Force JSON output for scalar reads
   --export     Print full config as JSON (secrets redacted; use --raw to show all)
   --import     Path to a JSON file to merge into current config
+  --schema     Print JSON Schema (--key render | render.cover | render.branding)
   --raw        Show secrets unredacted (use with --export)
 
 Examples:
@@ -39,6 +43,14 @@ Examples:
     return;
   }
 
+  // schema 查询不依赖配置文件是否可用，便于 App 修复配置。
+  if (flagArg(parsed, "schema")) {
+    const schemas: Record<string, z.ZodType> = { render: RenderConfigSchema, "render.cover": CoverConfigSchema, "render.branding": RenderBrandingSchema };
+    const schema = schemas[optionalArg(parsed, "key") ?? ""];
+    if (!schema) throw new Error("--schema requires --key render | render.cover | render.branding");
+    printResult(z.toJSONSchema(schema), data => JSON.stringify(data, null, 2));
+    return;
+  }
   const config = loadConfig();
 
   // --export
@@ -95,6 +107,7 @@ Examples:
         ...(isPlainObject(importedObj.plugins) ? importedObj.plugins : {}),
       },
       imgx: { ...config.imgx, ...(isPlainObject(importedObj.imgx) ? importedObj.imgx : {}) },
+      render: mergeCoverSettings(config.render, importedObj.render ?? {}),
     };
     // Soft-fill known account display names + Zod defaults / strip unknowns
     const merged = normalizeConfig(raw);
@@ -118,7 +131,7 @@ Examples:
     const currentValue = getConfigValue(config, key);
     const redactedValue = redactConfigValue(key, currentValue);
     if (forceJson || typeof currentValue !== "string") {
-      printResult({ key, value: redactedValue }, renderConfig);
+      printResult({ key, value: redactedValue }, forceJson ? data => JSON.stringify(data, null, 2) : renderConfig);
       return;
     }
     printResult(String(redactedValue), renderConfig);

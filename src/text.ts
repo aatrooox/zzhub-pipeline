@@ -506,34 +506,9 @@ export function extractDescription(body: string): string {
 
 // ── Cover title generation ────────────────────────────────────────
 
-/**
- * Generate cover title for poster-3-4 template.
- * Rules from image-plan SKILL.md:
- * 1. Take metadata.title
- * 2. If contains colon, take the part before colon
- * 3. Remove common suffixes (介绍/解读/盘点/更新/亮点/发布/公告)
- * 4. Result must be <= 15 chars
- * 5. If too long, try to shorten; fallback to full title
- */
+/** 封面保留完整标题，主副标题层级交给渲染器处理。 */
 export function generateCoverTitle(title: string): string {
-  let result = title;
-
-  // If contains colon (Chinese or ASCII), take first part
-  const colonIdx = result.search(/[：:]/);
-  if (colonIdx > 0) {
-    result = result.slice(0, colonIdx).trim();
-  }
-
-  // Remove common suffixes
-  result = result.replace(/[介解盘更亮发公]?(?:绍|读|点|新|点|布|告)$/, "").trim();
-
-  // Check length
-  if ([...result].length <= 15) {
-    return result;
-  }
-
-  // Fallback: return full title (let imgx handle truncation)
-  return title;
+  return title.trim();
 }
 
 // ── Highlight words extraction ────────────────────────────────────

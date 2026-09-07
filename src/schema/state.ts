@@ -222,6 +222,7 @@ const ImagePlanSchema = withObjectDefault(
     template: z.string().nullable().default(null),
     cover_template: z.string().nullable().default(null),
     cover_title: z.string().nullable().default(null),
+    cover_theme: z.string().nullable().optional(),
     output_dir: z.string().nullable().default(null),
     preview_required: z.boolean().default(false),
     status: ImagePlanStatusSchema,
@@ -308,6 +309,7 @@ const IntentSchema = withObjectDefault(
       .default([])
       .transform((arr) => arr.filter((s) => s.trim().length > 0)),
     style_hint: z.string().nullable().default(null),
+    cover_theme: z.string().trim().min(1).nullable().default(null),
     newspic_render: NewspicRenderSpecSchema.nullable().default(null),
     requires: IntentRequiresSchema,
     existing_draft_media_id: z.string().nullable().default(null),

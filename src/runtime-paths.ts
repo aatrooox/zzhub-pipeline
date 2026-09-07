@@ -7,7 +7,7 @@
  * Override: set ZZHUB_PIPELINE_ROOT env var to force a specific root.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -99,11 +99,12 @@ export function readUtf8(path: string): string {
 
 // ── Font cache ──────────────────────────────────────────────────
 
-const FONT_FILES = [
-  "AlimamaShuHeiTi-Bold.ttf",
-  "LXGWNeoZhiSongPlus.ttf",
-  "LXGWWenKai-Regular.ttf",
-];
+/** 随 CLI 分发的字体；按当前版式选择需要的文件。 */
+export const BUILTIN_FONTS: Record<string, string> = {
+  AlimamaShuHeiTi: "AlimamaShuHeiTi-Bold.ttf",
+  LXGWNeoZhiSongPlus: "LXGWNeoZhiSongPlus.ttf",
+  LXGWWenKai: "LXGWWenKai-Regular.ttf",
+};
 
 function getFontCacheDir(): string {
   const platform = process.platform;
@@ -131,49 +132,9 @@ function resolveFontsDir(): string {
 /** imgx fonts directory (assets or cache) */
 export const FONTS_DIR = resolveFontsDir();
 
-/**
- * Ensure CJK fonts are available locally.
- * Fonts are in assets/ by default; downloads from CDN if not present and env is set.
- *
- * @returns The fonts directory path
- */
-export async function ensureFonts(): Promise<string> {
-  const dir = FONTS_DIR;
-  const allExist = FONT_FILES.every((f) => existsSync(join(dir, f)));
-  if (allExist) return dir;
-
-  const cdnBase = process.env.ZZHUB_FONT_CDN_BASE_URL;
-  if (!cdnBase) {
-    throw new Error(
-      [
-        "CJK fonts not found and ZZHUB_FONT_CDN_BASE_URL is not set.",
-        "",
-        `Fonts directory: ${dir}`,
-        "",
-        "To fix, either:",
-        "  1. Set ZZHUB_FONT_CDN_BASE_URL to download fonts automatically,",
-        `  2. Manually place these files in ${dir}:`,
-        ...FONT_FILES.map((f) => `     - ${f}`),
-      ].join("\n"),
-    );
-  }
-
-  mkdirSync(dir, { recursive: true });
-
-  for (const file of FONT_FILES) {
-    const dest = join(dir, file);
-    if (existsSync(dest)) continue;
-
-    const url = `${cdnBase.replace(/\/$/, "")}/${file}`;
-    console.error(`[zzhub-pipeline] Downloading ${file}...`);
-    const resp = await fetch(url);
-    if (!resp.ok) {
-      throw new Error(`Failed to download ${url}: HTTP ${resp.status}`);
-    }
-    const buf = Buffer.from(await resp.arrayBuffer());
-    writeFileSync(dest, buf);
-    console.error(`[zzhub-pipeline] Saved ${file} (${(buf.length / 1024 / 1024).toFixed(1)}MB)`);
-  }
-
-  return dir;
+/** 只检查本地字体，不在生成图片时触发网络下载。 */
+export async function ensureFonts(files: string[] = Object.values(BUILTIN_FONTS)): Promise<string> {
+  const missing = [...new Set(files)].filter(file => !existsSync(join(FONTS_DIR, file)));
+  if (missing.length) throw new Error(`缺少内置字体：${missing.join(", ")}。请重新安装 CLI，或为封面配置本机字体；字体目录：${FONTS_DIR}`);
+  return FONTS_DIR;
 }

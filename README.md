@@ -747,6 +747,8 @@ bun run src/cli.ts init ... --note-id NOTE_ID
 
 ## imgx 渲染子系统
 
+封面支持 `render.cover` 配置、十套主题、背景图与透明边框，以及供 App 使用的 JSON Schema 和预览输出。详见 [封面主题与图片排版](docs/render-themes.md)，可直接导入 [配置示例](examples/cover-themes.json)。
+
 - 基于 Chrome headless 和 `@napi-rs/canvas`
 - 模板包括 `longform-3-4`（newspic 长文）、`poster-3-4`（单页卡片）和 `wechat-cover-split`（文章封面）
 - 主题包括 `paper-sage`（默认账号）和 `linen-news`（`ancientone` 账号）
@@ -853,7 +855,7 @@ bun install --global .
 运行时依赖检查：
 - `@napi-rs/canvas` — 图片渲染需要，懒加载，缺失时提示安装命令
 - Chrome — HTML 导出需要，缺失时提示安装命令
-- CJK 字体 — npm 模式下自动从 CDN 下载到 `~/.config/zzhub-pipeline/fonts/`
+- CJK 字体 — 随 CLI 附带，生成图片时按需读取本地文件，不触发网络下载；封面也支持本机字体名称
 
 ## 发布提供者
 

@@ -1,6 +1,4 @@
-import { computeSpacing, proportionalLineHeight } from "./typographic-scale";
-
-export type ContentBlockKind = "paragraph" | "heading" | "quote" | "list-item";
+export type ContentBlockKind = "paragraph" | "heading" | "subheading" | "minor-heading" | "quote" | "list-item";
 
 export const LONGFORM_PAGE_WIDTH = 900;
 export const LONGFORM_PAGE_HEIGHT = 1200;
@@ -53,15 +51,6 @@ export type LongformGeometry = {
 };
 
 /**
- * Return a new theme with contentHeight overridden.
- * Used when min_pages > 1 to shrink the per-page content area so the
- * pagination engine naturally splits content across more pages.
- */
-export function applyContentHeightOverride(theme: LongformTheme, contentHeight: number): LongformTheme {
-  return { ...theme, contentHeight: Math.max(100, Math.round(contentHeight)) };
-}
-
-/**
  * Parse font size from a CSS font shorthand string like `400 32px "Font", sans-serif`.
  * Returns the numeric pixel value, or null if not found.
  */
@@ -70,26 +59,21 @@ function parseFontSize(font: string): number | null {
   return m ? parseFloat(m[1]!) : null;
 }
 
-/**
- * Return a new theme where every bodyStyle font size is capped at fontSizeMax (px).
- * Line heights are scaled proportionally when the font size is reduced.
- * Used alongside applyContentHeightOverride to prevent overly large text when
- * per-page content area is small (few words forced onto a fixed number of pages).
- */
+/** 手动限制最大字号时等比缩放各层级，保留标题与正文的比例。 */
 export function applyFontSizeMax(theme: LongformTheme, fontSizeMax: number): LongformTheme {
-  const clampedStyles = {} as Record<ContentBlockKind, LongformLineStyle>;
-  for (const [kind, style] of Object.entries(theme.bodyStyles) as [ContentBlockKind, LongformLineStyle][]) {
-    const original = parseFontSize(style.font);
-    if (original !== null && original > fontSizeMax) {
-      const ratio = fontSizeMax / original;
-      const newFont = style.font.replace(/\b\d+(?:\.\d+)?px\b/, `${fontSizeMax}px`);
-      const newLineHeight = Math.round(style.lineHeight * ratio);
-      clampedStyles[kind] = { ...style, font: newFont, lineHeight: newLineHeight };
-    } else {
-      clampedStyles[kind] = style;
-    }
-  }
-  return { ...theme, bodyStyles: clampedStyles };
+  const largest = Math.max(...Object.values(theme.bodyStyles).map(style => parseFontSize(style.font) ?? 0));
+  const ratio = Math.min(1, fontSizeMax / largest);
+  const bodyStyles = Object.fromEntries(Object.entries(theme.bodyStyles).map(([kind, style]) => {
+    const size = parseFontSize(style.font)!;
+    return [kind, {
+      ...style,
+      font: style.font.replace(/\b\d+(?:\.\d+)?px\b/, String(Math.round(size * ratio * 10) / 10) + "px"),
+      lineHeight: Math.round(style.lineHeight * ratio),
+      gapBefore: Math.round((style.gapBefore ?? 0) * ratio),
+      gapAfter: Math.round((style.gapAfter ?? 0) * ratio),
+    }];
+  })) as LongformTheme["bodyStyles"];
+  return { ...theme, bodyStyles };
 }
 
 export function getLongformGeometry(theme: LongformTheme): LongformGeometry {
@@ -114,102 +98,78 @@ export function getLongformGeometry(theme: LongformTheme): LongformGeometry {
     contentBottomGap: theme.contentBottomGap,
     contentWidth,
     contentHeight,
-    contentStageHeight: Math.max(80, contentHeight - theme.contentBottomGap),
+    contentStageHeight: Math.max(1, contentHeight - theme.contentBottomGap),
   };
 }
 
-const BODY_FS = 32;
-const HEADING_FS = 50; // 32 * 1.25^2
-const QUOTE_FS = 30;
-
-const BASE_THEME: Omit<LongformTheme, "name" | "bgColor" | "bodyColor" | "accentColor" | "quoteColor" | "captionColor" | "watermarkColor" | "watermarkOpacity"> = {
-  pageWidth: LONGFORM_PAGE_WIDTH,
-  pageHeight: LONGFORM_PAGE_HEIGHT,
-  imageRadius: 22,
-
-  // Proportional geometry: ~4.5% of page height for vertical padding
-  bodyPaddingX: Math.round(LONGFORM_PAGE_WIDTH * 0.10),        // 90
-  bodyPaddingY: Math.round(LONGFORM_PAGE_HEIGHT * 0.045),       // 54 (was 48)
-  logoSize: 72,
-  logoGap: Math.round(LONGFORM_PAGE_HEIGHT * 0.045 * 0.78),    // ~42 (was 40)
-  footerMarginTop: Math.round(BODY_FS * 1.2),                   // 38 (was 28)
-  footerHeight: Math.round(BODY_FS * 1.0),                      // 32 (unchanged)
-  contentBottomGap: Math.round(BODY_FS * 0.6),                  // 19 (was 12)
-
-  contentWidth: null,
-  contentHeight: null,
-
-  bodyStyles: {
-    paragraph: {
-      font: `400 ${BODY_FS}px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-      lineHeight: proportionalLineHeight(BODY_FS),
-      className: "body-line",
-      gapAfter: computeSpacing(BODY_FS, BODY_FS, 0.55),
+// 正文优先手机阅读；顶部不重复放 Logo，署名固定在页脚。
+const BASE_THEME = {
+  "pageWidth": 900,
+  "pageHeight": 1200,
+  "imageRadius": 22,
+  "bodyPaddingX": 72,
+  "bodyPaddingY": 64,
+  "logoSize": 0,
+  "logoGap": 0,
+  "footerMarginTop": 32,
+  "footerHeight": 36,
+  "contentBottomGap": 16,
+  "contentWidth": null,
+  "contentHeight": null,
+  "bodyStyles": {
+    "paragraph": {
+      "font": "400 40px \"LXGWNeoZhiSongPlus\", \"PingFang SC\", serif",
+      "lineHeight": 64,
+      "className": "body-line",
+      "gapAfter": 24
     },
-    heading: {
-      font: `700 ${HEADING_FS}px "AlimamaShuHeiTi", "PingFang SC", sans-serif`,
-      lineHeight: proportionalLineHeight(HEADING_FS),
-      className: "body-heading",
-      gapBefore: computeSpacing(BODY_FS, HEADING_FS, 0.85),
-      gapAfter: computeSpacing(HEADING_FS, BODY_FS, 0.45),
+    "heading": {
+      "font": "700 56px \"AlimamaShuHeiTi\", \"PingFang SC\", sans-serif",
+      "lineHeight": 72,
+      "className": "body-heading",
+      "gapBefore": 44,
+      "gapAfter": 24
     },
-    quote: {
-      font: `400 ${QUOTE_FS}px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-      lineHeight: proportionalLineHeight(QUOTE_FS),
-      className: "body-quote",
-      gapBefore: computeSpacing(BODY_FS, QUOTE_FS, 0.6),
-      gapAfter: computeSpacing(QUOTE_FS, BODY_FS, 0.5),
+    "subheading": {
+      "font": "700 50px \"AlimamaShuHeiTi\", \"PingFang SC\", sans-serif",
+      "lineHeight": 66,
+      "className": "body-subheading",
+      "gapBefore": 40,
+      "gapAfter": 20
+    },
+    "minor-heading": {
+      "font": "700 44px \"AlimamaShuHeiTi\", \"PingFang SC\", sans-serif",
+      "lineHeight": 60,
+      "className": "body-minor-heading",
+      "gapBefore": 36,
+      "gapAfter": 18
+    },
+    "quote": {
+      "font": "400 40px \"LXGWNeoZhiSongPlus\", \"PingFang SC\", serif",
+      "lineHeight": 64,
+      "className": "body-quote",
+      "gapBefore": 24,
+      "gapAfter": 24
     },
     "list-item": {
-      font: `400 ${BODY_FS}px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-      lineHeight: proportionalLineHeight(BODY_FS),
-      className: "body-line",
-      gapAfter: computeSpacing(BODY_FS, BODY_FS, 0.3),
-    },
-  },
+      "font": "400 40px \"LXGWNeoZhiSongPlus\", \"PingFang SC\", serif",
+      "lineHeight": 64,
+      "className": "body-line",
+      "gapAfter": 12
+    }
+  }
 };
 
 const THEMES: Record<string, LongformTheme> = {
   "paper-sage": {
-    ...BASE_THEME,
-    name: "paper-sage",
-    bgColor: "#f9fcfa",
-    bodyColor: "#22201d",
-    accentColor: "#1d4f39",
-    quoteColor: "#474038",
-    captionColor: "#6a6257",
-    watermarkColor: "#555555",
-    watermarkOpacity: 0.55,
+    ...BASE_THEME, name: "paper-sage", bgColor: "#f9fcfa", bodyColor: "#22201d",
+    accentColor: "#1d4f39", quoteColor: "#474038", captionColor: "#6a6257",
+    watermarkColor: "#555555", watermarkOpacity: 1,
   },
   "linen-news": {
-    ...BASE_THEME,
-    name: "linen-news",
-    bgColor: "#f7f3eb",
-    bodyColor: "#2b2621",
-    accentColor: "#7a2e24",
-    quoteColor: "#625449",
-    captionColor: "#7a6a5d",
-    watermarkColor: "#6a6158",
-    watermarkOpacity: 0.62,
-    bodyStyles: {
-      ...BASE_THEME.bodyStyles,
-      heading: {
-        ...BASE_THEME.bodyStyles.heading,
-        font: `700 36px "AlimamaShuHeiTi", "PingFang SC", sans-serif`,
-        lineHeight: proportionalLineHeight(36),
-        gapBefore: computeSpacing(BODY_FS, 36, 0.85),
-        gapAfter: computeSpacing(36, BODY_FS, 0.45),
-      },
-      paragraph: {
-        ...BASE_THEME.bodyStyles.paragraph,
-        font: `400 31px "LXGWNeoZhiSongPlus", "PingFang SC", "Noto Serif SC", serif`,
-        lineHeight: 56,
-      },
-      quote: {
-        ...BASE_THEME.bodyStyles.quote,
-        lineHeight: 54,
-      },
-    },
+    ...BASE_THEME, name: "linen-news", bgColor: "#f7f3eb", bodyColor: "#2b2621",
+    accentColor: "#7a2e24", quoteColor: "#625449", captionColor: "#7a6a5d",
+    watermarkColor: "#6a6158", watermarkOpacity: 1,
   },
 };
 

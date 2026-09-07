@@ -10,6 +10,7 @@ import {
 import { homedir, platform } from "os";
 import { dirname, isAbsolute, join, resolve } from "path";
 import { PipelineConfigSchema } from "./schema/config";
+import { mergeCoverSettings } from "./schema/cover-theme";
 
 import type {
   PipelineConfig,
@@ -196,6 +197,7 @@ export function normalizeConfig(value: unknown, legacyValue?: unknown): Pipeline
     cos: mergedCos,
     plugins: mergedPlugins,
     imgx: mergedImgx,
+    render: mergeCoverSettings(legacy.render ?? {}, source.render ?? {}),
   });
 }
 
@@ -403,6 +405,9 @@ export function setConfigValue(
 ): PipelineConfig {
   const next = JSON.parse(JSON.stringify(config)) as PipelineConfig;
   const segments = key.split(".").filter(Boolean);
+  if (segments.some((segment) => ["__proto__", "constructor", "prototype"].includes(segment))) {
+    throw new Error("invalid config key");
+  }
   if (segments.length === 0) {
     throw new Error("config key cannot be empty");
   }

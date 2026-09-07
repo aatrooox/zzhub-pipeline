@@ -117,15 +117,9 @@ const wpDistDest = join(ASSETS_DIR, "wechat-preview/assets/browser-dist");
 copyDir(wpDistSrc, wpDistDest, "wechat-preview/browser-dist");
 
 // @chenglou/pretext (loaded by Chrome as ES module via file:// URL)
-const pretextSrc = join(PACKAGE_ROOT, "node_modules/@chenglou/pretext/dist/layout.js");
-const pretextDest = join(outDir, "node_modules/@chenglou/pretext/dist/layout.js");
-if (existsSync(pretextSrc)) {
-  mkdirSync(join(outDir, "node_modules/@chenglou/pretext/dist"), { recursive: true });
-  cpSync(pretextSrc, pretextDest);
-  console.log("  COPY @chenglou/pretext");
-} else {
-  console.warn("  SKIP @chenglou/pretext: not found (run npm install first)");
-}
+const pretextSrc = join(PACKAGE_ROOT, "node_modules/@chenglou/pretext/dist");
+const pretextDest = join(outDir, "node_modules/@chenglou/pretext/dist");
+copyDir(pretextSrc, pretextDest, "@chenglou/pretext/dist");
 
 // ── Done ────────────────────────────────────────────────────────
 

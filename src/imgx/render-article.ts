@@ -1,14 +1,20 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { loadConfig } from "../config";
+import { ensureFonts } from "../runtime-paths";
+import { resolveBrandLogo, resolveRenderBranding } from "../render-branding";
+import { resolveCoverImage } from "./cover";
+import { screenshotReadyHtml } from "./chrome-render";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { renderAsciiPortraitPng } from "./ascii-portrait";
-import { getArg, getArgs, getIntArg, parseArgs } from "./cli";
-import { createObstacleFlowRuntime } from "./assets/browser/obstacle-flow.js";
+import { getArg, getArgs, getIntArg, hasFlag, parseArgs } from "./cli";
+import { paginateBlocks, type FlowBlock, type FlowPage } from "./obstacle-flow";
+import { parseInlineText } from "./inline-text";
 import { applyGeometryOverrides } from "./geometry";
 import {
   getLongformTheme,
   getLongformThemeCssVars,
-  applyContentHeightOverride,
   applyFontSizeMax,
   getLongformGeometry,
   type LongformTheme,
@@ -17,31 +23,17 @@ import {
   escapeHtml,
   findChrome,
   FONTS_DIR,
-  ICONS_DIR,
   printSaved,
   readImageSize,
   readUtf8,
-  renderInlineMarkdown,
   renderTemplate,
   resolveInputPath,
-  screenshotHtml,
   TEMPLATES_DIR,
 } from "./runtime";
-import { layoutNextLineRange, prepareWithSegments } from "./pretext-adapter";
-import { ensurePretextRuntime } from "./pretext-runtime";
 import { notifyProgress } from "../monitor/recorder";
 import type { MonitorProgress } from "../monitor/types";
 
 const DEFAULT_CONTENT_WIDTH = getLongformGeometry(getLongformTheme("paper-sage")).contentWidth;
-
-function proportionalObstacleGap(imageMinDim: number): number {
-  const gap = Math.round(imageMinDim * 0.10);
-  return Math.min(48, Math.max(16, gap));
-}
-
-function proportionalMinSlotWidth(bodyFontSize: number): number {
-  return Math.round(bodyFontSize * 5.3);
-}
 
 function imageShadowStyle(image: BodyImageSpec): string {
   const area = image.width * image.height;
@@ -67,35 +59,12 @@ type BodyImageSpec = {
 };
 
 type ContentBlock = {
-  kind: "paragraph" | "heading" | "quote" | "list-item";
+  kind: keyof LongformTheme["bodyStyles"];
   text: string;
   bullet?: string;
 };
 
-type FlowBlock = {
-  text: string;
-  font: string;
-  lineHeight: number;
-  className: string;
-  gapBefore?: number;
-  gapAfter?: number;
-  bullet?: string;
-  textIndent?: number;
-};
-
-type LongformPageLayout = {
-  lines: Array<{
-    text: string;
-    x: number;
-    y: number;
-    className: string;
-    maxWidth?: number;
-    bullet?: string;
-    bulletX?: number;
-  }>;
-  images: Array<BodyImageSpec & { captionHeight?: number }>;
-  textBottom?: number;
-};
+type LongformPageLayout = FlowPage;
 
 type PageImageSpecInput = {
   src: string;
@@ -146,52 +115,9 @@ function parseIntWithFallback(raw: string | undefined, fallback: number): number
   return Number.isFinite(value) ? value : fallback;
 }
 
+// 保留英文词间空格，只合并重复的行内空白。
 function normalizeMixedTextSpacing(text: string): string {
-  // Match any ASCII token regardless of length (removed {0,11} limit)
-  const asciiToken = "([A-Za-z0-9][A-Za-z0-9.+-]*)";
-
-  // Pass 1: CJK + space(s) + ASCII_token + space(s) + CJK → CJK + token + CJK
-  let result = text.replace(
-    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}\\s+([\\p{Script=Han}])`, "gu"),
-    "$1$2$3",
-  );
-
-  // Pass 2: CJK + space(s) + ASCII_token before Chinese punctuation or EOL
-  result = result.replace(
-    new RegExp(`([\\p{Script=Han}])\\s+${asciiToken}(?=[，。！？；：、）】》」』]|$)`, "gu"),
-    "$1$2",
-  );
-
-  // Pass 3: Start-of-text or opening bracket + ASCII_token + space(s) + CJK
-  result = result.replace(
-    new RegExp(`(^|[（【《「『])${asciiToken}\\s+([\\p{Script=Han}])`, "gu"),
-    "$1$2$3",
-  );
-
-  // Pass 4: Handle consecutive ASCII tokens separated by spaces.
-  // After Pass 1-3, we may still have "使用 AI Agent 管理" where AI and Agent
-  // are two tokens with a space between them. This pass joins consecutive
-  // ASCII tokens, removing the space between them.
-  // The \\s* before the first asciiToken handles the space between CJK and the first token.
-  // Re-run until no more matches (handles 3+ token chains).
-  let prev = "";
-  while (prev !== result) {
-    prev = result;
-    result = result.replace(
-      new RegExp(`([\\p{Script=Han}])\\s*${asciiToken}\\s+${asciiToken}(?=\\s*(?:[\\p{Script=Han}，。！？；：、）】》」』]|[A-Za-z0-9]))`, "gu"),
-      (_m, cjk: string, t1: string, t2: string) => `${cjk}${t1}${t2}`,
-    );
-  }
-
-  // After joining tokens, clean up spaces between the joined phrase and following CJK.
-  // Pattern: CJK + ASCIIchain + space + CJK (the space is on the RIGHT of the chain)
-  // NOTE: asciiToken introduces a capturing group, so the second CJK capture is group 3, not group 2.
-  result = result.replace(
-    new RegExp(`([\\p{Script=Han}]${asciiToken})\\s+([\\p{Script=Han}])`, "gu"),
-    "$1$3",
-  );
-
-  return result;
+  return text.replace(/[ \t]+/g, " ");
 }
 
 function fitImageToBox(
@@ -210,7 +136,7 @@ function fitImageToBox(
   };
 }
 
-function parseContentBlocks(text: string): ContentBlock[] {
+export function parseContentBlocks(text: string): ContentBlock[] {
   const lines = text.replaceAll("\r\n", "\n").split("\n");
   const blocks: ContentBlock[] = [];
   let paragraphBuffer: string[] = [];
@@ -228,15 +154,10 @@ function parseContentBlocks(text: string): ContentBlock[] {
       continue;
     }
 
-    if (line.startsWith("## ")) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
       flushParagraph();
-      blocks.push({ kind: "heading", text: normalizeMixedTextSpacing(line.slice(3).trim()) });
-      continue;
-    }
-
-    if (line.startsWith("# ")) {
-      flushParagraph();
-      blocks.push({ kind: "heading", text: normalizeMixedTextSpacing(line.slice(2).trim()) });
+      blocks.push({ kind: heading[1]!.length === 1 ? "heading" : heading[1]!.length === 2 ? "subheading" : "minor-heading", text: normalizeMixedTextSpacing(heading[2]!) });
       continue;
     }
 
@@ -246,13 +167,10 @@ function parseContentBlocks(text: string): ContentBlock[] {
       continue;
     }
 
-    if (/^[-*]\s+/.test(line)) {
+    const listItem = line.match(/^(\d+[.)]|[-*+])\s+(.+)$/);
+    if (listItem) {
       flushParagraph();
-      blocks.push({
-        kind: "list-item",
-        text: normalizeMixedTextSpacing(line.replace(/^[-*]\s+/, "").trim()),
-        bullet: "•",
-      });
+      blocks.push({ kind: "list-item", text: normalizeMixedTextSpacing(listItem[2]!), bullet: /^\d/.test(listItem[1]!) ? listItem[1] : "•" });
       continue;
     }
 
@@ -554,41 +472,15 @@ function buildAsciiBodyImages(parsed: ReturnType<typeof parseArgs>, chromePath: 
   });
 }
 
-function toFlowBlocks(blocks: ContentBlock[], theme: LongformTheme): FlowBlock[] {
-  let consecutiveParagraphs = 0;
-
-  const RHYTHM_MODIFIER: Record<string, number> = {
-    normal: 1.0,
-    compressed: 0.65,
-  };
-
-  return blocks.map(block => {
-    const style = theme.bodyStyles[block.kind];
-
-    if (block.kind === "paragraph") {
-      consecutiveParagraphs += 1;
-    } else {
-      consecutiveParagraphs = 0;
-    }
-
-    // Every 3rd consecutive paragraph gets slightly compressed spacing
-    const rhythm = (block.kind === "paragraph" && consecutiveParagraphs > 0 && consecutiveParagraphs % 3 === 0)
-      ? "compressed"
-      : "normal";
-    const modifier = RHYTHM_MODIFIER[rhythm];
-
-    return {
-      text: block.text,
-      font: style.font,
-      lineHeight: style.lineHeight,
-      className: style.className,
-      gapBefore: Math.round((style.gapBefore ?? 0) * modifier),
-      gapAfter: Math.round((style.gapAfter ?? 0) * modifier),
-      bullet: block.kind === "list-item" ? block.bullet ?? "•" : undefined,
-      // Reserve a stable hanging indent so the bullet never gets wrapped onto its own line.
-      textIndent: block.kind === "list-item" ? 34 : 0,
-    };
-  });
+export function toFlowBlocks(blocks: ContentBlock[], theme: LongformTheme, highlightWords: string[] = []): FlowBlock[] {
+  return blocks.map(block => ({
+    ...theme.bodyStyles[block.kind],
+    text: block.text,
+    runs: parseInlineText(block.text, highlightWords),
+    bullet: block.kind === "list-item" ? block.bullet ?? "•" : undefined,
+    textIndent: block.kind === "list-item" ? 44 : block.kind === "quote" ? 24 : 0,
+    keepWithNext: ["heading", "subheading", "minor-heading"].includes(block.kind),
+  }));
 }
 
 function parseChinesePageNumber(raw: string): number | null {
@@ -709,38 +601,17 @@ function materializeExplicitPagePlans(
   });
 }
 
-function buildLineHeightMap(flowBlocks: FlowBlock[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const block of flowBlocks) {
-    const previous = map.get(block.className) ?? 0;
-    map.set(block.className, Math.max(previous, block.lineHeight));
-  }
-  return map;
-}
-
-function createImageOnlyPageLayout(images: BodyImageSpec[]): LongformPageLayout {
-  return {
-    lines: [],
-    images: images.map((image) => ({
-      ...image,
-      captionHeight: image.caption ? 50 : 0,
-    })),
-    textBottom: 0,
-  };
-}
-
 function computePageFillRatio(
   page: LongformPageLayout,
-  lineHeights: Map<string, number>,
   theme: LongformTheme,
 ): number {
   const geometry = getLongformGeometry(theme);
   const textBottom = page.lines.reduce((max, line) => {
-    const lineHeight = lineHeights.get(line.className) ?? 0;
+    const lineHeight = line.lineHeight;
     return Math.max(max, line.y + lineHeight);
   }, 0);
   const imageBottom = page.images.reduce((max, image) => {
-    const captionExtra = image.caption ? (image.captionHeight ?? 50) + 10 : 0;
+    const captionExtra = image.caption ? (image.captionHeight ?? 50) : 0;
     return Math.max(max, image.y + image.height + captionExtra);
   }, 0);
   const contentEnd = Math.max(textBottom, imageBottom);
@@ -752,7 +623,7 @@ function computePageFillRatio(
 
 function scalePageImages(
   images: BodyImageSpec[],
-  _scale: number,
+  scale: number,
   theme: LongformTheme,
 ): BodyImageSpec[] {
   const geometry = getLongformGeometry(theme);
@@ -778,9 +649,9 @@ function scalePageImages(
         const maxFillH = Math.floor(geometry.contentStageHeight * 0.60); // cap at 60% of stage height
         const scaleByW = maxFillW / intrinsicW;
         const scaleByH = maxFillH / intrinsicH;
-        const fitScale = Math.min(scaleByW, scaleByH, 1); // never upscale beyond intrinsic
-        width = Math.max(120, Math.round(intrinsicW * fitScale));
-        height = Math.max(80, Math.round(intrinsicH * fitScale));
+        const fitScale = Math.min(scaleByW, scaleByH, 1) * Math.min(1, scale); // never upscale beyond intrinsic
+        width = Math.max(1, Math.round(intrinsicW * fitScale));
+        height = Math.max(1, Math.round(intrinsicH * fitScale));
       } else {
         const maxWidth = preset === "staggered" || preset === "editorial" || preset === "corner-soft" || preset === "mid-left" || preset === "mid-right"
           ? halfWidth
@@ -796,9 +667,9 @@ function scalePageImages(
         const intrinsicH = intrinsic !== null && intrinsic.height > 0 ? intrinsic.height : image.height;
         const scaleByW = maxWidth / intrinsicW;
         const scaleByH = maxHeight / intrinsicH;
-        const fitScale = Math.min(scaleByW, scaleByH); // contain semantics
-        width = Math.max(72, Math.round(intrinsicW * fitScale));
-        height = Math.max(72, Math.round(intrinsicH * fitScale));
+        const fitScale = Math.min(scaleByW, scaleByH) * Math.min(1, scale); // contain semantics
+        width = Math.max(1, Math.round(intrinsicW * fitScale));
+        height = Math.max(1, Math.round(intrinsicH * fitScale));
       }
     }
 
@@ -838,34 +709,13 @@ function measureLongformPages(params: {
   pageImageGroups?: BodyImageSpec[][] | null;
   pageImageLimit?: number;
   theme: LongformTheme;
+  contentHeight?: number;
 }): LongformPageLayout[] {
-  ensurePretextRuntime();
   const geometry = getLongformGeometry(params.theme);
-  const allImages = params.pageImageGroups?.flat() ?? params.bodyImages;
-  const maxImgMinDim = allImages.reduce(
-    (max, img) => Math.max(max, Math.min(img.width, img.height)),
-    210,
-  );
-  const obstacleGap = proportionalObstacleGap(maxImgMinDim);
-  const minSlotWidth = proportionalMinSlotWidth(32);
-  const flow = createObstacleFlowRuntime({
-    prepareWithSegments,
-    layoutNextLineRange,
-    obstacleGap,
-    minSlotWidth,
-    renderLine() {},
-    renderImage() {},
+  return paginateBlocks(params.flowBlocks, geometry.contentWidth, Math.min(params.contentHeight ?? geometry.contentStageHeight, geometry.contentStageHeight), params.bodyImages, {
+    pageImageLimit: params.pageImageLimit ?? 2,
+    pageImageGroups: params.pageImageGroups ?? null,
   });
-  return flow.paginateBlocks(
-    params.flowBlocks,
-    geometry.contentWidth,
-    geometry.contentHeight,
-    params.bodyImages,
-    {
-      pageImageLimit: params.pageImageLimit ?? 2,
-      pageImageGroups: params.pageImageGroups ?? null,
-    },
-  );
 }
 
 function measureSpecPage(
@@ -874,72 +724,11 @@ function measureSpecPage(
   theme: LongformTheme,
   scale: number,
 ): SpecPageMeasure {
-  const lineHeights = buildLineHeightMap(flowBlocks);
-  if (flowBlocks.length === 0) {
-    const layout = createImageOnlyPageLayout(images);
-    return {
-      layout,
-      fit: true,
-      fillRatio: computePageFillRatio(layout, lineHeights, theme),
-      scale,
-    };
-  }
-
-  // For fill-layout images, reduce contentHeight so the text measurement pass
-  // cannot place lines in the image's reserved bottom zone.  Without this,
-  // paginateBlocks may allow text lines up to contentHeight (932) while the
-  // image obstacle only covers contentStageHeight-imgH ~ contentStageHeight (920),
-  // leaving a 12px gap where lines can slip through and visually overlap the image.
-  //
-  // The correct text ceiling is imgY = contentStageHeight - imgH (where the
-  // obstacle actually starts).  We pass that as the reduced contentHeight so
-  // paginateBlocks stops placing lines exactly at the obstacle boundary.
-  const geometry = getLongformGeometry(theme);
-  const fillImages = images.filter(
-    (img) => normalizeLayoutPreset(img.layoutPreset ?? "auto") === "fill",
-  );
-  let measureTheme = theme;
-  if (fillImages.length > 0) {
-    // imgY = contentStageHeight - maxFillHeight (= where the tallest fill image starts)
-    // Use that as the contentHeight cap so text cannot enter the image zone.
-    // Add contentBottomGap back because getLongformGeometry subtracts it:
-    //   contentStageHeight = contentHeight - contentBottomGap
-    // so: imgY = (contentHeight - contentBottomGap) - maxFillHeight
-    // We want paginateBlocks' height = imgY, which means:
-    //   reducedContentHeight = imgY + contentBottomGap  (getLongformGeometry will subtract it again)
-    const maxFillHeight = fillImages.reduce((max, img) => Math.max(max, img.height), 0);
-    const imgY = Math.max(0, geometry.contentStageHeight - maxFillHeight);
-    // Add a small gap so text doesn't butt right up against the image
-    const textCeiling = Math.max(80, imgY - 16);
-    const reducedHeight = textCeiling + theme.contentBottomGap;
-    measureTheme = applyContentHeightOverride(theme, reducedHeight);
-  }
-
-  // When fill images are present we pass an empty bodyImages list to
-  // measureLongformPages — the reduced contentHeight already prevents text
-  // from entering the image zone.  Passing the actual fill images would cause
-  // obstacle-flow to clamp their y-coordinates to fit within the reduced
-  // contentHeight, corrupting the final rendered position.
-  const measureBodyImages = fillImages.length > 0 ? [] : images;
-
   const pages = measureLongformPages({
-    flowBlocks,
-    bodyImages: measureBodyImages,
-    pageImageLimit: Math.max(images.length, 1),
-    theme: measureTheme,
+    flowBlocks, bodyImages: images, pageImageLimit: Math.max(images.length, 1), theme,
   });
-  // Restore the real scaled images into the layout so renderPage uses the
-  // correct coordinates.
-  const rawLayout = pages[0] ?? createImageOnlyPageLayout(images);
-  const layout: typeof rawLayout = fillImages.length > 0
-    ? { ...rawLayout, images: images.map(img => ({ ...img, captionHeight: img.caption ? 50 : 0 })) }
-    : rawLayout;
-  return {
-    layout,
-    fit: pages.length <= 1,
-    fillRatio: computePageFillRatio(layout, lineHeights, theme),
-    scale,
-  };
+  const layout = pages[0] ?? { lines: [], images: [], textBottom: 0 };
+  return { layout, fit: pages.length <= 1, fillRatio: computePageFillRatio(layout, theme), scale };
 }
 
 function optimizeSpecPageLayout(params: {
@@ -975,7 +764,7 @@ function optimizeSpecPageLayout(params: {
   }
 
   let best = minimum;
-  for (const scale of [0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.45, 1.6, 1.8]) {
+  for (const scale of [0.6, 0.75, 0.9, 1]) {
     const measured = evaluate(scale);
     if (!measured.fit) {
       continue;
@@ -991,7 +780,7 @@ function optimizeSpecPageLayout(params: {
   }
 
   let low = minimum.scale;
-  let high = 1.8;
+  let high = 1;
   for (let index = 0; index < 7; index += 1) {
     const mid = (low + high) / 2;
     const measured = evaluate(mid);
@@ -1022,12 +811,13 @@ function buildSpecDrivenPagesFromSegments(params: {
   pagePlans: ExplicitPagePlan[];
   pageTexts: string[];
   theme: LongformTheme;
+  highlightWords?: string[];
 }): LongformPageLayout[] | null {
   const pages: LongformPageLayout[] = [];
   for (let index = 0; index < params.pagePlans.length; index += 1) {
     const pagePlan = params.pagePlans[index]!;
     const blocks = parseContentBlocks(params.pageTexts[index] ?? "");
-    const flowBlocks = toFlowBlocks(blocks, params.theme);
+    const flowBlocks = toFlowBlocks(blocks, params.theme, params.highlightWords);
     const measured = optimizeSpecPageLayout({
       chromePath: params.chromePath,
       flowBlocks,
@@ -1047,6 +837,7 @@ function buildSpecDrivenPagesByPartition(params: {
   pagePlans: ExplicitPagePlan[];
   blocks: ContentBlock[];
   theme: LongformTheme;
+  highlightWords?: string[];
 }): LongformPageLayout[] | null {
   const { chromePath, pagePlans, blocks, theme } = params;
   const memo = new Map<string, { score: number; pages: LongformPageLayout[] } | null>();
@@ -1072,7 +863,10 @@ function buildSpecDrivenPagesByPartition(params: {
     let best: { score: number; pages: LongformPageLayout[] } | null = null;
 
     for (let endExclusive = minEndExclusive; endExclusive <= maxEndExclusive; endExclusive += 1) {
-      const flowBlocks = toFlowBlocks(blocks.slice(blockIndex, endExclusive), theme);
+      // 自动分配逐页内容时，标题不能独占上一页的结尾。
+      const lastKind = blocks[endExclusive - 1]?.kind;
+      if (endExclusive < blocks.length && lastKind && ["heading", "subheading", "minor-heading"].includes(lastKind)) continue;
+      const flowBlocks = toFlowBlocks(blocks.slice(blockIndex, endExclusive), theme, params.highlightWords);
       const measured = optimizeSpecPageLayout({
         chromePath,
         flowBlocks,
@@ -1102,10 +896,17 @@ function buildSpecDrivenPagesByPartition(params: {
     return best;
   };
 
-  return solve(0, 0)?.pages ?? null;
+  const partitioned = solve(0, 0)?.pages;
+  if (partitioned) return partitioned;
+  // 单个长段落也允许跨页，显式图片仍留在指定页。
+  const flowed = measureLongformPages({
+    flowBlocks: toFlowBlocks(blocks, theme, params.highlightWords),
+    bodyImages: [], pageImageGroups: pagePlans.map(plan => scalePageImages(plan.images, 0.45, theme)), theme,
+  });
+  return flowed.length === pagePlans.length ? flowed : null;
 }
 
-function renderPage(params: {
+async function renderPage(params: {
   chromePath: string;
   outPath: string;
   pageLabel: string;
@@ -1115,23 +916,7 @@ function renderPage(params: {
   page: LongformPageLayout;
   themeCssVars: string;
   theme: LongformTheme;
-  highlightWords?: string[];
-}): void {
-  const words = params.highlightWords ?? [];
-
-  function highlightBodyText(text: string): string {
-    let html = renderInlineMarkdown(text);
-    for (const word of words) {
-      if (!word) continue;
-      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      html = html.replace(
-        new RegExp(escaped, "g"),
-        `<strong style="color:${params.theme.accentColor}">${word}</strong>`,
-      );
-    }
-    return html;
-  }
-
+}): Promise<void> {
   const template = readUtf8(join(TEMPLATES_DIR, `${params.templateName}.html`));
   const stageHtml = [
     ...params.page.images.map(image => {
@@ -1140,41 +925,41 @@ function renderPage(params: {
         : "";
       return `<img class="body-image" src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" style="left:${image.x}px;top:${image.y}px;width:${image.width}px;height:${image.height}px;${imageShadowStyle(image)}">${captionHtml}`;
     }),
-    ...params.page.lines
-      .filter(line => line.className !== "body-caption")
-      .map(line => {
-      const bulletHtml =
-        line.bullet && typeof line.bulletX === "number"
-          ? `<div class="${escapeHtml(line.className)} body-list-bullet" style="left:${line.bulletX}px;top:${line.y}px">${escapeHtml(line.bullet)}</div>`
-          : "";
-      const maxWidthStyle = line.maxWidth ? `;max-width:${line.maxWidth}px` : "";
-      return `${bulletHtml}<div class="${escapeHtml(line.className)}" style="left:${line.x}px;top:${line.y}px${maxWidthStyle}">${highlightBodyText(line.text)}</div>`;
-      }),
+    ...params.page.lines.map(line => {
+      const style = `left:${line.x}px;top:${line.y}px;font:${line.font};line-height:${line.lineHeight}px;width:${line.maxWidth}px`;
+      const bulletHtml = line.bullet && typeof line.bulletX === "number"
+        ? `<div class="${escapeHtml(line.className)} body-list-bullet" style="left:${line.bulletX}px;top:${line.y}px;font:${escapeHtml(line.font)};line-height:${line.lineHeight}px">${escapeHtml(line.bullet)}</div>` : "";
+      const textHtml = line.runs.map(run => {
+        const runStyle = `font:${run.font};line-height:inherit;display:inline-block;vertical-align:top;margin-left:${run.gapBefore}px;width:${run.occupiedWidth}px${run.highlight ? ";color:" + params.theme.accentColor : ""}`;
+        return `<span style="${escapeHtml(runStyle)}">${escapeHtml(run.text)}</span>`;
+      }).join("");
+      return `${bulletHtml}<div class="${escapeHtml(line.className)}" style="${escapeHtml(style)}">${textHtml}</div>`;
+    }),
   ].join("");
   const html = renderTemplate(template, {
     "{{PAGE_LABEL}}": escapeHtml(params.pageLabel),
     "{{THEME_CSS_VARS}}": params.themeCssVars,
     "{{FOOTER_TEXT}}": escapeHtml(params.footer),
     "{{ICON_PATH}}": params.iconPath,
-    "{{AVATAR_PATH}}": join(ICONS_DIR, "logo.png"),
+    "{{BRAND_IMAGE}}": params.iconPath ? `<img src="${escapeHtml(params.iconPath)}" alt="">` : "",
     "{{FONT_PATH}}": join(FONTS_DIR, "AlimamaShuHeiTi-Bold.ttf"),
     "{{BODY_FONT_PATH}}": join(FONTS_DIR, "LXGWNeoZhiSongPlus.ttf"),
     "{{LONGFORM_STAGE_HTML}}": stageHtml,
   });
 
-  screenshotHtml({
+  await screenshotReadyHtml({
     chromePath: params.chromePath,
     html,
     outPath: params.outPath,
     width: params.theme.pageWidth,
     height: params.theme.pageHeight,
-    virtualTimeBudgetMs: 1200,
   });
 }
 
-export function runRenderArticleCli(argv: string[], onProgress?: (progress: MonitorProgress) => void): RenderArticleResult {
+export async function runRenderArticleCli(argv: string[], onProgress?: (progress: MonitorProgress) => void): Promise<RenderArticleResult> {
   notifyProgress(onProgress, { stage: "render.layout", message: "正在计算分页" });
   const parsed = parseArgs(argv);
+  await ensureFonts(["AlimamaShuHeiTi-Bold.ttf", "LXGWNeoZhiSongPlus.ttf"]);
   const title = getArg(parsed, "title");
   if (title.length === 0) throw new Error("需要 --title");
 
@@ -1188,8 +973,10 @@ export function runRenderArticleCli(argv: string[], onProgress?: (progress: Moni
   const chromePath = findChrome();
   if (chromePath === null) throw new Error("Chrome/Chromium not found");
 
-  const footer = getArg(parsed, "footer", "公众号 · 早早集市");
-  const iconPath = resolveInputPath(getArg(parsed, "icon") || join(ICONS_DIR, "logo.png"));
+  const config = loadConfig();
+  const branding = resolveRenderBranding(config, getArg(parsed, "account", config.wx.defaultAccount));
+  const footer = getArg(parsed, "footer", branding.footerText);
+  const iconSource = parsed.flags.has("icon") ? resolveBrandLogo(getArg(parsed, "icon"), false) : branding.logo;
   const templateName = getArg(parsed, "template", "longform-3-4");
   const themeName = getArg(parsed, "theme", "paper-sage");
   let theme = getLongformTheme(themeName);
@@ -1219,14 +1006,10 @@ export function runRenderArticleCli(argv: string[], onProgress?: (progress: Moni
     ...buildAsciiBodyImages(parsed, chromePath),
   ];
 
-  // ── Adaptive pagination ──────────────────────────────────────────
-  // If min_pages > 1, iteratively shrink contentHeight until the pagination
-  // engine produces at least that many pages. This naturally accounts for
-  // image height, line heights, and gaps — no manual estimation needed.
-  // Each iteration reduces contentHeight by 10% with a floor of 80px.
+  // 在实际页面边界内搜索分页，不缩小正文、不扩展画布。
   const minPages = getIntArg(parsed, "min-pages", 1);
   const maxPages = getIntArg(parsed, "max-pages", 0); // 0 = no upper limit
-  const FONT_SIZE_CAP_FOR_FORCED_PAGES = 30;
+  if (minPages < 1 || maxPages < 0 || (maxPages > 0 && maxPages < minPages)) throw new Error("页数约束无效：max_pages 必须为 0 或不小于 min_pages");
   let pages: LongformPageLayout[];
   if (explicitPagePlansInput !== null) {
     const markerSegments = splitTextByPageMarkers(text);
@@ -1245,6 +1028,7 @@ export function runRenderArticleCli(argv: string[], onProgress?: (progress: Moni
         pagePlans: explicitPagePlans,
         pageTexts,
         theme,
+        highlightWords,
       }) ?? [];
     } else {
       pages = buildSpecDrivenPagesByPartition({
@@ -1252,6 +1036,7 @@ export function runRenderArticleCli(argv: string[], onProgress?: (progress: Moni
         pagePlans: explicitPagePlans,
         blocks: parseContentBlocks(stripPageMarkerLines(text)),
         theme,
+        highlightWords,
       }) ?? [];
     }
 
@@ -1263,42 +1048,41 @@ export function runRenderArticleCli(argv: string[], onProgress?: (progress: Moni
     }
   } else {
     const blocks = parseContentBlocks(stripPageMarkerLines(text));
-    const flowBlocks = toFlowBlocks(blocks, theme);
-    pages = measureLongformPages({
-      flowBlocks,
-      bodyImages,
-      pageImageLimit: 2,
-      theme,
+    const flowBlocks = toFlowBlocks(blocks, theme, highlightWords);
+    const fullHeight = getLongformGeometry(theme).contentStageHeight;
+    const measure = (contentHeight: number) => measureLongformPages({
+      flowBlocks, bodyImages, pageImageLimit: hasFlag(parsed, "require-image-every-page") ? 1 : 2, theme, contentHeight,
     });
-    if (minPages > 1 && pages.length < minPages) {
-      theme = applyFontSizeMax(theme, FONT_SIZE_CAP_FOR_FORCED_PAGES);
-      const MIN_CONTENT_HEIGHT = 80;
-      while (pages.length < minPages && getLongformGeometry(theme).contentHeight > MIN_CONTENT_HEIGHT) {
-        const next = Math.max(MIN_CONTENT_HEIGHT, Math.floor(getLongformGeometry(theme).contentHeight * 0.9));
-        theme = applyContentHeightOverride(theme, next);
-        pages = measureLongformPages({
-          flowBlocks: toFlowBlocks(blocks, theme),
-          bodyImages,
-          pageImageLimit: 2,
-          theme,
-        });
-      }
+    const fullPages = measure(fullHeight);
+    if (maxPages > 0 && fullPages.length > maxPages) {
+      throw new Error("舒适字号下至少需要 " + fullPages.length + " 页，超过 max_pages=" + maxPages + "，请增加最大页数");
     }
-
-    if (maxPages > 0 && pages.length > maxPages) {
-      const originalContentHeight = getLongformGeometry(theme).contentHeight;
-      const MAX_CONTENT_HEIGHT = originalContentHeight * 4;
-      while (pages.length > maxPages && getLongformGeometry(theme).contentHeight < MAX_CONTENT_HEIGHT) {
-        const next = Math.min(MAX_CONTENT_HEIGHT, Math.ceil(getLongformGeometry(theme).contentHeight * 1.15));
-        theme = applyContentHeightOverride(theme, next);
-        pages = measureLongformPages({
-          flowBlocks: toFlowBlocks(blocks, theme),
-          bodyImages,
-          pageImageLimit: 2,
-          theme,
-        });
+    let chosenHeight = Math.floor(fullHeight * clampFillRatio(Number.parseFloat(getArg(parsed, "target-fill-ratio")), 0.8));
+    pages = measure(chosenHeight);
+    if (maxPages > 0 && pages.length > maxPages) { pages = fullPages; chosenHeight = fullHeight; }
+    if (pages.length < minPages) {
+      let low = Math.min(chosenHeight, theme.bodyStyles.paragraph.lineHeight * 2);
+      let high = chosenHeight - 1;
+      let best: LongformPageLayout[] | null = null;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        let candidate: LongformPageLayout[];
+        try { candidate = measure(middle); }
+        catch { low = middle + 1; continue; }
+        if (candidate.length >= minPages) {
+          if (maxPages === 0 || candidate.length <= maxPages) best = candidate;
+          low = middle + 1;
+        } else {
+          high = middle - 1;
+        }
       }
+      if (!best) throw new Error("内容无法在舒适字号下满足 min_pages=" + minPages + "，请降低最少页数");
+      pages = best;
     }
+  }
+  if (!pages.length) throw new Error("没有可渲染的正文或图片");
+  if (hasFlag(parsed, "require-image-every-page") && pages.some(page => page.images.length === 0)) {
+    throw new Error("部分正文页缺少要求的图片，请补充图片或取消逐页配图要求");
   }
   const themeCssVars = getLongformThemeCssVars(theme);
   const pageNum = getIntArg(parsed, "page-num", 0);
@@ -1314,58 +1098,57 @@ export function runRenderArticleCli(argv: string[], onProgress?: (progress: Moni
     })),
   };
 
-  if (outPath.length > 0) {
-    notifyProgress(onProgress, { stage: "render.pages", current: 0, total: 1, unit: "pages" });
-    const requestedPage = pageNum > 0 ? pageNum : 1;
-    const page = pages[Math.max(0, Math.min(requestedPage - 1, pages.length - 1))]!;
-    const total = pageTotal > 0 ? pageTotal : pages.length;
-    renderPage({
-      chromePath,
-      outPath,
-      pageLabel: `${Math.min(requestedPage, pages.length)} / ${total}`,
-      footer,
-      iconPath,
-      templateName,
-      page,
-      themeCssVars,
-      theme,
-      highlightWords,
-    });
-    printSaved(outPath);
-    notifyProgress(onProgress, { stage: "render.pages", current: 1, total: 1, unit: "pages" });
-    return result;
-  }
+  const brandDirectory = await mkdtemp(join(tmpdir(), "zzhub-body-brand-"));
+  try {
+    const iconPath = iconSource ? await resolveCoverImage(iconSource, brandDirectory, 0) : "";
+    if (outPath.length > 0) {
+      notifyProgress(onProgress, { stage: "render.pages", current: 0, total: 1, unit: "pages" });
+      const requestedPage = pageNum > 0 ? pageNum : 1;
+      const page = pages[Math.max(0, Math.min(requestedPage - 1, pages.length - 1))]!;
+      const total = pageTotal > 0 ? pageTotal : pages.length;
+      await renderPage({
+        chromePath,
+        outPath,
+        pageLabel: `${Math.min(requestedPage, pages.length)} / ${total}`,
+        footer,
+        iconPath,
+        templateName,
+        page,
+        themeCssVars,
+        theme,
+      });
+      printSaved(outPath);
+      notifyProgress(onProgress, { stage: "render.pages", current: 1, total: 1, unit: "pages" });
+      return result;
+    }
 
-  const outDir = getArg(parsed, "out-dir");
-  if (outDir.length === 0) {
-    throw new Error("需要 --out (单页模式) 或 --out-dir (批量模式)");
+    const outDir = getArg(parsed, "out-dir");
+    if (outDir.length === 0) {
+      throw new Error("需要 --out (单页模式) 或 --out-dir (批量模式)");
+    }
+    for (let index = 0; index < pages.length; index++) {
+      notifyProgress(onProgress, { stage: "render.pages", message: `正在渲染第 ${index + 1} 页`, current: index, total: pages.length, unit: "pages" });
+      const pageOut = join(outDir, `article-${String(index + 1).padStart(2, "0")}.png`);
+      await renderPage({
+        chromePath,
+        outPath: pageOut,
+        pageLabel: `${index + 1} / ${pages.length}`,
+        footer,
+        iconPath,
+        templateName,
+        page: pages[index]!,
+        themeCssVars,
+        theme,
+      });
+      printSaved(pageOut);
+      notifyProgress(onProgress, { stage: "render.pages", current: index + 1, total: pages.length, unit: "pages" });
+    }
+    return result;
+  } finally {
+    await rm(brandDirectory, { recursive: true, force: true });
   }
-  for (let index = 0; index < pages.length; index++) {
-    notifyProgress(onProgress, { stage: "render.pages", message: `正在渲染第 ${index + 1} 页`, current: index, total: pages.length, unit: "pages" });
-    const pageOut = join(outDir, `article-${String(index + 1).padStart(2, "0")}.png`);
-    // DEBUG: dump layout coordinates
-    const dbgPage = pages[index]!;
-    const lastLine = dbgPage.lines.length > 0 ? dbgPage.lines[dbgPage.lines.length - 1] : null;
-    const firstImg = dbgPage.images.length > 0 ? dbgPage.images[0] : null;
-    process.stderr.write(`[DEBUG page ${index+1}] lastLine y=${lastLine?.y ?? 'N/A'} | firstImg y=${firstImg?.y ?? 'N/A'} h=${firstImg?.height ?? 'N/A'}\n`);
-    renderPage({
-      chromePath,
-      outPath: pageOut,
-      pageLabel: `${index + 1} / ${pages.length}`,
-      footer,
-      iconPath,
-      templateName,
-      page: pages[index]!,
-      themeCssVars,
-      theme,
-      highlightWords,
-    });
-    printSaved(pageOut);
-    notifyProgress(onProgress, { stage: "render.pages", current: index + 1, total: pages.length, unit: "pages" });
-  }
-  return result;
 }
 
 if (import.meta.main) {
-  runRenderArticleCli(process.argv.slice(2));
+  await runRenderArticleCli(process.argv.slice(2));
 }

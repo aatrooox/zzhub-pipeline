@@ -378,7 +378,7 @@ Key files:
 Runtime dependency checks:
 - `@napi-rs/canvas` — checked by image renderer `doctor()`, lazy-loaded in `pretext-runtime.ts`
 - Chrome — checked by markdown renderer `doctor()`, error includes install guidance
-- CJK fonts — auto-downloaded via `ensureFonts()` in `runtime-paths.ts`
+- CJK fonts — bundled locally and checked by `ensureFonts()` in `runtime-paths.ts`; rendering never downloads fonts. Cover themes also accept local system font names.
 
 ## newspic longform pagination
 

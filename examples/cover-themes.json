@@ -1,0 +1,23 @@
+{
+  "render": {
+    "branding": { "logo": null, "footerText": "公众号：我的公众号", "accounts": {} },
+    "cover": {
+      "defaultTheme": "custom-night",
+      "themes": {
+        "custom-night": {
+          "name": "自定义夜色",
+          "description": "可直接导入，再通过配置修改颜色、字号和素材",
+          "colors": { "text": "#F4F7FF", "accent": "#83DBFF", "muted": "#B9C7E3" },
+          "background": {
+            "fill": { "type": "linear", "angle": 135, "stops": [{ "color": "#17233C", "offset": 0 }, { "color": "#354B70", "offset": 100 }] },
+            "image": null,
+            "overlay": null
+          },
+          "decoration": { "pattern": "grid", "color": "#83DBFF", "opacity": 0.08, "size": 64, "image": null },
+          "typography": { "title": { "fontSize": 104, "minFontSize": 64 } },
+          "formats": { "wechat-cover-split": { "typography": { "title": { "fontSize": 80, "minFontSize": 48 } }, "layout": { "safeArea": { "top": 34, "right": 48, "bottom": 28, "left": 48 } } } }
+        }
+      }
+    }
+  }
+}

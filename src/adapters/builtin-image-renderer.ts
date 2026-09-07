@@ -5,7 +5,7 @@
  * when no user-provided plugin is configured.
  */
 
-import { mkdir, readdir, rm, rmdir, writeFile } from "fs/promises";
+import { mkdir, rm, rmdir, writeFile } from "fs/promises";
 import { join } from "path";
 
 import { runRenderArticleCli, runRenderCardCli } from "../imgx";
@@ -17,13 +17,15 @@ import {
   generateCoverTitle,
 } from "../text";
 import { getLongformTheme } from "../routes";
-import { resolveWorkspacePaths } from "../config";
+import { loadConfig, resolveWorkspacePaths } from "../config";
+import { resolveRenderBranding } from "../render-branding";
 import type {
   ImageRenderPlugin,
   ImageRenderInput,
   ImageRenderOutput,
   PipelinePluginDoctorCheck,
 } from "../adapter-types";
+import { normalizeNewspicRenderSpec } from "../state";
 import type {
   NewspicRenderSpec,
   RenderAsset,
@@ -31,20 +33,6 @@ import type {
 } from "../state";
 
 // ── Helpers ──────────────────────────────────────────────────────
-
-function appendPosterVisualArgs(
-  cmdParts: string[],
-  visualParams: AccountVisualParams | null,
-  highlightWords: string[],
-): void {
-  if (visualParams) {
-    cmdParts.push("--highlight", visualParams.highlight);
-    cmdParts.push("--bg", visualParams.bg);
-    cmdParts.push("--footer", visualParams.footer);
-    cmdParts.push("--fallback-icon", visualParams.fallback_icon);
-  }
-  cmdParts.push("--highlight-words", highlightWords.join(","));
-}
 
 type ResolvedPageImageSpecFile = {
   default_image_layout: string;
@@ -139,29 +127,18 @@ async function renderCover(
   visualParams: AccountVisualParams | null,
   highlightWords: string[],
   onProgress?: ImageRenderInput["onProgress"],
+  coverTheme?: ImageRenderInput["coverTheme"],
 ): Promise<RenderAsset> {
   const coverOut = join(outputDir, "cover.png");
   const route = template === "wechat-cover-split" ? "wechat-article" : "wechat-newspic";
-
-  if (template === "wechat-cover-split") {
-    const cmdParts = ["--template", "wechat-cover-split", "--text", title];
-    if (visualParams) {
-      cmdParts.push("--highlight", visualParams.highlight);
-      cmdParts.push("--bg", visualParams.bg);
-      cmdParts.push("--footer", visualParams.footer);
-      cmdParts.push("--fallback-icon", visualParams.fallback_icon);
-    }
-    cmdParts.push("--highlight-words", highlightWords.join(","));
-    cmdParts.push("--out", coverOut);
-    runRenderCardCli(cmdParts, onProgress);
-  } else {
-    const cmdParts = ["--template", "poster-3-4", "--text", title];
-    appendPosterVisualArgs(cmdParts, visualParams, highlightWords);
-    cmdParts.push("--out", coverOut);
-    runRenderCardCli(cmdParts, onProgress);
+  const args = ["--template", template, "--text", title, "--out", coverOut, "--highlight-words", highlightWords.join(",")];
+  if (visualParams) {
+    args.push("--footer", visualParams.footer, "--fallback-icon", visualParams.fallback_icon);
+    // 旧直接调用仍支持账号配色；已选主题使用自己的颜色。
+    if (!coverTheme) args.push("--bg", visualParams.bg, "--highlight", visualParams.highlight);
   }
-
-  return { kind: "cover", route: route as RenderAsset["route"], path: coverOut };
+  await runRenderCardCli(args, onProgress, coverTheme);
+  return { kind: "cover", route, path: coverOut };
 }
 
 async function renderLongformPages(
@@ -197,6 +174,7 @@ async function renderLongformPages(
     "--text-file", tempBodyPath,
     "--out-dir", outputDir,
     "--theme", theme,
+    "--target-fill-ratio", String(newspicRenderSpec.target_fill_ratio),
   ];
 
   if (newspicRenderSpec.min_pages > 1) {
@@ -205,10 +183,9 @@ async function renderLongformPages(
   if (newspicRenderSpec.max_pages > 0) {
     pageParts.push("--max-pages", String(newspicRenderSpec.max_pages));
   }
+  if (newspicRenderSpec.require_image_every_page) pageParts.push("--require-image-every-page");
 
-  if (vp?.footer) {
-    pageParts.push("--footer", vp.footer);
-  }
+  if (vp) pageParts.push("--footer", vp.footer, "--icon", vp.fallback_icon);
 
   const highlightWords = input.state.route.highlight_words ?? [];
   if (highlightWords.length > 0) {
@@ -232,7 +209,7 @@ async function renderLongformPages(
 
   let result: RenderArticleResult;
   try {
-    result = runRenderArticleCli(pageParts, input.onProgress);
+    result = await runRenderArticleCli(pageParts, input.onProgress);
   } finally {
     if (!keepTempFiles) {
       await rm(tempDir, { recursive: true, force: true });
@@ -245,20 +222,13 @@ async function renderLongformPages(
     throw new Error(`newspic render constraints not satisfied: ${errors.join("; ")}`);
   }
 
-  // Discover generated page files
-  const files = await readdir(outputDir);
-  const pageFiles = files.filter((f) => /^article-\d+\.png$/.test(f)).sort();
-
-  const assets: RenderAsset[] = [];
-  for (let i = 0; i < pageFiles.length; i++) {
-    assets.push({
-      kind: "page",
-      route: "wechat-newspic",
-      index: i + 1,
-      path: join(outputDir, pageFiles[i]),
-    });
-  }
-
+  // 仅返回本次实际生成的页，目录中的旧页不参与结果。
+  const assets: RenderAsset[] = result.pages.map(page => ({
+    kind: "page",
+    route: "wechat-newspic",
+    index: page.page,
+    path: join(outputDir, "article-" + String(page.page).padStart(2, "0") + ".png"),
+  }));
   return { assets, pageCount: result.pageCount, pages: result.pages };
 }
 
@@ -266,7 +236,7 @@ async function renderLongformPages(
 
 export const builtinImageRenderer: ImageRenderPlugin = {
   name: "builtin-imgx",
-  version: "1.0.0",
+  version: "1.1.0",
 
   async doctor(): Promise<PipelinePluginDoctorCheck[]> {
     const checks: PipelinePluginDoctorCheck[] = [];
@@ -297,20 +267,19 @@ export const builtinImageRenderer: ImageRenderPlugin = {
     // Normalize visual params: adapter input uses camelCase, state uses snake_case
     const adapterVp = input.accountVisualParams;
     const stateVp = state.route.account_visual_params;
-    const vp: AccountVisualParams | null = adapterVp
-      ? {
-          footer: adapterVp.footer ?? "",
-          bg: adapterVp.bg ?? "",
-          highlight: adapterVp.highlight ?? "",
-          fallback_icon: adapterVp.fallbackIcon ?? "",
-        }
-      : stateVp;
+    const branding = resolveRenderBranding(loadConfig(), state.route.account);
+    const vp: AccountVisualParams = {
+      footer: adapterVp?.footer ?? branding.footerText,
+      bg: adapterVp?.bg ?? stateVp?.bg ?? "",
+      highlight: adapterVp?.highlight ?? stateVp?.highlight ?? "",
+      fallback_icon: adapterVp?.fallbackIcon ?? branding.logo,
+    };
 
     await mkdir(outputDir, { recursive: true });
 
     if (route === "wechat-article") {
       // Article: cover only (wechat-cover-split)
-      const cover = await renderCover("wechat-cover-split", title, outputDir, vp, highlightWords, input.onProgress);
+      const cover = await renderCover("wechat-cover-split", title, outputDir, vp, highlightWords, input.onProgress, input.coverTheme);
       return { assets: [cover], pageCount: 1, pages: [{ page: 1, imageCount: 0, imageSources: [] }] };
     }
 
@@ -319,20 +288,19 @@ export const builtinImageRenderer: ImageRenderPlugin = {
     }
 
     // wechat-newspic: determine short vs long
+    const savedSpec = normalizeNewspicRenderSpec(state.intent.newspic_render);
     const newspicRenderSpec: NewspicRenderSpec = {
-      pagination_mode: input.pageSpecs && input.pageSpecs.length > 0 ? "multi" : "single",
-      min_pages: input.minPages ?? 1,
-      max_pages: input.maxPages ?? 0,
-      require_image_every_page: false,
-      default_image_layout: "staggered",
-      target_fill_ratio: 0.8,
-      page_specs: (input.pageSpecs ?? []).map((ps) => ({
+      ...savedSpec,
+      pagination_mode: input.template === "longform-3-4" ? "multi" : input.template === "poster-3-4" ? "single" : savedSpec.pagination_mode,
+      min_pages: input.minPages ?? savedSpec.min_pages,
+      max_pages: input.maxPages ?? savedSpec.max_pages,
+      page_specs: input.pageSpecs?.map(ps => ({
         page: ps.page,
         image_markers: ps.imageMarkers ?? [],
         image_layout: ps.imageLayout ?? null,
         target_fill_ratio: ps.targetFillRatio ?? null,
         note: ps.note ?? null,
-      })),
+      })) ?? savedSpec.page_specs,
     };
 
     const isLong = newspicRenderSpec.pagination_mode === "multi";
@@ -340,13 +308,13 @@ export const builtinImageRenderer: ImageRenderPlugin = {
     if (!isLong) {
       // Short: single poster cover
       const coverTitle = generateCoverTitle(title);
-      const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords, input.onProgress);
+      const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords, input.onProgress, input.coverTheme);
       return { assets: [cover], pageCount: 1, pages: [{ page: 1, imageCount: 0, imageSources: [] }] };
     }
 
     // Long: cover + article pages
     const coverTitle = generateCoverTitle(title);
-    const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords, input.onProgress);
+    const cover = await renderCover("poster-3-4", coverTitle, outputDir, vp, highlightWords, input.onProgress, input.coverTheme);
 
     const bodyImages = input.bodyImages ?? [];
     const pageResult = await renderLongformPages(input, outputDir, newspicRenderSpec, bodyImages, vp);

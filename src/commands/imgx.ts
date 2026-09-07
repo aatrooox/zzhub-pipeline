@@ -6,7 +6,7 @@ import {
 } from "../imgx";
 import { ensureFonts } from "../runtime-paths";
 
-type ImgxHandler = (args: string[]) => void;
+type ImgxHandler = (args: string[]) => unknown;
 
 const IMGX_COMMANDS: Record<string, ImgxHandler> = {
   "render-article": runRenderArticleCli,
@@ -28,9 +28,9 @@ export async function imgxCommand(args: string[]): Promise<void> {
     throw new Error(`Unknown imgx subcommand: ${subcommand}`);
   }
 
-  await ensureFonts();
+  if (subcommand !== "render-card" && subcommand !== "render-article") await ensureFonts();
   try {
-    handler(args.slice(1));
+    await handler(args.slice(1));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("@napi-rs/canvas") || msg.includes("Cannot find package")) {

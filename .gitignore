@@ -16,3 +16,4 @@ logs/
 *.key
 docs/*
 !docs/monitor.md
+!docs/render-themes.md

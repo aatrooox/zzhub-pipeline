@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { CoverConfigSchema } from "./cover-theme";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -133,6 +134,19 @@ const ImgxConfigSchema = withObjectDefault(
   }),
 );
 
+/** null 沿用默认，空字符串隐藏对应的 Logo 或署名。 */
+const BrandingFieldsSchema = z.object({
+  logo: z.string().trim().max(8192).nullable().default(null),
+  footerText: z.string().max(500).nullable().default(null),
+}).strict();
+export const RenderBrandingSchema = BrandingFieldsSchema.extend({
+  accounts: z.record(z.string(), BrandingFieldsSchema).default({}),
+});
+export const RenderConfigSchema = z.object({
+  cover: CoverConfigSchema.prefault({}),
+  branding: RenderBrandingSchema.prefault({}),
+}).strict();
+
 // ── Top-level schema ──────────────────────────────────────────────
 
 export const PipelineConfigSchema = z.object({
@@ -143,6 +157,7 @@ export const PipelineConfigSchema = z.object({
   cos: CosConfigSchema,
   plugins: PluginsConfigSchema,
   imgx: ImgxConfigSchema,
+  render: RenderConfigSchema.prefault({}),
 });
 
 export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;

@@ -1,0 +1,59 @@
+{
+  "business": {
+    "name": "商务", "description": "浅灰与深蓝，左对齐标题与细线",
+    "colors": { "text": "#13243A", "accent": "#2457A7", "muted": "#586A80" },
+    "background": { "fill": { "type": "solid", "color": "#F1F5F9" } },
+    "decoration": { "pattern": "lines", "color": "#2457A7", "opacity": 0.18 }
+  },
+  "technology": {
+    "name": "科技", "description": "深蓝渐变与青色网格",
+    "colors": { "text": "#EAF4FF", "accent": "#67E8F9", "muted": "#A6BDD8" },
+    "background": { "fill": { "type": "linear", "angle": 135, "stops": [{ "color": "#0B1027", "offset": 0 }, { "color": "#182B5B", "offset": 100 }] } },
+    "decoration": { "pattern": "grid", "color": "#67E8F9", "opacity": 0.1, "size": 48 }
+  },
+  "minimal": {
+    "name": "简约", "description": "白底黑字，宽留白",
+    "colors": { "text": "#18181B", "accent": "#52525B", "muted": "#71717A" },
+    "background": { "fill": { "type": "solid", "color": "#FFFFFF" } },
+    "layout": { "safeArea": { "left": 108, "right": 108, "top": 108, "bottom": 72 } }
+  },
+  "solid": {
+    "name": "纯色", "description": "钴蓝与白色大字，黄色强调",
+    "colors": { "text": "#FFFFFF", "accent": "#FFE08A", "muted": "#D9E1FF" },
+    "background": { "fill": { "type": "solid", "color": "#3155D9" } },
+    "layout": { "textAlign": "center" }
+  },
+  "cute": {
+    "name": "可爱", "description": "粉黄渐变、手写字与轻盈圆点",
+    "typography": { "title": { "fontFamily": "LXGWWenKai", "fontWeight": 700 }, "subtitle": { "fontFamily": "LXGWWenKai", "fontSize": 56, "minFontSize": 40, "fontWeight": 400, "lineHeight": 1.4 } },
+    "colors": { "text": "#623C47", "accent": "#D64B78", "muted": "#856675" },
+    "background": { "fill": { "type": "linear", "angle": 150, "stops": [{ "color": "#FFF1F4", "offset": 0 }, { "color": "#FFF6DF", "offset": 100 }] } },
+    "decoration": { "pattern": "dots", "color": "#E4658C", "opacity": 0.12, "size": 58 },
+    "layout": { "textAlign": "center" }
+  },
+  "serious": {
+    "name": "严肃", "description": "米白纸面、墨色宋体与暗红强调",
+    "typography": { "title": { "fontFamily": "LXGWNeoZhiSongPlus", "fontWeight": 700 } },
+    "colors": { "text": "#202020", "accent": "#8A302B", "muted": "#655E54" },
+    "background": { "fill": { "type": "solid", "color": "#F3F0E8" } },
+    "decoration": { "pattern": "lines", "color": "#8A302B", "opacity": 0.18 }
+  },
+  "abstract": {
+    "name": "抽象", "description": "淡紫与冰蓝，边缘错位圆环",
+    "colors": { "text": "#302456", "accent": "#7653D5", "muted": "#695A87" },
+    "background": { "fill": { "type": "radial", "position": { "x": 20, "y": 10 }, "stops": [{ "color": "#EEE6FF", "offset": 0 }, { "color": "#E1F2FF", "offset": 100 }] } },
+    "decoration": { "pattern": "rings", "color": "#7653D5", "opacity": 0.16, "size": 180 }
+  },
+  "entertainment": {
+    "name": "娱乐", "description": "明黄底色、深紫大字与粉色几何装饰",
+    "colors": { "text": "#241341", "accent": "#B52D74", "muted": "#62532B" },
+    "background": { "fill": { "type": "solid", "color": "#FFF06A" } },
+    "decoration": { "pattern": "burst", "color": "#ED4F9A", "opacity": 0.32, "size": 144 }
+  },
+  "fresh-sage": { "name": "清新绿", "description": "早早集市原有绿色配色" },
+  "soft-rose": {
+    "name": "柔和粉", "description": "古一账号原有粉色配色",
+    "colors": { "text": "#1A1A1A", "accent": "#CA6093", "muted": "#795C6D" },
+    "background": { "fill": { "type": "solid", "color": "#FAF5F8" } }
+  }
+}

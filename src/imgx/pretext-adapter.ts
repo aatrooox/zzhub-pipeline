@@ -12,3 +12,6 @@ export {
   setLocale,
   walkLineRanges,
 } from "@chenglou/pretext";
+
+export { prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange } from "@chenglou/pretext/rich-inline";
+export type { RichInlineCursor } from "@chenglou/pretext/rich-inline";
