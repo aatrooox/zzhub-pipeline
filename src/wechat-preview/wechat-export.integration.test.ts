@@ -1,9 +1,11 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { PNG } from "pngjs";
 import { findChrome } from "../imgx/runtime";
+import { replaceImageUrls } from "../providers/wechat";
 import { exportMarkdownToWechatHtml } from "./index";
 
 const fixturePath = join(
@@ -15,7 +17,7 @@ const fixturePath = join(
 describe("semantic WeChat HTML export", () => {
   let tempDir: string | null = null;
 
-  afterAll(async () => {
+  afterEach(async () => {
     if (tempDir) await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -90,5 +92,77 @@ describe("semantic WeChat HTML export", () => {
     expect(preview).toContain(`<main id="wechat-preview-content">${html}</main>`);
     expect(preview).not.toContain("editor-export.js");
     expect(preview).not.toContain("browser-dist");
+  }, 30_000);
+
+  test.skipIf(findChrome() === null)("preserves Crepe image scaling and captions through export and upload URL replacement", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "zzhub-wechat-images-"));
+    for (const [name, width, height] of [["large", 1200, 600], ["small", 200, 400]] as const) {
+      const png = new PNG({ width, height });
+      png.data.fill(255);
+      await writeFile(join(tempDir, `${name}.png`), PNG.sync.write(png));
+    }
+
+    // 同一图片的不同缩放必须各自生效，小图不能按正文宽度放大。
+    const scaledImages = [
+      { name: "large", ratio: "0.50", width: 50, maxWidth: 600 },
+      { name: "large", ratio: "1.00", width: 100, maxWidth: 1200 },
+      { name: "large", ratio: "1.50", width: 100, maxWidth: 1800 },
+      { name: "small", ratio: "0.50", width: 50, maxWidth: 100 },
+      { name: "small", ratio: "1.00", width: 100, maxWidth: 200 },
+      { name: "small", ratio: "1.50", width: 100, maxWidth: 300 },
+    ];
+    const ordinaryAlts = ["普通说明", "", "2026", "0.00", "-0.50", "0.5", "1.00x", "Infinity"];
+    const markdownPath = join(tempDir, "images.md");
+    await writeFile(markdownPath, [
+      ...scaledImages.map(({ name, ratio }, index) => `![${ratio}](./${name}.png "缩放图注 ${index}")`),
+      ...ordinaryAlts.map(alt => `![${alt}](./small.png "普通图注")`),
+      '行内图片 ![0.50](./small.png "行内图注") 后文',
+    ].join("\n\n"));
+
+    const result = await exportMarkdownToWechatHtml({
+      markdownPath,
+      outPath: join(tempDir, "images.html"),
+      account: "default",
+    });
+    const uploadedHtml = replaceImageUrls(result.html, {
+      [join(tempDir, "large.png")]: "https://mmbiz.qpic.cn/large.png",
+      [join(tempDir, "small.png")]: "https://mmbiz.qpic.cn/small.png",
+    });
+    const images = uploadedHtml.match(/<img\b[^>]*>/g) ?? [];
+    expect(images).toHaveLength(scaledImages.length + ordinaryAlts.length + 1);
+    scaledImages.forEach(({ name, width, maxWidth }, index) => {
+      expect(images[index]).toContain(`width: ${width}%;`);
+      expect(images[index]).toContain(`max-width: ${maxWidth}px;`);
+      expect(images[index]).toContain("height: auto;");
+      expect(images[index]).toContain(`src="https://mmbiz.qpic.cn/${name}.png"`);
+      expect(images[index]).toContain(`data-src="https://mmbiz.qpic.cn/${name}.png"`);
+      expect(uploadedHtml).toMatch(new RegExp(`<p[^>]*>缩放图注 ${index}</p>`));
+    });
+    ordinaryAlts.forEach((alt, index) => {
+      expect(images[scaledImages.length + index]).toContain(`alt="${alt}"`);
+      expect(images[scaledImages.length + index]).toContain("width: auto;");
+      expect(images[scaledImages.length + index]).toContain("max-width: 100%;");
+    });
+    expect(uploadedHtml).toMatch(/<p[^>]*>普通图注<\/p>/);
+    expect(images.at(-1)).toContain('alt="0.50"');
+    expect(images.at(-1)).toContain("width: auto;");
+    expect(uploadedHtml).not.toContain(">行内图注</p>");
+    expect(uploadedHtml).not.toContain(tempDir);
+  }, 30_000);
+
+  test.skipIf(findChrome() === null)("reports an export error when a scaled image cannot be decoded", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "zzhub-wechat-image-error-"));
+    const markdownPath = join(tempDir, "images.md");
+    await writeFile(join(tempDir, "broken.png"), "not an image");
+    await writeFile(markdownPath, '![0.50](./broken.png "失败图注")');
+
+    await expect(exportMarkdownToWechatHtml({
+      markdownPath,
+      outPath: join(tempDir, "images.html"),
+      account: "default",
+    })).rejects.toMatchObject({
+      kind: "render_error",
+      message: expect.stringContaining("无法读取缩放图片的原始尺寸"),
+    });
   }, 30_000);
 });

@@ -51,7 +51,7 @@ async function main(): Promise<void> {
     .use(gfm);
   await editor.create();
   const semanticHtml = editor.action(getHTML());
-  const html = renderWechatHtml({
+  const html = await renderWechatHtml({
     semanticHtml,
     baseCss: articleCss,
     customCss: payload.customCss,

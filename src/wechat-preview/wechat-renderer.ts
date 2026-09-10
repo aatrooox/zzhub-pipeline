@@ -34,7 +34,7 @@ export interface WechatElementRenderer {
   selector: string;
   /** Optional selector used after CSS has been inlined. Defaults to selector. */
   finalizeSelector?: string;
-  prepare?: (element: HTMLElement, context: WechatRenderContext) => void;
+  prepare?: (element: HTMLElement, context: WechatRenderContext) => void | Promise<void>;
   finalize?: (element: HTMLElement, context: WechatRenderContext) => void;
 }
 
@@ -220,11 +220,12 @@ function imageIsOnlyContent(parent: HTMLElement, image: HTMLElement): boolean {
   });
 }
 
+// 图片缩放与图注共用导出流程，分别读取 alt 和 title。
 const imageRenderer: WechatElementRenderer = {
   kind: "image",
   selector: "img",
   finalizeSelector: "figure, figcaption",
-  prepare(element, context) {
+  async prepare(element, context) {
     setNodeKind(element, "image");
     const src = element.getAttribute("src");
     if (src) element.setAttribute("data-src", src);
@@ -232,6 +233,24 @@ const imageRenderer: WechatElementRenderer = {
     const parent = element.parentElement;
     if (!parent || parent.tagName.toLowerCase() !== "p" || !imageIsOnlyContent(parent, element)) {
       return;
+    }
+
+    // Crepe 仅将独立图片的缩放比例序列化为两位小数。
+    const alt = element.getAttribute("alt") ?? "";
+    const ratio = /^(?:0|[1-9]\d*)\.\d{2}$/.test(alt) ? Number(alt) : 0;
+    if (ratio > 0 && Number.isFinite(ratio)) {
+      // DOMParser 文档不加载图片，用浏览器图片对象读取原始尺寸。
+      const sourceImage = new Image();
+      sourceImage.src = src ?? "";
+      try {
+        await sourceImage.decode();
+        if (!sourceImage.naturalWidth) throw new Error("图片原始宽度为空");
+      } catch (error) {
+        throw new Error(`无法读取缩放图片的原始尺寸：${element.getAttribute("title") || "无图注"}`, { cause: error });
+      }
+      element.style.width = `${Math.min(ratio, 1) * 100}%`;
+      element.style.maxWidth = `${sourceImage.naturalWidth * ratio}px`;
+      element.style.height = "auto";
     }
 
     const figure = context.document.createElement("figure");
@@ -500,11 +519,12 @@ export function createWechatRendererRegistry(
   return DEFAULT_RENDERERS.map((renderer) => overrides[renderer.kind] ?? renderer);
 }
 
-function runRendererPhase(
+/** 按渲染器顺序执行，等待图片尺寸读取完成。 */
+async function runRendererPhase(
   phase: "prepare" | "finalize",
   renderers: WechatElementRenderer[],
   context: WechatRenderContext,
-): void {
+): Promise<void> {
   for (const renderer of renderers) {
     const handler = renderer[phase];
     if (!handler) continue;
@@ -515,7 +535,7 @@ function runRendererPhase(
     if (context.root.matches(selector)) elements.push(context.root);
     elements.push(...Array.from(context.root.querySelectorAll<HTMLElement>(selector)));
     for (const element of elements) {
-      if (element.isConnected || element === context.root) handler(element, context);
+      if (element.isConnected || element === context.root) await handler(element, context);
     }
   }
 }
@@ -640,7 +660,8 @@ function sanitizeTree(root: HTMLElement): void {
   }
 }
 
-export function renderWechatHtml(input: RenderWechatHtmlInput): string {
+/** 完成图片缩放后，将文章样式内联为公众号 HTML。 */
+export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<string> {
   const sourceDocument = parseHtml("");
   const compatibilityRoot = sourceDocument.createElement("section");
   compatibilityRoot.className = "milkdown";
@@ -655,7 +676,7 @@ export function renderWechatHtml(input: RenderWechatHtmlInput): string {
 
   const references: WechatLinkReference[] = [];
   const renderers = createWechatRendererRegistry(input.renderers);
-  runRendererPhase("prepare", renderers, {
+  await runRendererPhase("prepare", renderers, {
     document: sourceDocument,
     root,
     theme: input.theme,
@@ -687,7 +708,7 @@ export function renderWechatHtml(input: RenderWechatHtmlInput): string {
   const finalRoot = finalDocument.querySelector<HTMLElement>(".zzhub-wechat-article");
   if (!finalRoot) throw new Error("Wechat article root missing after CSS inlining");
 
-  runRendererPhase("finalize", renderers, {
+  await runRendererPhase("finalize", renderers, {
     document: finalDocument,
     root: finalRoot,
     theme: input.theme,
