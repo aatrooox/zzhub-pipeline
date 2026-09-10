@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.13.1
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.13.0...v0.13.1)
+
+### Fixes
+
+- **wechat:** Preserve Crepe image scaling in article exports ([366b30c](https://github.com/aatrooox/zzhub-pipeline/commit/366b30c))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.13.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.12.0...v0.13.0)
