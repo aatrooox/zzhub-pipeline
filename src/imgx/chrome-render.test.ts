@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PNG } from "pngjs";
-import { screenshotReadyHtml } from "./chrome-render";
+import { dumpReadyHtml, screenshotReadyHtml } from "./chrome-render";
 import { findChrome } from "./runtime";
 
 test("capture waits for image and layout readiness instead of a fixed delay", async () => {
@@ -36,3 +36,18 @@ test("capture waits for image and layout readiness instead of a fixed delay", as
     await rm(directory, { recursive: true, force: true });
   }
 }, 30_000);
+
+test("DOM export uses a real deadline and cleans up Chrome after timeout or startup failure", async () => {
+  const directories = async () => (await readdir(tmpdir())).filter(name => name.startsWith("zzhub-chrome-")).sort();
+  const before = await directories();
+  const started = Date.now();
+  await expect(dumpReadyHtml({
+    chromePath: findChrome()!, timeoutMs: 2000,
+    html: '<html><body><script>window.__zzhubRenderReady = new Promise(() => {});</script></body></html>',
+  })).rejects.toMatchObject({ kind: "timeout" });
+  expect(Date.now() - started).toBeGreaterThanOrEqual(1900);
+  expect(Date.now() - started).toBeLessThan(8000);
+  await expect(dumpReadyHtml({ chromePath: "/missing/chrome", html: "", timeoutMs: 2000 }))
+    .rejects.toMatchObject({ kind: "chrome_failed" });
+  expect(await directories()).toEqual(before);
+}, 15_000);

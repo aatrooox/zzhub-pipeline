@@ -11,6 +11,7 @@ export type PreviewEntryStatus = "success" | "failed";
 export interface PreviewEntryDebug {
   chrome_path?: string;
   virtual_time_budget_ms?: number;
+  timeout_ms?: number;
   bundle_stale?: boolean;
   bundle_rebuilt?: boolean;
   shell_path?: string;

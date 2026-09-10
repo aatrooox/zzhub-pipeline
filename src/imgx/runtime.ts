@@ -214,67 +214,6 @@ export function screenshotHtml(options: {
   rmSync(tempShotDir, { recursive: true, force: true });
 }
 
-export class ChromeDumpError extends Error {
-  readonly stderr: string;
-  readonly tempHtmlPath?: string;
-  readonly exitCode: number | null;
-
-  constructor(message: string, options: {
-    stderr: string;
-    tempHtmlPath?: string;
-    exitCode: number | null;
-  }) {
-    super(message);
-    this.name = "ChromeDumpError";
-    this.stderr = options.stderr;
-    this.tempHtmlPath = options.tempHtmlPath;
-    this.exitCode = options.exitCode;
-  }
-}
-
-export function dumpHtmlDom(options: {
-  chromePath: string;
-  html: string;
-  virtualTimeBudgetMs?: number;
-  /** When true, leave the temp shell HTML on disk if Chrome fails (caller must clean up). */
-  keepTempOnError?: boolean;
-}): string {
-  const tempHtml = writeTempHtml(injectStaticRenderStyle(options.html));
-  const fileUrl = pathToFileURL(tempHtml).href;
-  const chromeArgs = [
-    options.chromePath,
-    "--headless",
-    "--disable-gpu",
-    "--no-sandbox",
-    "--allow-file-access-from-files",
-    "--disable-web-security=false",
-  ];
-  if ((options.virtualTimeBudgetMs ?? 0) > 0) {
-    chromeArgs.push(`--virtual-time-budget=${options.virtualTimeBudgetMs}`);
-  }
-  chromeArgs.push("--dump-dom", fileUrl);
-
-  const result = Bun.spawnSync({
-    cmd: chromeArgs,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  if (result.exitCode !== 0) {
-    const stderr = new TextDecoder().decode(result.stderr);
-    if (!options.keepTempOnError) {
-      cleanupTempFile(tempHtml);
-    }
-    throw new ChromeDumpError(`Chrome dump-dom failed (exit ${result.exitCode}):\n${stderr}`, {
-      stderr,
-      tempHtmlPath: options.keepTempOnError ? tempHtml : undefined,
-      exitCode: result.exitCode,
-    });
-  }
-  const dom = new TextDecoder().decode(result.stdout);
-  cleanupTempFile(tempHtml);
-  return dom;
-}
-
 export function cropTop(options: {
   inputPath: string;
   outPath: string;

@@ -5,8 +5,10 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { findChrome } from "../imgx/runtime";
+import { dumpReadyHtml } from "../imgx/chrome-render";
+import { TEMPLATE_PATH } from "../runtime-paths";
 import { replaceImageUrls } from "../providers/wechat";
-import { exportMarkdownToWechatHtml } from "./index";
+import { exportMarkdownToWechatHtml, extractRenderResult } from "./index";
 
 const fixturePath = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -165,4 +167,53 @@ describe("semantic WeChat HTML export", () => {
       message: expect.stringContaining("无法读取缩放图片的原始尺寸"),
     });
   }, 30_000);
+
+  test.skipIf(findChrome() === null)("waits for remote PNG and GIF responses before completing scaled HTML export", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "zzhub-wechat-remote-"));
+    const png = new PNG({ width: 200, height: 100 });
+    png.data.fill(255);
+    const pngBytes = PNG.sync.write(png);
+    const gif = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+    const requested = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
+      requested.resolve();
+      await release.promise;
+      const isGif = request.url.endsWith(".gif");
+      return new Response(isGif ? gif : pngBytes, { headers: { "content-type": isGif ? "image/gif" : "image/png", "cache-control": "no-store" } });
+    } });
+    const markdownPath = join(tempDir, "images.md");
+    await writeFile(markdownPath, `![0.50](http://127.0.0.1:${server.port}/photo.png "远程图注")\n\n![0.50](http://127.0.0.1:${server.port}/motion.gif "动图图注")`);
+    let finished = false;
+    const exporting = exportMarkdownToWechatHtml({ markdownPath, outPath: join(tempDir, "images.html"), account: "default" })
+      .then(result => { finished = true; return result; });
+    try {
+      await Promise.race([requested.promise, exporting]);
+      // 人为延迟网络响应，确认导出不会提前读到 pending。
+      await Bun.sleep(800);
+      expect(finished).toBe(false);
+      release.resolve();
+      const { html } = await exporting;
+      expect(html).toContain("width: 50%;");
+      expect(html).toContain("max-width: 100px;");
+      expect(html).toContain("max-width: 0.5px;");
+      expect(html).toContain("远程图注</p>");
+      expect(html).toContain("动图图注</p>");
+      expect(html).toContain("/motion.gif");
+    } finally {
+      release.resolve();
+      await exporting.catch(() => {});
+      await server.stop(true);
+    }
+  }, 30_000);
+
+  test.skipIf(findChrome() === null)("settles the export result when the browser module fails to load", async () => {
+    const html = (await readFile(TEMPLATE_PATH, "utf8"))
+      .replace("{{PAGE_TITLE}}", "加载失败")
+      .replace("{{CSS_LINK}}", "")
+      .replace("{{PAYLOAD_JSON}}", "{}")
+      .replace("{{SCRIPT_URL}}", "file:///missing/wechat-editor.js");
+    const result = extractRenderResult(await dumpReadyHtml({ chromePath: findChrome()!, html, timeoutMs: 5000 }));
+    expect(result).toEqual({ status: "error", error: "failed to load wechat preview bundle" });
+  }, 10_000);
 });

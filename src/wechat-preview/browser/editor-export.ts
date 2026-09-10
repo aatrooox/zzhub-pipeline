@@ -13,22 +13,15 @@ interface BrowserPayload {
   customCss?: string;
 }
 
+type BrowserResult =
+  | { status: "success"; html: string; semanticHtml?: string }
+  | { status: "error"; error: string };
+
 declare global {
   interface Window {
     __ZZHUB_WECHAT_PAYLOAD__?: BrowserPayload;
+    __ZZHUB_SET_RESULT__: (result: BrowserResult) => void;
   }
-}
-
-function setResult(
-  result:
-    | { status: "success"; html: string; semanticHtml?: string }
-    | { status: "error"; error: string },
-): void {
-  const el = document.getElementById("zzhub-wechat-export-result");
-  if (!el) {
-    return;
-  }
-  el.textContent = JSON.stringify(result);
 }
 
 async function main(): Promise<void> {
@@ -59,10 +52,10 @@ async function main(): Promise<void> {
     theme: payload.exportTheme,
   });
   await editor.destroy();
-  setResult({ status: "success", html, semanticHtml });
+  window.__ZZHUB_SET_RESULT__({ status: "success", html, semanticHtml });
 }
 
 void main().catch((error: unknown) => {
   const detail = error instanceof Error ? error.message : String(error);
-  setResult({ status: "error", error: detail });
+  window.__ZZHUB_SET_RESULT__({ status: "error", error: detail });
 });

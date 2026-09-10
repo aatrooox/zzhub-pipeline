@@ -4,14 +4,13 @@ import { createRequire } from "module";
 import { dirname, isAbsolute, join, resolve } from "path";
 import { pathToFileURL } from "url";
 import {
-  ChromeDumpError,
-  dumpHtmlDom,
   ensureParentDir,
   escapeHtml,
   findChrome,
   readUtf8,
   renderTemplate,
 } from "../imgx/runtime";
+import { ChromeRenderError, dumpReadyHtml } from "../imgx/chrome-render";
 import {
   PACKAGE_ROOT,
   TEMPLATE_PATH,
@@ -45,6 +44,7 @@ export type WechatExportErrorKind =
 export interface WechatExportDebugInfo {
   chrome_path?: string;
   virtual_time_budget_ms?: number;
+  timeout_ms?: number;
   bundle_stale?: boolean;
   bundle_rebuilt?: boolean;
   shell_path?: string;
@@ -94,7 +94,7 @@ export interface ExportMarkdownToWechatHtmlInput {
     editorVars?: Record<string, string>;
     exportTheme?: Record<string, string>;
   };
-  /** Chrome virtual-time-budget in ms (default 15000). */
+  /** 浏览器真实等待上限，默认 15000 毫秒。 */
   timeoutMs?: number;
   /** Write intermediate artifacts for debugging. */
   debugDir?: string;
@@ -320,7 +320,7 @@ export async function exportMarkdownToWechatHtml(
   input: ExportMarkdownToWechatHtmlInput,
 ): Promise<ExportMarkdownToWechatHtmlResult> {
   const started = Date.now();
-  const timeoutMs = input.timeoutMs ?? 15_000;
+  const timeoutMs = input.timeoutMs && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0 ? input.timeoutMs : 15_000;
   const title = input.title ?? "Wechat Preview Export";
   let chromePath: string | undefined;
   let bundleRebuilt = false;
@@ -339,7 +339,7 @@ export async function exportMarkdownToWechatHtml(
       markdownPath: input.markdownPath,
       debug: {
         chrome_path: chromePath,
-        virtual_time_budget_ms: timeoutMs,
+        timeout_ms: timeoutMs,
         bundle_stale: bundleStale,
         bundle_rebuilt: bundleRebuilt,
         debug_dir: input.debugDir,
@@ -401,29 +401,31 @@ export async function exportMarkdownToWechatHtml(
 
     let dumpedDom: string;
     try {
-      dumpedDom = dumpHtmlDom({
+      dumpedDom = await dumpReadyHtml({
         chromePath,
         html: shellHtml,
-        virtualTimeBudgetMs: timeoutMs,
-        keepTempOnError: Boolean(input.debugDir),
+        timeoutMs,
       });
     } catch (error) {
-      if (error instanceof ChromeDumpError) {
+      if (error instanceof ChromeRenderError) {
         if (input.debugDir) {
           await writeDebugArtifacts(input.debugDir, {
             "00-payload-markdown.md": markdown,
             "01-export-shell.html": shellHtml,
             "meta.json": JSON.stringify({
               status: "failed",
-              kind: "chrome_failed",
+              kind: error.kind,
               error: error.message,
               stderr: error.stderr,
               duration_ms: Date.now() - started,
+              timeout_ms: timeoutMs,
             }, null, 2),
           });
         }
-        throw makeError("chrome_failed", error.message, {
-          shell_path: error.tempHtmlPath,
+        throw makeError(error.kind, error.kind === "timeout"
+          ? `Wechat preview export did not finish before timeout (${timeoutMs}ms real time)`
+          : error.message, {
+          shell_path: input.debugDir ? join(input.debugDir, "01-export-shell.html") : undefined,
           stderr_tail: stderrTail(error.stderr),
           debug_dir: input.debugDir,
         });
@@ -445,15 +447,15 @@ export async function exportMarkdownToWechatHtml(
           "02-dump-dom.html": dumpedDom,
           "meta.json": JSON.stringify({
             status: "failed",
-            kind: "timeout",
+            kind: "render_error",
             error: error instanceof Error ? error.message : String(error),
             duration_ms: Date.now() - started,
           }, null, 2),
         });
       }
       throw makeError(
-        "timeout",
-        `Wechat preview export did not finish before timeout (${timeoutMs}ms): ${
+        "render_error",
+        `Wechat preview export returned an invalid result: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -483,15 +485,15 @@ export async function exportMarkdownToWechatHtml(
           "02-dump-dom.html": dumpedDom,
           "meta.json": JSON.stringify({
             status: "failed",
-            kind: "timeout",
+            kind: "render_error",
             status_value: result.status,
             duration_ms: Date.now() - started,
           }, null, 2),
         });
       }
       throw makeError(
-        "timeout",
-        `Wechat preview export did not finish before timeout (status=${result.status}, budget=${timeoutMs}ms)`,
+        "render_error",
+        `Wechat preview export returned an incomplete result (status=${result.status})`,
       );
     }
 

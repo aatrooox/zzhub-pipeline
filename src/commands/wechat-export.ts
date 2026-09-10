@@ -70,7 +70,7 @@ Options:
   --title              Page title for the render shell (optional)
   --preview-shell-out  Path to exact final-HTML preview (optional)
   --custom-css         CSS override path; replaces account customCss (optional)
-  --timeout-ms         Chrome virtual-time-budget in ms (default: 15000)
+  --timeout-ms         Real browser wait limit in ms (default: 15000)
   --debug-dir          Write intermediate artifacts for debugging (optional)
   --preview            Register result with local preview server (default: true)
   --no-preview         Do not register with preview server

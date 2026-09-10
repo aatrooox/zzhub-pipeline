@@ -12,11 +12,17 @@
       <script id="zzhub-wechat-export-result" type="application/json">{"status":"pending"}</script>
     </div>
     <script>
+      var renderFinished = false;
+      var resolveRender;
+      window.__zzhubRenderReady = new Promise(function (resolve) { resolveRender = resolve; });
       window.__ZZHUB_SET_RESULT__ = function (payload) {
+        if (renderFinished) return;
+        renderFinished = true;
         var el = document.getElementById("zzhub-wechat-export-result");
         if (el) {
           el.textContent = JSON.stringify(payload);
         }
+        resolveRender();
       };
       window.addEventListener("error", function (event) {
         window.__ZZHUB_SET_RESULT__({
