@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.13.2
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.13.1...v0.13.2)
+
+### Fixes
+
+- **wechat:** Wait for article rendering before exporting HTML ([f812268](https://github.com/aatrooox/zzhub-pipeline/commit/f812268))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.13.1
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.13.0...v0.13.1)
