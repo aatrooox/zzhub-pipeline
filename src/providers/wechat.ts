@@ -276,8 +276,8 @@ export function replaceImageUrls(html: string, imageUrlMap: Record<string, strin
     if (!orig || !wx) {
       continue;
     }
-    const escaped = orig.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-    replaced = replaced.replace(new RegExp(escaped, "g"), wx);
+    // Base64 图片地址可能数 MB，按字面替换，避免超大正则及替换串转义。
+    replaced = replaced.replaceAll(orig, () => wx);
   }
   return replaced;
 }

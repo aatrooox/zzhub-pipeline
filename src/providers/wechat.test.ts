@@ -193,6 +193,13 @@ describe("extractImageUrls", () => {
 });
 
 describe("replaceImageUrls", () => {
+  test("replaces large Base64 sources and preserves literal replacement URLs", () => {
+    const src = `data:image/png;base64,${"A".repeat(3_400_000)}`;
+    const url = "https://example.com/image.png?value=$&";
+    expect(replaceImageUrls(`<img src="${src}" data-src="${src}">`, { [src]: url }))
+      .toBe(`<img src="${url}" data-src="${url}">`);
+  });
+
   test("replaces URLs using the mapping", () => {
     const html = '<img src="https://old.com/img.png">';
     const result = replaceImageUrls(html, { "https://old.com/img.png": "https://new.com/img.png" });
