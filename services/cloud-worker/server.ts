@@ -169,6 +169,8 @@ async function main(): Promise<void> {
               account: input.account,
               intentText: input.intentText,
               existingDraftMediaId: input.existingDraftMediaId,
+              useDefaultCover: input.useDefaultCover,
+              coverTheme: input.coverTheme,
             },
             status: "queued",
             step: "queued",

@@ -131,6 +131,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     "--account", input.account,
     "--requires-publish",
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
+    ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
   ], account);
   const initResult = init.result as { state_path?: string; run_id?: string };
   let statePath = stringParam(initResult.state_path);
