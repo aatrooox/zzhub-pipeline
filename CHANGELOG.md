@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.14.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.13.2...v0.14.0)
+
+### Features
+
+- Add private cloud pipeline worker ([20b474d](https://github.com/aatrooox/zzhub-pipeline/commit/20b474d))
+
+### Fixes
+
+- **wechat:** Replace large Base64 image URLs without regex ([869b08d](https://github.com/aatrooox/zzhub-pipeline/commit/869b08d))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.13.2
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.13.1...v0.13.2)
