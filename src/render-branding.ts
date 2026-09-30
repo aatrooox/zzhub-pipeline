@@ -16,7 +16,7 @@ export function resolveRenderBranding(config: PipelineConfig, account: string): 
   const branding = config.render.branding;
   const selected = branding.accounts[account];
   const visual = getVisualParams(account);
-  const logo = selected?.logo ?? branding.logo ?? config.imgx.icon;
+  const logo = process.env.ZZHUB_PIPELINE_BRANDING_LOGO?.trim() || (selected?.logo ?? branding.logo ?? config.imgx.icon);
   return {
     logo: logo === null ? resolveInputPath(visual?.fallback_icon ?? join(ICONS_DIR, "logo.png")) : resolveBrandLogo(logo),
     footerText: selected?.footerText ?? branding.footerText ?? visual?.footer ?? config.wx.accounts[account]?.name ?? "",
