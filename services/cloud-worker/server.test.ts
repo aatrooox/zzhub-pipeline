@@ -31,6 +31,14 @@ test("worker defaults to loopback and authenticates health and job requests", as
     expect((await fetch(`${url}/v1/jobs/missing`)).status).toBe(401);
     expect((await fetch(`${url}/v1/jobs/missing`, { headers })).status).toBe(404);
 
+    expect((await fetch(`${url}/v1/accounts/test-account`, { method: "PUT", headers, body: JSON.stringify({
+      account: "test-account",
+      appId: "app-id",
+      appSecret: "app-secret",
+      pat: "pat",
+    }) })).status).toBe(200);
+    expect((await fetch(`${url}/v1/accounts/test-account`, { method: "DELETE", headers })).status).toBe(200);
+
     const rejected = Bun.spawnSync(command, { env: { ...env, PIPELINE_WORKER_HOST: "0.0.0.0" } });
     expect(rejected.exitCode).not.toBe(0);
     expect(rejected.stderr.toString()).toContain("PIPELINE_WORKER_HOST must be loopback");

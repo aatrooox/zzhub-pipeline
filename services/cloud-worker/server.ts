@@ -1,15 +1,17 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { executeCloudJob } from "./pipeline";
-import { type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
+import { AccountStore, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
 
 const host = process.env.PIPELINE_WORKER_HOST?.trim() || "127.0.0.1";
 const port = Number(process.env.PIPELINE_WORKER_PORT || "18887");
 // 非回环监听只允许部署在隔离容器网络中显式开启。
 const privateNetwork = process.env.PIPELINE_WORKER_PRIVATE_NETWORK === "1";
 const workspaceRoot = resolve(process.env.PIPELINE_WORKSPACE_ROOT?.trim() || "/data/pipeline-worker");
-const store = new JobStore(resolve(process.env.PIPELINE_WORKER_STATE_FILE?.trim() || "/data/pipeline-worker/jobs.json"));
+const workerStateFile = resolve(process.env.PIPELINE_WORKER_STATE_FILE?.trim() || "/data/pipeline-worker/jobs.json");
+const store = new JobStore(workerStateFile);
+const accounts = new AccountStore(resolve(process.env.PIPELINE_WORKER_ACCOUNT_STATE_FILE?.trim() || `${dirname(workerStateFile)}/accounts.json`));
 const queue: string[] = [];
 let draining = false;
 
@@ -62,6 +64,21 @@ function validateInput(value: unknown): CloudJobInput {
   };
 }
 
+function validateAccount(value: unknown, accountName: string) {
+  if (!value || typeof value !== "object")
+    throw new Error("Request body must be an object");
+  const input = value as Record<string, unknown>;
+  const account = typeof input.account === "string" ? input.account.trim() : accountName;
+  const appId = typeof input.appId === "string" ? input.appId.trim() : "";
+  const appSecret = typeof input.appSecret === "string" ? input.appSecret.trim() : "";
+  const pat = typeof input.pat === "string" ? input.pat.trim() : "";
+  if (account !== accountName || !/^[a-zA-Z0-9_.-]{1,80}$/.test(account))
+    throw new Error("account is invalid");
+  if (!appId || appId.length > 255 || !appSecret || appSecret.length > 512 || !pat || pat.length > 512)
+    throw new Error("appId, appSecret and pat are required");
+  return { account, appId, appSecret, pat };
+}
+
 function requestHash(input: CloudJobInput): string {
   return createHash("sha256").update(JSON.stringify(input)).digest("hex");
 }
@@ -81,7 +98,7 @@ async function drain(): Promise<void> {
       job.step = "starting";
       await store.set(job);
       try {
-        await executeCloudJob(job, { ...job.input, body: job.body }, store, workspaceRoot);
+        await executeCloudJob(job, { ...job.input, body: job.body }, store, accounts, workspaceRoot);
         job.status = "succeeded";
         job.finishedAt = new Date().toISOString();
         await store.set(job);
@@ -104,6 +121,7 @@ async function main(): Promise<void> {
     throw new Error("PIPELINE_WORKER_HOST must be loopback unless PIPELINE_WORKER_PRIVATE_NETWORK=1");
   await mkdir(workspaceRoot, { recursive: true });
   await store.load();
+  await accounts.load();
   for (const job of store.jobs.values()) {
     if (job.status === "queued") queue.push(job.id);
   }
@@ -117,9 +135,19 @@ async function main(): Promise<void> {
       if (!bearerMatches(request))
         return json({ error: "unauthorized" }, 401);
       if (url.pathname === "/health" && request.method === "GET")
-        return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining });
+        return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size });
 
       try {
+        const accountMatch = url.pathname.match(/^\/v1\/accounts\/([^/]+)$/);
+        if (accountMatch && request.method === "PUT") {
+          const input = validateAccount(await request.json(), accountMatch[1]);
+          await accounts.set({ ...input, updatedAt: new Date().toISOString() });
+          return json({ account: input.account, status: "active" });
+        }
+        if (accountMatch && request.method === "DELETE") {
+          const deleted = await accounts.delete(accountMatch[1]);
+          return json({ account: accountMatch[1], deleted });
+        }
         if (url.pathname === "/v1/jobs" && request.method === "POST") {
           const contentLength = Number(request.headers.get("content-length") || "0");
           if (Number.isFinite(contentLength) && contentLength > 2_500_000)

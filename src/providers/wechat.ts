@@ -186,7 +186,9 @@ function getWxRuntimeConfig(
     accountOverride || config.wx.defaultAccount,
   );
   const configuredAccount = config.wx.accounts[accountName];
-  if (!configuredAccount) {
+  // 云端 worker 以每个任务的环境变量注入凭据，不要求把用户账号写进基础 config.
+  const hasInjectedCredentials = Boolean(process.env.WX_APPID && process.env.WX_APPSECRET && process.env.ZZCLUB_PAT);
+  if (!configuredAccount && !hasInjectedCredentials) {
     throw new Error(`Unknown wx account: ${accountName}`);
   }
   const accountConfig = fillWxAccountConfig(configuredAccount);

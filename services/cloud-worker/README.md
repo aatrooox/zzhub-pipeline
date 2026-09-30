@@ -44,9 +44,11 @@ curl -X POST http://127.0.0.1:18887/v1/jobs \
 curl http://127.0.0.1:18887/health -H 'Authorization: Bearer dev-token'
 ```
 
+Nezus 首次保存账号时，会通过同一个内网令牌调用 `PUT /v1/accounts/:account` 同步公众号凭据；凭据只写入 worker 的持久卷 `accounts.json`，不进入任务请求或任务状态响应。删除账号使用 `DELETE /v1/accounts/:account`。
+
 `job.json` 至少包含 `idempotencyKey`、`title`、`body`、`contentForm`（`article` 或 `newspic`）和 `account`。用 `GET /v1/jobs/:id` 轮询状态；`succeeded` 表示 Pipeline 已完成目标发布，`failed` 的原因在 `error`。同一个 `idempotencyKey` 会返回原任务，不会重复入队。
 
-生产环境至少配置 `PIPELINE_WORKER_TOKEN`、`PIPELINE_WORKSPACE_ROOT`、`PIPELINE_WORKER_STATE_FILE` 和挂载的 `PIPELINE_CONFIG_FILE`。配置文件只放 Pipeline 账号凭据，不通过任务请求传递。
+生产环境至少配置 `PIPELINE_WORKER_TOKEN`、`PIPELINE_WORKSPACE_ROOT`、`PIPELINE_WORKER_STATE_FILE` 和挂载的 `PIPELINE_CONFIG_FILE`。基础配置保存排版与默认值；Nezus 同步的账号凭据保存到 worker 数据卷的 `accounts.json`。
 
 Docker 镜像默认用镜像内置的 `src/imgx/assets/icons/logo.png` 生成封面，避免把桌面配置中的本机 logo 路径带进云端；如需品牌图，把 `ZZHUB_PIPELINE_BRANDING_LOGO` 指向容器内的挂载路径。
 
