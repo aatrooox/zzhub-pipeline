@@ -67,6 +67,8 @@ const WxAccountConfigSchema = z.object({
   appId: z.string().default(""),
   appSecret: z.string().default(""),
   customCss: z.string().nullable().default(null),
+  /** 账号默认的本地正文模板，未配置时保持原样式。 */
+  articleTheme: z.string().nullable().optional(),
   theme: WechatThemeOverridesSchema,
 });
 

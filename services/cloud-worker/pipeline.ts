@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { CloudJobInput, JobStore, StoredCloudJob } from "./store";
+import type { AccountStore, CloudJobInput, JobStore, StoredCloudJob, PipelineWorkerAccount } from "./store";
 import { defaultJobWorkspace } from "./store";
 import { redact } from "../../src/monitor/runtime";
 import type { TaskStatusReport } from "../../src/task-manager";
@@ -20,7 +20,7 @@ function pipelineEntry(): string {
   return resolve(pipelineRoot(), "src/cli.ts");
 }
 
-function pipelineEnv(workspace: string): Record<string, string> {
+function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null): Record<string, string> {
   const env = { ...process.env } as Record<string, string>;
   env.NO_COLOR = "1";
   env.FORCE_COLOR = "0";
@@ -31,6 +31,11 @@ function pipelineEnv(workspace: string): Record<string, string> {
   env.ZZHUB_PIPELINE_LOG_DIR = join(workspace, "logs");
   if (process.env.PIPELINE_CONFIG_FILE?.trim())
     env.ZZHUB_PIPELINE_CONFIG = process.env.PIPELINE_CONFIG_FILE.trim();
+  if (account) {
+    env.WX_APPID = account.appId;
+    env.WX_APPSECRET = account.appSecret;
+    env.ZZCLUB_PAT = account.pat;
+  }
   return env;
 }
 
@@ -38,6 +43,7 @@ async function runPipelineCommand(
   workspace: string,
   command: string,
   args: string[],
+  account?: PipelineWorkerAccount | null,
 ): Promise<PipelineCommandResult> {
   const child = Bun.spawn([
     process.env.BUN_BIN?.trim() || process.execPath,
@@ -46,7 +52,7 @@ async function runPipelineCommand(
     ...args,
   ], {
     cwd: pipelineRoot(),
-    env: pipelineEnv(workspace),
+    env: pipelineEnv(workspace, account),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -80,8 +86,8 @@ function publishResults(status: PipelineTaskStatus): Array<Record<string, unknow
   return status.summary?.publish?.results || [];
 }
 
-async function status(workspace: string, statePath: string): Promise<PipelineTaskStatus> {
-  const output = await runPipelineCommand(workspace, "status", ["--state", statePath]);
+async function status(workspace: string, statePath: string, account: PipelineWorkerAccount): Promise<PipelineTaskStatus> {
+  const output = await runPipelineCommand(workspace, "status", ["--state", statePath], account);
   return output.result as PipelineTaskStatus;
 }
 
@@ -90,6 +96,7 @@ async function runAction(
   statePath: string,
   action: string,
   params: Record<string, unknown> = {},
+  account: PipelineWorkerAccount,
 ): Promise<void> {
   const args = ["--state", statePath];
   if (action === "review") {
@@ -101,11 +108,14 @@ async function runAction(
     const body = stringParam(params.formatted_body_path);
     if (body) args.push("--body", body);
   }
-  await runPipelineCommand(workspace, action, args);
+  await runPipelineCommand(workspace, action, args, account);
 }
 
 /** 按 Pipeline 自己的 next_action 推进，避免在 worker 复制状态机规则。 */
-export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput, store: JobStore, root: string): Promise<void> {
+export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput, store: JobStore, accounts: AccountStore, root: string): Promise<void> {
+  const account = accounts.get(input.account);
+  if (!account)
+    throw new Error(`Pipeline account is not configured: ${input.account}`);
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
   const bodyPath = join(workspace, "source.md");
@@ -121,7 +131,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     "--account", input.account,
     "--requires-publish",
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
-  ]);
+  ], account);
   const initResult = init.result as { state_path?: string; run_id?: string };
   let statePath = stringParam(initResult.state_path);
   if (!statePath)
@@ -131,7 +141,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   await store.set(job);
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const current = await status(workspace, statePath);
+    const current = await status(workspace, statePath, account);
     statePath = current.summary.state_path;
     job.statePath = statePath;
     if (isDone(current)) {
@@ -155,11 +165,11 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     await store.set(job);
 
     if (action === "attach-body") {
-      await runPipelineCommand(workspace, "attach-body", ["--state", statePath, "--body", bodyPath]);
+      await runPipelineCommand(workspace, "attach-body", ["--state", statePath, "--body", bodyPath], account);
       continue;
     }
     if (action === "review-content") {
-      await runAction(workspace, statePath, "review", { status: "passed" });
+      await runAction(workspace, statePath, "review", { status: "passed" }, account);
       continue;
     }
     if (action === "prepare" || action === "prepare-finalize" || action === "render" || action === "publish") {
@@ -167,10 +177,10 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
         await runAction(workspace, statePath, action, {
           title: input.title,
           formatted_body_path: current.next_action?.params?.formatted_body_path,
-        });
+        }, account);
       } catch (error) {
         // 发布失败时仍保留原运行的业务结果；不得创建新 run 自动重试。
-        const latest = await status(workspace, statePath).catch(() => null);
+        const latest = await status(workspace, statePath, account).catch(() => null);
         if (latest) job.result = { runId: job.runId, publishResults: publishResults(latest) };
         throw error;
       }

@@ -260,6 +260,7 @@ const ImagesSchema = withObjectDefault(
 );
 
 const PublishResultSchema = z.object({
+  article_theme_hash: z.string().nullable().optional(),
   route: RoutePrimarySchema,
   account: trimmedString("default"),
   status: PublishResultStatusSchema,
@@ -273,6 +274,7 @@ const PublishResultSchema = z.object({
 const PublishResultsSchema = withObjectDefault(
   z.object({
     results: z.array(PublishResultSchema).default([]),
+    attempt: z.number().int().nonnegative().optional(),
   }),
 );
 
@@ -310,6 +312,7 @@ const IntentSchema = withObjectDefault(
       .transform((arr) => arr.filter((s) => s.trim().length > 0)),
     style_hint: z.string().nullable().default(null),
     cover_theme: z.string().trim().min(1).nullable().default(null),
+    article_theme: z.string().nullable().optional(),
     newspic_render: NewspicRenderSpecSchema.nullable().default(null),
     requires: IntentRequiresSchema,
     existing_draft_media_id: z.string().nullable().default(null),

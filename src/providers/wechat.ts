@@ -94,7 +94,7 @@ export function resolveDraftMediaId(
       ? record.media_id
       : null;
   if (!mediaId) {
-    throw new Error("WeChat draft API response did not include media_id");
+    throw new Error("WX_RESULT_UNKNOWN: WeChat draft API response did not include media_id");
   }
   return mediaId;
 }
@@ -130,6 +130,8 @@ interface BaseWechatPublishInput {
   timeout?: number;
   config: PipelineConfig;
   noteId?: string | null;
+  /** 同一运行的同一发布版本复用幂等标识。 */
+  idempotencyKey?: string;
   nezusBaseUrl?: string | null;
   nezusPat?: string | null;
 }
@@ -170,6 +172,7 @@ export function fillWxAccountConfig(source?: WxAccountConfig): WxAccountConfig {
     appId: source?.appId ?? "",
     appSecret: source?.appSecret ?? "",
     customCss: source?.customCss ?? null,
+    ...(source?.articleTheme ? { articleTheme: source.articleTheme } : {}),
     theme: source?.theme ?? { editorVars: {}, exportTheme: {} },
   } as WxAccountConfig;
 }
@@ -186,7 +189,9 @@ function getWxRuntimeConfig(
     accountOverride || config.wx.defaultAccount,
   );
   const configuredAccount = config.wx.accounts[accountName];
-  if (!configuredAccount) {
+  // 云端 worker 以每个任务的环境变量注入凭据，不要求把用户账号写进基础 config。
+  const hasInjectedCredentials = Boolean(process.env.WX_APPID && process.env.WX_APPSECRET && process.env.ZZCLUB_PAT);
+  if (!configuredAccount && !hasInjectedCredentials) {
     throw new Error(`Unknown wx account: ${accountName}`);
   }
   const accountConfig = fillWxAccountConfig(configuredAccount);
@@ -320,28 +325,51 @@ export async function readResponseBodyWithLimit(
   return body.buffer;
 }
 
+/** 服务端错误只保留分类和脱敏提示，正文及凭据不进入 Pipeline 状态。 */
+function serviceError(response: Response, payload: unknown, mutating: boolean): Error {
+  const detail = asRecord(payload);
+  const code = String(asRecord(detail.data).code || "WX_SERVICE_ERROR").replace(/[^A-Z0-9_]/g, "").slice(0, 80);
+  if (mutating && response.status >= 500 && !code.startsWith("WX_")) return unknownResult();
+  if (mutating && response.status >= 500 && code === "WX_SERVICE_ERROR") return unknownResult();
+  const message = String(detail.statusMessage || detail.message || "发布服务请求失败")
+    .replace(/Bearer\s+[^\s"',}]+/gi, "Bearer [redacted]")
+    .replace(/(["']?(?:access_token|token|pat|appSecret|secret)["']?\s*[:=]\s*)["']?[^\s"'&,}]+["']?/gi, "$1[redacted]");
+  const requestId = response.headers.get("x-request-id") || String(detail.requestId || "");
+  const trace = /^[a-zA-Z0-9_-]{1,100}$/.test(requestId) ? ` [request ${requestId}]` : "";
+  return new Error(`API request failed with status ${response.status}: ${code}: ${message.slice(0, 300)}${trace}`);
+}
+
+function unknownResult(): Error {
+  return new Error("WX_RESULT_UNKNOWN: 请求结果未确认，请检查公众号草稿箱后再决定是否重试");
+}
+
+/** 网络、响应读取及 JSON 解析中断都可能发生在上游已经写入之后。 */
+async function requestWechat(url: string, options: RequestInit, timeout: number): Promise<unknown> {
+  const mutating = /\/draft\/(?:add|update|delete)$/.test(url);
+  let response: Response;
+  let payload: unknown;
+  try {
+    response = await fetch(url, { ...options, signal: AbortSignal.timeout(timeout) });
+    const responseText = await response.text();
+    try { payload = responseText ? JSON.parse(responseText) : {}; }
+    catch {
+      if (response.ok || mutating) throw new Error("invalid response");
+      payload = {};
+    }
+  } catch (error) {
+    if (mutating) throw unknownResult();
+    throw error;
+  }
+  if (!response.ok) throw serviceError(response, payload, mutating);
+  return payload;
+}
+
 async function requestJson(
   url: string,
   options: { method: string; headers?: Record<string, string>; body?: unknown },
   timeout: number,
 ): Promise<unknown> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, {
-      method: options.method,
-      headers: options.headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: controller.signal,
-    });
-    const responseText = await response.text();
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}: ${responseText}`);
-    }
-    return responseText ? JSON.parse(responseText) : {};
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return requestWechat(url, { ...options, body: options.body ? JSON.stringify(options.body) : undefined }, timeout);
 }
 
 async function requestFormData(
@@ -349,23 +377,7 @@ async function requestFormData(
   options: { method: string; headers?: Record<string, string>; body: FormData },
   timeout: number,
 ): Promise<unknown> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, {
-      method: options.method,
-      headers: options.headers,
-      body: options.body,
-      signal: controller.signal,
-    });
-    const responseText = await response.text();
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}: ${responseText}`);
-    }
-    return responseText ? JSON.parse(responseText) : {};
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return requestWechat(url, options, timeout);
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -639,6 +651,7 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${runtime.pat}`,
+        ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
       },
       body: draftBody,
     },
@@ -726,6 +739,7 @@ export async function createWechatNewspic(input: WechatNewspicInput): Promise<Re
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${runtime.pat}`,
+        ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
       },
       body: draftBody,
     },

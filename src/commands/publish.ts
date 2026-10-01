@@ -13,6 +13,7 @@
  * Output: Updated state with publish.results
  */
 
+import { resolve } from "node:path";
 import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderPublish } from "../output";
 import { loadConfig, resolveWorkspacePaths } from "../config";
@@ -46,6 +47,7 @@ Usage: zzhub-pipeline publish [options]
 Options:
   --state      Path to state JSON (required)
   --route      Only publish this route (optional; default: all targets)
+  --article-theme    Local article theme package (optional)
   --dry-run    Print commands without executing (optional)
 `.trim());
     return;
@@ -65,6 +67,8 @@ Options:
   const statePath = resolved.path;
   const state = resolved.state;
   const config = loadConfig();
+  const articleTheme = optionalArg(parsed, "article-theme");
+  if (articleTheme) state.intent.article_theme = resolve(articleTheme);
   const workspacePaths = resolveWorkspacePaths(state.workspace_root, config);
 
   if (!state.asset_path) {

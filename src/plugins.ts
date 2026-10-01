@@ -22,6 +22,7 @@ import { review } from "./commands/review";
 import { status } from "./commands/status";
 import { syncBlog } from "./commands/sync-blog";
 import { tasks } from "./commands/tasks";
+import { articleTheme } from "./commands/article-theme";
 import { wechatExport } from "./commands/wechat-export";
 import { wechatPreview } from "./commands/wechat-preview";
 import { wxDrafts } from "./commands/wx-drafts";
@@ -72,6 +73,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "sync-blog", summary: "Copy post.md to blog repo, publish, and record result in state JSON", plugin: "ops", handler: syncBlog },
         { name: "republish", summary: "Publish completed task to additional accounts/platforms", plugin: "ops", handler: republish },
         { name: "imgx", summary: "Run bundled imgx renderer subcommands", plugin: "ops", handler: imgxCommand },
+        { name: "article-theme", summary: "Inspect or install a local article theme", plugin: "ops", handler: articleTheme },
         { name: "wechat-export", summary: "Render markdown to WeChat HTML with bundled preview styles", plugin: "ops", handler: wechatExport },
         { name: "wechat-preview", summary: "Local singleton server to preview exported WeChat HTML", plugin: "ops", handler: wechatPreview },
         { name: "cos-upload", summary: "Upload a local image to configured COS CDN", plugin: "ops", handler: cosUpload },

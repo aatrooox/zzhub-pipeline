@@ -121,6 +121,8 @@ Modes:
 
     case "publish":
       reenterPublish(state);
+      // 用户核对草稿后明确重置，才生成新的请求幂等身份。
+      state.publish.attempt = (state.publish.attempt ?? 0) + 1;
       state.publish.results = state.publish.results.filter(
         (result) =>
           result.content_version !== state.artifacts.content_version ||

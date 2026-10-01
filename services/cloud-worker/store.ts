@@ -34,6 +34,14 @@ export interface StoredCloudJob extends CloudJob {
   statePath: string | null;
 }
 
+export interface PipelineWorkerAccount {
+  account: string;
+  appId: string;
+  appSecret: string;
+  pat: string;
+  updatedAt: string;
+}
+
 interface PersistedStore {
   jobs: StoredCloudJob[];
 }
@@ -90,6 +98,56 @@ export class JobStore {
       await mkdir(dirname(this.filePath), { recursive: true });
       const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
       await writeFile(temporaryPath, `${JSON.stringify({ jobs: [...this.jobs.values()] }, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      await rename(temporaryPath, this.filePath);
+    });
+    return this.writeChain;
+  }
+}
+
+/** 账号凭据只存在 worker 持久卷，任务状态不会复制这些字段。 */
+export class AccountStore {
+  readonly accounts = new Map<string, PipelineWorkerAccount>();
+  private writeChain: Promise<void> = Promise.resolve();
+
+  constructor(readonly filePath: string) {}
+
+  async load(): Promise<void> {
+    try {
+      const parsed = JSON.parse(await readFile(this.filePath, "utf8")) as { accounts?: PipelineWorkerAccount[] };
+      if (!Array.isArray(parsed.accounts)) throw new Error("Invalid worker account store");
+      for (const account of parsed.accounts)
+        this.accounts.set(account.account, account);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+        throw error;
+      await this.persist();
+    }
+  }
+
+  get(account: string): PipelineWorkerAccount | null {
+    return this.accounts.get(account) || null;
+  }
+
+  async set(account: PipelineWorkerAccount): Promise<void> {
+    this.accounts.set(account.account, account);
+    await this.persist();
+  }
+
+  async delete(account: string): Promise<boolean> {
+    const deleted = this.accounts.delete(account);
+    if (deleted)
+      await this.persist();
+    return deleted;
+  }
+
+  async persist(): Promise<void> {
+    this.writeChain = this.writeChain.then(async () => {
+      await mkdir(dirname(this.filePath), { recursive: true });
+      const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
+      await writeFile(temporaryPath, `${JSON.stringify({ accounts: [...this.accounts.values()] }, null, 2)}\n`, {
         encoding: "utf8",
         mode: 0o600,
       });

@@ -24,6 +24,7 @@
  */
 
 import { readFile } from "fs/promises";
+import { resolve } from "node:path";
 import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderInit } from "../output";
 import { loadConfig, resolveWorkspaceRoot } from "../config";
@@ -59,6 +60,7 @@ Options:
   --content-origin   user | external | unknown (required)
   --intent-text      Original user request for route/account resolution (optional)
   --account          Explicit account override (optional)
+  --article-theme    Local article theme package (optional)
   --newspic-render-spec-file  JSON file for newspic pagination / page-image intent (optional)
   --style-hint       e.g. fact_report (optional)
   --cover-theme      Cover theme ID (optional)
@@ -131,6 +133,7 @@ Options:
     explicit_constraints: [],
     style_hint: styleHint,
     cover_theme: coverTheme,
+    ...(optionalArg(parsed, "article-theme") ? { article_theme: resolve(optionalArg(parsed, "article-theme")!) } : {}),
     newspic_render: newspicRender,
     requires: {
       research: flagArg(parsed, "requires-research"),

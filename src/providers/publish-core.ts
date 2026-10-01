@@ -8,6 +8,9 @@ import type { PipelineConfig, ResolvedWorkspacePaths } from "../config";
 import type { PublishResult, PublishTarget, WorkflowState } from "../state";
 import { getPublishProvider, type PublishRouteContext } from "./index";
 import { reportProgress } from "../monitor/recorder";
+import { join } from "node:path";
+import { resolveConfigRelativePath } from "../config";
+import { readArticleTheme, snapshotArticleTheme, type ArticleThemePackage } from "../article-theme";
 
 export interface PublishTargetError {
   route: string;
@@ -54,6 +57,7 @@ export function filterIdempotent(
   existingResults: PublishResult[],
   contentVersion: number,
   renderVersion: number,
+  themeHashes?: Map<string, string | null>,
 ): PublishTarget[] {
   return targets.filter((target) => {
     const existing = existingResults.find(
@@ -64,7 +68,8 @@ export function filterIdempotent(
         r.content_version === contentVersion &&
         r.render_version === renderVersion,
     );
-    return !existing;
+    // 模板变化必须重新导出；旧结果无模板时继续兼容。
+    return !existing || (themeHashes && (existing.article_theme_hash ?? null) !== (themeHashes.get(`${target.route}@${target.account}`) ?? null));
   });
 }
 
@@ -92,11 +97,32 @@ export async function executePublishTargets(
   const { state, targets, dryRun, config, workspacePaths, onResult } = params;
 
   const deduped = dedupeTargets(targets);
+  const themes = new Map<string, ArticleThemePackage>();
+  const themeHashes = new Map<string, string | null>();
+  const themeErrors = new Map<string, unknown>();
+  for (const target of deduped) {
+    if (target.route !== "wechat-article") continue;
+    const account = config.wx.accounts[target.account] ?? config.wx.accounts[config.wx.defaultAccount];
+    const selected = state.intent.article_theme || resolveConfigRelativePath(account?.articleTheme);
+    if (!selected) continue;
+    const key = `${target.route}@${target.account}`;
+    try {
+      const source = await readArticleTheme(selected);
+      const theme = dryRun ? source : await snapshotArticleTheme(source, join(state.workspace_root, ".zzhub-media", "article-themes"));
+      themes.set(key, theme);
+      themeHashes.set(key, theme.hash);
+    } catch (error) {
+      // 一个账号的模板损坏不阻断其他发布目标，结果仍按原契约逐个记录。
+      themeHashes.set(key, "invalid");
+      themeErrors.set(key, error);
+    }
+  }
   const filtered = filterIdempotent(
     deduped,
     state.publish.results,
     state.artifacts.content_version,
     state.artifacts.render_version,
+    themeHashes,
   );
 
   const results: PublishResult[] = [];
@@ -106,6 +132,9 @@ export async function executePublishTargets(
     reportProgress({ stage: "publish.targets", message: "正在发布", current: results.length, total: filtered.length, unit: "targets", route: target.route, account: target.account });
     let result: PublishResult;
     try {
+      const previous = state.publish.results.find(item => item.route === target.route && item.account === target.account);
+      if (previous?.detail?.includes("WX_RESULT_UNKNOWN")) throw new Error("WX_RESULT_UNKNOWN: 上次发送结果未知，请检查草稿箱后再通过 reset --mode publish 明确重试");
+      if (themeErrors.has(`${target.route}@${target.account}`)) throw themeErrors.get(`${target.route}@${target.account}`);
       const provider = getPublishProvider(target.route);
       const ctx: PublishRouteContext = {
         state,
@@ -113,6 +142,7 @@ export async function executePublishTargets(
         config,
         workspacePaths,
         accountOverride: target.account,
+        articleTheme: themes.get(`${target.route}@${target.account}`),
       };
       const providerResult = await provider(ctx);
       result = {
@@ -121,6 +151,7 @@ export async function executePublishTargets(
         account: target.account,
         content_version: state.artifacts.content_version,
         render_version: state.artifacts.render_version,
+        article_theme_hash: themeHashes.get(`${target.route}@${target.account}`) ?? null,
       };
     } catch (err) {
       const error: PublishTargetError = {

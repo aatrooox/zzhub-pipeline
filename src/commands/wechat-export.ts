@@ -69,6 +69,8 @@ Options:
   --account            Account/theme key (optional; default: default)
   --title              Page title for the render shell (optional)
   --preview-shell-out  Path to exact final-HTML preview (optional)
+  --article-theme      Local article theme package (optional)
+  --summary-only       Omit HTML from stdout; still write the complete output file
   --custom-css         CSS override path; replaces account customCss (optional)
   --timeout-ms         Real browser wait limit in ms (default: 15000)
   --debug-dir          Write intermediate artifacts for debugging (optional)
@@ -123,6 +125,7 @@ ${CSS_DEMO}
       title,
       previewShellOutPath,
       customCss,
+      articleThemePath: optionalArg(parsed, "article-theme") ? resolve(optionalArg(parsed, "article-theme")!) : resolveConfigRelativePath(wxAccount?.articleTheme),
       themeOverrides: wxAccount?.theme,
       timeoutMs: timeoutMs !== undefined && Number.isFinite(timeoutMs) ? timeoutMs : undefined,
       debugDir: debugDir ? resolve(process.cwd(), debugDir) : undefined,
@@ -166,6 +169,7 @@ ${CSS_DEMO}
     printResult(
       {
         ...resultRest,
+        ...(flagArg(parsed, "summary-only") ? { html: undefined } : {}),
         preview_url,
         preview_dashboard_url,
         preview_register_error,

@@ -27,6 +27,15 @@ export interface WechatRenderContext {
   root: HTMLElement;
   theme: WechatExportTheme;
   references: WechatLinkReference[];
+  structure?: ArticleStructure;
+}
+
+/** 模板仅声明有限的结构变化，不注入脚本或任意 HTML。 */
+export interface ArticleStructure {
+  numberedHeadings?: boolean;
+  headingLabel?: string;
+  quoteLabel?: string;
+  headerImageUrl?: string | null;
 }
 
 export interface WechatElementRenderer {
@@ -41,6 +50,7 @@ export interface WechatElementRenderer {
 export type WechatRendererOverrides = Partial<Record<WechatElementKind, WechatElementRenderer>>;
 
 export interface RenderWechatHtmlInput {
+  structure?: ArticleStructure;
   semanticHtml: string;
   baseCss: string;
   customCss?: string;
@@ -311,8 +321,26 @@ const inlineCodeRenderer: WechatElementRenderer = {
 const headingRenderer: WechatElementRenderer = {
   kind: "heading",
   selector: "h1, h2, h3, h4, h5, h6",
-  prepare(element) {
+  prepare(element, context) {
     setNodeKind(element, `heading-${element.tagName.slice(1)}`);
+    if (element.tagName.toLowerCase() === "h2" && context.structure) {
+      const content = context.document.createElement("span");
+      setNodeKind(content, "heading-text");
+      while (element.firstChild) content.appendChild(element.firstChild);
+      element.appendChild(content);
+      if (context.structure.numberedHeadings) {
+        const number = context.document.createElement("span");
+        setNodeKind(number, "heading-number");
+        number.textContent = String(Array.from(context.root.querySelectorAll<HTMLElement>("h2")).indexOf(element) + 1).padStart(2, "0");
+        element.prepend(number);
+      }
+      if (context.structure.headingLabel) {
+        const label = context.document.createElement("span");
+        setNodeKind(label, "heading-label");
+        label.textContent = context.structure.headingLabel;
+        element.prepend(label);
+      }
+    }
   },
   finalize(element) {
     replaceTag(element, "section");
@@ -329,17 +357,26 @@ const paragraphRenderer: WechatElementRenderer = {
 
 const emphasisRenderer: WechatElementRenderer = {
   kind: "emphasis",
-  selector: "strong, b, em, i, s, del, u",
+  selector: "strong, b, em, i, s, del, u, mark",
   prepare(element) {
     setNodeKind(element, element.tagName.toLowerCase());
+  },
+  finalize(element) {
+    if (element.tagName.toLowerCase() === "mark") replaceTag(element, "span");
   },
 };
 
 const blockquoteRenderer: WechatElementRenderer = {
   kind: "blockquote",
   selector: "blockquote",
-  prepare(element) {
+  prepare(element, context) {
     setNodeKind(element, "blockquote");
+    if (context.structure?.quoteLabel) {
+      const label = context.document.createElement("p");
+      setNodeKind(label, "quote-label");
+      label.textContent = context.structure.quoteLabel;
+      element.prepend(label);
+    }
   },
 };
 
@@ -671,6 +708,14 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
   root.lang = "zh-CN";
   setNodeKind(root, "article");
   root.innerHTML = input.semanticHtml;
+  if (input.structure?.headerImageUrl) {
+    const paragraph = sourceDocument.createElement("p");
+    const image = sourceDocument.createElement("img");
+    image.src = input.structure.headerImageUrl;
+    image.alt = "";
+    paragraph.appendChild(image);
+    root.prepend(paragraph);
+  }
   compatibilityRoot.appendChild(root);
   sourceDocument.body.appendChild(compatibilityRoot);
 
@@ -681,11 +726,13 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
     root,
     theme: input.theme,
     references,
+    structure: input.structure,
   });
 
   const css = [
     input.baseCss,
     buildWechatThemeCss(input.editorVars ?? {}, input.theme),
+    '.milkdown .editor mark { background-color: #fff0a8; color: inherit; }',
     input.customCss ?? "",
   ].filter(Boolean).join("\n");
 
@@ -713,6 +760,7 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
     root: finalRoot,
     theme: input.theme,
     references,
+    structure: input.structure,
   });
   sanitizeTree(finalRoot);
   return finalRoot.outerHTML;

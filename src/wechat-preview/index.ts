@@ -20,6 +20,7 @@ import {
   WECHAT_PREVIEW_DIR,
 } from "../runtime-paths";
 import { extractFrontmatter } from "./frontmatter-handler";
+import { readArticleTheme } from "../article-theme";
 import { getWechatPreviewStyleName, getWechatPreviewTheme } from "./themes";
 import { stripLeadingH1 } from "../text";
 
@@ -90,6 +91,7 @@ export interface ExportMarkdownToWechatHtmlInput {
   title?: string;
   previewShellOutPath?: string;
   customCss?: string | null;
+  articleThemePath?: string | null;
   themeOverrides?: {
     editorVars?: Record<string, string>;
     exportTheme?: Record<string, string>;
@@ -130,6 +132,7 @@ export function resolveMilkdownArticleStylePath(): string {
 export function getWechatPreviewBundleSources(): string[] {
   return [
     join(WECHAT_PREVIEW_DIR, "browser/editor-export.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/highlight.ts"),
     resolveMilkdownArticleStylePath(),
     join(WECHAT_PREVIEW_DIR, "wechat-renderer.ts"),
   ];
@@ -377,18 +380,27 @@ export async function exportMarkdownToWechatHtml(
     const sourceMarkdown = await readFile(input.markdownPath, "utf-8");
     const stripped = extractFrontmatter(sourceMarkdown).content;
     const bodyMarkdown = stripLeadingH1(stripped).trimStart();
-    const markdown = rewriteRelativeImagePaths(bodyMarkdown, dirname(input.markdownPath));
-    const theme = getWechatPreviewTheme(input.account, input.themeOverrides);
-    const customCss = input.customCss
-      ? await readFile(input.customCss, "utf-8")
-      : undefined;
+    const markdown = bodyMarkdown;
+    const articleTheme = input.articleThemePath ? await readArticleTheme(input.articleThemePath) : null;
+    const theme = getWechatPreviewTheme(input.account, articleTheme ? {
+      editorVars: { ...articleTheme.manifest.editorVars, ...input.themeOverrides?.editorVars },
+      exportTheme: { footerText: "", ...articleTheme.manifest.exportTheme, ...input.themeOverrides?.exportTheme },
+    } : input.themeOverrides);
+    const customCss = [articleTheme?.css, input.customCss ? await readFile(input.customCss, "utf-8") : ""].filter(Boolean).join("\n");
+    const structure = articleTheme ? {
+      ...articleTheme.manifest.structure,
+      headerImageUrl: articleTheme.manifest.structure.headerImage
+        ? `data:image/${articleTheme.manifest.structure.headerImage.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")};base64,${Buffer.from(articleTheme.files.get(articleTheme.manifest.structure.headerImage)!).toString("base64")}` : null,
+    } : undefined;
     const shell = readUtf8(TEMPLATE_PATH);
     const payloadJson = escapeInlineJson(
       JSON.stringify({
         markdown,
+        assetBaseUrl: pathToFileURL(`${dirname(resolve(input.markdownPath))}/`).href,
         editorVars: theme.editorVars,
         exportTheme: theme.exportTheme,
         customCss,
+        structure,
       }),
     );
 

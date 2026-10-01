@@ -1,3 +1,5 @@
+import type { ArticleThemePackage } from "../article-theme";
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import {
@@ -21,6 +23,7 @@ export interface PublishRouteContext {
   config: PipelineConfig;
   workspacePaths: ResolvedWorkspacePaths;
   accountOverride?: string;
+  articleTheme?: ArticleThemePackage;
 }
 
 export type PublishProvider = (ctx: PublishRouteContext) => Promise<PublishResult>;
@@ -31,6 +34,7 @@ async function publishWechatArticleRoute({
   config,
   workspacePaths,
   accountOverride,
+  articleTheme,
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   let exportPostPath = postPath;
@@ -87,6 +91,7 @@ async function publishWechatArticleRoute({
       account,
       title: state.metadata.title,
       customCss: resolveConfigRelativePath(wxAccount?.customCss),
+      articleThemePath: articleTheme?.path,
       themeOverrides: wxAccount?.theme,
     });
     const { html } = rendered;
@@ -124,6 +129,7 @@ async function publishWechatArticleRoute({
       title: state.metadata.title,
       html,
       photos,
+      idempotencyKey: createHash("sha256").update(JSON.stringify([state.run_id, state.publish.attempt ?? 0, account, state.artifacts.content_version, state.artifacts.render_version, articleTheme?.hash, state.intent.existing_draft_media_id])).digest("hex"),
       config,
       existingDraftMediaId: state.intent.existing_draft_media_id,
       noteId: state.intent.note_id,
@@ -198,6 +204,7 @@ async function publishWechatNewspicRoute({
 
   try {
     const response = await createWechatNewspic({
+      idempotencyKey: createHash("sha256").update(JSON.stringify([state.run_id, state.publish.attempt ?? 0, account, "newspic", state.artifacts.content_version, state.artifacts.render_version, state.intent.existing_draft_media_id])).digest("hex"),
       account,
       title: state.metadata.title,
       content: cleanContent,

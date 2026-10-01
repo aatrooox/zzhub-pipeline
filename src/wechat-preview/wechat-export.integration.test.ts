@@ -50,6 +50,14 @@ describe("semantic WeChat HTML export", () => {
     expect(html.length).toBeLessThan(65_400);
     expect(html).toContain("一级标题：克制的中文编辑部");
     expect(html).toContain("<blockquote");
+    expect(html).toContain("重点结论</span>");
+    expect(html).not.toContain("==重点结论==");
+    expect(html).toContain("==不高亮==");
+    expect(html).toContain("==不是高亮==");
+    expect(html).toContain("==只是代码==");
+    expect(html).toContain("引用式图注</p>");
+    expect(html).toContain("![代码示例](./missing-example.png)");
+    expect(html).not.toMatch(/<img[^>]+src="\.\.?\//);
     expect(html).toContain("<table");
     expect(html).toContain("<img ");
     expect(html).toContain("图片说明：克制、清晰、适合移动端阅读");

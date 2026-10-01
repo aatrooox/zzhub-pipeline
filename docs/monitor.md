@@ -2,6 +2,8 @@
 
 CLI 独立执行并记录事件；Monitor 汇总执行历史和工作流状态，通过 HTTP/SSE 提供给 GUI。服务不调度任务，也不执行发布、重试或取消。
 
+本文件描述本机 Monitor，不是 [Cloud Worker](../services/cloud-worker/README.md) 的任务接口。Worker 通过 `GET /v1/jobs/:id` 返回 `status`、`step` 与结果；当前不提供云端 SSE、逐文件进度或原始日志。业务前端不能仅接入 Worker 就假定已经获得本机监控流。
+
 ## 启动与发现
 
 ```sh
@@ -11,7 +13,7 @@ zzp monitor status  # 查询可用状态，不启动服务
 zzp monitor stop    # 只停止 Monitor，不停止业务 CLI
 ```
 
-`start` 返回 JSON：`version`、`instance_id`、`pid`、`url`、`token`。`serve` 也返回描述信息。令牌只交给本机可信调用方，不放进 URL、日志或页面。`monitor` 管理命令不进入 CLI 的日文件日志。
+`start` 返回 JSON：`version`、`instance_id`、`pid`、`url`、`token`。`serve` 也返回描述信息。Monitor 自行生成本机令牌；它不同于部署注入的 `PIPELINE_WORKER_TOKEN` 和微信中转服务的账号 PAT。令牌只交给本机可信调用方，不放进 URL、日志或页面。`monitor` 管理命令不进入 CLI 的日文件日志。
 
 每个系统用户共享一个实例，监听 `127.0.0.1` 动态端口。描述文件、启动锁和事件位于应用配置目录下的 `zzhub-pipeline/monitor/`；macOS 为 `~/Library/Application Support/zzhub-pipeline/monitor/`。目录权限为 0700，事件和描述文件为 0600。服务无 SSE 订阅且 5 分钟没有 API 访问时退出。
 
@@ -84,6 +86,4 @@ SSE 事件为 `execution.updated`、`task.updated`、`log`，data 包含 `versio
 
 调用方不能在非零退出时丢弃 stdout：其中可能有成功目标和明确错误。拿到失败后读取一次最新状态，保留原错误；不要自动继续下一步或重试发布。
 
-Nezus 桥接返回原有 `item`，并增加可选 `error` 与 `exitCode`。共享发布流程兼容旧 CLI 的退出 0 + failed 结果，也会因新版桥接的执行错误停止推进。
-
-Nezus 的 `useDesktop().pipeline.monitor` 提供 `connect()`、`disconnect()`、`getSnapshot()`、`onMessage(callback)`。先注册消息监听再 connect，connect 返回初始快照；重连时会推送 snapshot 消息。每个窗口共享订阅，disconnect 取消当前窗口订阅；不停止共享 Monitor 服务。现有页面未自动接入监控 UI。
+桌面应用可在主进程订阅 Monitor，再通过自身的桥接协议把快照、进度和错误转发给页面。某个应用是否展示这些数据，取决于该应用的接入实现，不是 Pipeline API 的保证。客户端断开订阅也不应取消或重试业务命令。

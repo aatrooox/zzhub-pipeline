@@ -51,6 +51,8 @@ if (existsSync(outDir)) {
   rmSync(outDir, { recursive: true, force: true });
 }
 mkdirSync(outDir, { recursive: true });
+// 独立二进制与 npm 包都携带自身及已内联基础样式的授权。
+for (const name of ["LICENSE", "THIRD-PARTY-NOTICES.md"]) cpSync(join(PACKAGE_ROOT, name), join(outDir, name));
 
 // ── Step 1: Pre-build wechat-preview Vite bundle ────────────────
 

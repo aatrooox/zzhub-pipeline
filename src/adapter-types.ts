@@ -143,6 +143,9 @@ export interface MarkdownRenderInput {
   /** Path to custom CSS file for style overrides */
   customCss?: string | null;
 
+  /** 可选的离线正文模板，旧插件可以忽略。 */
+  articleThemePath?: string | null;
+
   /** Workflow state for context */
   state?: WorkflowState;
 

@@ -52,6 +52,7 @@ export const builtinMarkdownRenderer: MarkdownRenderPlugin = {
       title: input.title,
       previewShellOutPath: input.previewShellOutPath,
       customCss: input.customCss,
+      articleThemePath: input.articleThemePath,
       themeOverrides: input.themeOverrides,
       timeoutMs: input.timeoutMs,
       debugDir: input.debugDir ?? undefined,

@@ -37,6 +37,8 @@ if (existsSync(OUT)) {
   rmSync(OUT, { recursive: true, force: true });
 }
 mkdirSync(OUT, { recursive: true });
+// 分发 bundle 时仍须保留已内联基础样式的授权。
+for (const name of ["LICENSE", "THIRD-PARTY-NOTICES.md"]) cpSync(join(ROOT, name), join(OUT, name));
 
 // ── Step 1: Ensure wechat-preview Vite bundle ───────────────────
 
