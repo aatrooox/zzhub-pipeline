@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { executeCloudJob } from "./pipeline";
+import { cloudJobProgress } from "./progress";
 import { AccountStore, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
 
 const host = process.env.PIPELINE_WORKER_HOST?.trim() || "127.0.0.1";
@@ -28,10 +29,12 @@ function bearerMatches(request: Request): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-function publicJob(job: StoredCloudJob): Record<string, unknown> {
+async function publicJob(job: StoredCloudJob): Promise<Record<string, unknown>> {
   const safeJob = { ...job } as Record<string, unknown>;
   delete safeJob.body;
-  return { ...safeJob, input: { ...job.input } };
+  delete safeJob.statePath;
+  const progress = await cloudJobProgress({ ...job }, workspaceRoot).catch(() => null);
+  return { ...safeJob, input: { ...job.input }, ...progress };
 }
 
 function validateInput(value: unknown): CloudJobInput {
@@ -157,7 +160,7 @@ async function main(): Promise<void> {
           if (existing && existing.requestHash !== requestHash(input))
             return json({ error: "idempotency_conflict" }, 409);
           if (existing)
-            return json(publicJob(existing), 200);
+            return json(await publicJob(existing), 200);
           const now = new Date().toISOString();
           const job: StoredCloudJob = {
             id: randomUUID(),
@@ -187,13 +190,13 @@ async function main(): Promise<void> {
           await store.set(job);
           queue.push(job.id);
           void drain();
-          return json(publicJob(job), 202);
+          return json(await publicJob(job), 202);
         }
 
         const match = url.pathname.match(/^\/v1\/jobs\/([^/]+)$/);
         if (match && request.method === "GET") {
           const job = store.get(match[1]);
-          return job ? json(publicJob(job)) : json({ error: "job_not_found" }, 404);
+          return job ? json(await publicJob(job)) : json({ error: "job_not_found" }, 404);
         }
         return json({ error: "not_found" }, 404);
       } catch (error) {

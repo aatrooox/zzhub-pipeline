@@ -24,7 +24,9 @@ function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null):
   const env = { ...process.env } as Record<string, string>;
   env.NO_COLOR = "1";
   env.FORCE_COLOR = "0";
-  env.ZZHUB_PIPELINE_MONITOR = "0";
+  // 使用现有 CLI 记录器，每个任务独立存放事件，避免账号间串读进度。
+  env.ZZHUB_PIPELINE_MONITOR = "1";
+  env.ZZHUB_PIPELINE_MONITOR_DIR = join(workspace, "monitor");
   env.ZZHUB_WECHAT_PREVIEW_ON_PUBLISH = "0";
   env.ZZHUB_PIPELINE_WORKSPACE_ROOT = workspace;
   env.ZZHUB_PIPELINE_ZOTEPAD_EXPORT_HTML = join(workspace, "exports", "post.html");
