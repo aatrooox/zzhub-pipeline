@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.15.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.14.0...v0.15.0)
+
+### Features
+
+- Expand cloud worker publishing and rendering ([0d1f979](https://github.com/aatrooox/zzhub-pipeline/commit/0d1f979))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.14.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.13.2...v0.14.0)
