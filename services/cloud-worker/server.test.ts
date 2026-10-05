@@ -42,7 +42,7 @@ test("worker defaults to loopback and authenticates health and job requests", as
     // 未配置的测试账号会在执行前停止，只验证快照契约与幂等保存。
     const input = { idempotencyKey: "newspic-input", title: "贴图", body: "原文", contentForm: "newspic", account: "missing-account", newspic: { content: "发送正文", photos: ["https://example.test/a.png", "https://example.test/b.png"] } };
     const submit = (value: unknown) => fetch(`${url}/v1/jobs`, { method: "POST", headers, body: JSON.stringify(value) });
-    for (const photos of [[], ["file:///private/photo.png"], Array(21).fill("https://example.test/a.png")])
+    for (const photos of [null, ["file:///private/photo.png"], Array(21).fill("https://example.test/a.png")])
       expect((await submit({ ...input, newspic: { ...input.newspic, photos } })).status).toBe(400);
     const created = await submit(input);
     expect(created.status).toBe(202);
@@ -50,6 +50,9 @@ test("worker defaults to loopback and authenticates health and job requests", as
     expect(job.input.newspic).toEqual(input.newspic);
     expect((await (await submit(input)).json()).id).toBe(job.id);
     expect((await submit({ ...input, newspic: { ...input.newspic, content: "另一份正文" } })).status).toBe(409);
+    const generated = await submit({ ...input, idempotencyKey: "newspic-generated", newspic: { ...input.newspic, photos: [] } });
+    expect(generated.status).toBe(202);
+    expect((await generated.json()).input.newspic.photos).toEqual([]);
 
     const rejected = Bun.spawnSync(command, { env: { ...env, PIPELINE_WORKER_HOST: "0.0.0.0" } });
     expect(rejected.exitCode).not.toBe(0);

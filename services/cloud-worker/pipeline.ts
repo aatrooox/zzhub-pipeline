@@ -125,6 +125,11 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   await writeFile(bodyPath, input.newspic?.content || input.body, "utf8");
   const newspicPath = join(workspace, "newspic.json");
   if (input.newspic) await writeFile(newspicPath, JSON.stringify(input.newspic), "utf8");
+  // 无手动配图时复用长文渲染，生成封面和内容页；给封面预留一张额度。
+  const generateNewspic = input.contentForm === "newspic" && !input.newspic?.photos.length;
+  const newspicSpecPath = join(workspace, "newspic-render.json");
+  if (generateNewspic)
+    await writeFile(newspicSpecPath, JSON.stringify({ pagination_mode: "multi", max_pages: 19 }), "utf8");
 
   const init = await runPipelineCommand(workspace, "init", [
     "--workspace", workspace,
@@ -136,6 +141,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     "--account", input.account,
     "--requires-publish",
     ...(input.newspic ? ["--newspic-file", newspicPath] : []),
+    ...(generateNewspic ? ["--newspic-render-spec-file", newspicSpecPath] : []),
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
     ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
   ], account);

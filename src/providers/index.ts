@@ -162,7 +162,7 @@ async function publishWechatNewspicRoute({
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
-  // 明确选择的图片和正文原样使用；旧任务继续从文章提取。
+  // 副本正文原样发送，手动配图优先，空配图使用生成的封面和内容页。
   const snapshot = state.intent.newspic_file
     ? JSON.parse(await readFile(state.intent.newspic_file, "utf8")) as { content: string; photos: string[] }
     : null;
@@ -182,7 +182,7 @@ async function publishWechatNewspicRoute({
     });
 
   const renderPhotos = assets.map((asset) => asset.path);
-  const photos = snapshot?.photos ?? mergePhotoLists(renderPhotos, bodyImageUrls);
+  const photos = snapshot ? (snapshot.photos.length ? snapshot.photos : renderPhotos) : mergePhotoLists(renderPhotos, bodyImageUrls);
 
   const account = accountOverride || state.route.account;
 

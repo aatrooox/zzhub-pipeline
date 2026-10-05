@@ -60,9 +60,9 @@ function validateInput(value: unknown): CloudJobInput {
   const newspic = input.newspic as CloudJobInput["newspic"];
   if (newspic !== undefined && (
     contentForm !== "newspic" || !newspic || typeof newspic.content !== "string" || !newspic.content.trim() || newspic.content.length > 100_000
-    || !Array.isArray(newspic.photos) || !newspic.photos.length || newspic.photos.length > 20
+    || !Array.isArray(newspic.photos) || newspic.photos.length > 20
     || newspic.photos.some(photo => typeof photo !== "string" || !/^https?:\/\//i.test(photo) || !URL.canParse(photo))
-  )) throw new Error("newspic requires text and 1 to 20 HTTP image URLs");
+  )) throw new Error("newspic requires text and up to 20 HTTP image URLs; an empty list generates images");
   return {
     idempotencyKey,
     title,

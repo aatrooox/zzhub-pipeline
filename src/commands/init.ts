@@ -89,7 +89,7 @@ Options:
   const newspicFile = optionalArg(parsed, "newspic-file");
   if (newspicFile) {
     if (contentForm !== "newspic") throw new Error("newspic-file requires content form newspic");
-    z.object({ content: z.string().trim().min(1).max(100_000), photos: z.array(z.string().min(1)).min(1).max(20) }).strict()
+    z.object({ content: z.string().trim().min(1).max(100_000), photos: z.array(z.string().min(1)).max(20) }).strict()
       .parse(JSON.parse(await readFile(newspicFile, "utf8")));
   }
   const workspace = resolveWorkspaceRoot(optionalArg(parsed, "workspace"), config);

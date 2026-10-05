@@ -74,4 +74,4 @@ worker 只连接专用 `nezus_pipeline` 网络，没有宿主机端口和 Caddy 
 
 ### 贴图发送副本
 
-`contentForm=newspic` 可传 `newspic: { content, photos }`：`content` 是用户确认的纯文本，`photos` 为 1–20 个 HTTP(S) 图片地址，顺序即草稿配图顺序，首图作为封面。Worker 将副本写入任务目录，通过 `init --newspic-file` 交给原状态机；直接上传这些图片，正文原样发送，不生成海报，不改来源笔记。未传副本的任务继续沿用正文图片提取；显式 `newspic_render` 仍使用原海报排版。
+`contentForm=newspic` 可传 `newspic: { content, photos }`：`content` 是用户确认的纯文本，`photos` 为 0–20 个 HTTP(S) 图片地址。未上传图片（空数组或未传副本）时，Worker 通过原状态机生成封面和分页内容图；最多 19 张内容图，另加 1 张封面。上传图片时直接使用这些图片，顺序即草稿配图顺序，首图作为封面，跳过自动生成。副本通过 `init --newspic-file` 传递，正文原样发送，不修改来源笔记。
