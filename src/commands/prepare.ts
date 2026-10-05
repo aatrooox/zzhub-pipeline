@@ -39,6 +39,7 @@ import { reportProgress } from "../monitor/recorder";
 import { resolveFullRoute } from "../routes";
 import { resolveAuthoring, hasStyleRequest } from "../profiles";
 import { parseAccountName, parseRoutePrimary } from "../publish-targets";
+import { extractImageUrls } from "../providers/wechat";
 import {
   formatArticle,
   generateSlug,
@@ -197,7 +198,9 @@ Options:
   // requires.research is intentional (set at init from the user request) and is
   // intentionally not recomputed here.
   const allRoutes = [route.primary, ...route.extras];
-  state.intent.requires.render = allRoutes.some((r) => r !== "blog");
+  // 已有配图的贴图直接发送图片和正文；显式海报排版继续走渲染。
+  const useBodyPhotos = !!state.intent.newspic_file || (!state.intent.newspic_render && extractImageUrls(cleanBody).length > 0);
+  state.intent.requires.render = allRoutes.some((r) => r !== "blog" && !(r === "wechat-newspic" && useBodyPhotos));
   state.intent.requires.publish = state.intent.task_kind === "publish";
 
   // ── Step 2: Author select ──

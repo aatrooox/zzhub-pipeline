@@ -162,8 +162,12 @@ async function publishWechatNewspicRoute({
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
+  // 明确选择的图片和正文原样使用；旧任务继续从文章提取。
+  const snapshot = state.intent.newspic_file
+    ? JSON.parse(await readFile(state.intent.newspic_file, "utf8")) as { content: string; photos: string[] }
+    : null;
   const bodyImageUrls = extractImageUrls(postContent);
-  const cleanContent = prepareBodyForNewspic(postContent);
+  const cleanContent = snapshot?.content ?? prepareBodyForNewspic(postContent);
   const cleanPath = join(state.asset_path, "post-clean.md");
   if (!dryRun) {
     await writeFile(cleanPath, cleanContent, "utf-8");
@@ -178,7 +182,7 @@ async function publishWechatNewspicRoute({
     });
 
   const renderPhotos = assets.map((asset) => asset.path);
-  const photos = mergePhotoLists(renderPhotos, bodyImageUrls);
+  const photos = snapshot?.photos ?? mergePhotoLists(renderPhotos, bodyImageUrls);
 
   const account = accountOverride || state.route.account;
 
@@ -202,6 +206,7 @@ async function publishWechatNewspicRoute({
       title: state.metadata.title,
       content: cleanContent,
       photos,
+      explicitPhotos: !!snapshot,
       config,
       existingDraftMediaId: state.intent.existing_draft_media_id,
       noteId: state.intent.note_id,

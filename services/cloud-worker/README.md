@@ -71,3 +71,7 @@ worker 只连接专用 `nezus_pipeline` 网络，没有宿主机端口和 Caddy 
 环境文件为服务器 `/srv/nezus/pipeline-worker/worker.env`，账号配置为同目录的 `config/pipeline.json`，均需保持 `0600`；数据卷为 `data/`，更新镜像时保留。密钥不打进镜像、不下发客户端。更新前等待当前任务完成；意外重启中的任务标记为 `interrupted`，检查原 Pipeline run 和草稿箱后再决定是否重试。
 
 本次边界回归可运行 `bun test services/cloud-worker/server.test.ts`。
+
+### 贴图发送副本
+
+`contentForm=newspic` 可传 `newspic: { content, photos }`：`content` 是用户确认的纯文本，`photos` 为 1–20 个 HTTP(S) 图片地址，顺序即草稿配图顺序，首图作为封面。Worker 将副本写入任务目录，通过 `init --newspic-file` 交给原状态机；直接上传这些图片，正文原样发送，不生成海报，不改来源笔记。未传副本的任务继续沿用正文图片提取；显式 `newspic_render` 仍使用原海报排版。

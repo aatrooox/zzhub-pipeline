@@ -56,6 +56,13 @@ function validateInput(value: unknown): CloudJobInput {
     throw new Error("contentForm must be article or newspic");
   if (!/^[a-zA-Z0-9_.-]+$/.test(account))
     throw new Error("account is required and must contain only letters, numbers, _, ., or -");
+  // 独立贴图正文与配图来自用户确认的发送副本。
+  const newspic = input.newspic as CloudJobInput["newspic"];
+  if (newspic !== undefined && (
+    contentForm !== "newspic" || !newspic || typeof newspic.content !== "string" || !newspic.content.trim() || newspic.content.length > 100_000
+    || !Array.isArray(newspic.photos) || !newspic.photos.length || newspic.photos.length > 20
+    || newspic.photos.some(photo => typeof photo !== "string" || !/^https?:\/\//i.test(photo) || !URL.canParse(photo))
+  )) throw new Error("newspic requires text and 1 to 20 HTTP image URLs");
   return {
     idempotencyKey,
     title,
@@ -64,6 +71,7 @@ function validateInput(value: unknown): CloudJobInput {
     account,
     intentText: typeof input.intentText === "string" ? input.intentText.trim() : undefined,
     existingDraftMediaId: typeof input.existingDraftMediaId === "string" ? input.existingDraftMediaId.trim() || null : null,
+    ...(newspic ? { newspic } : {}),
   };
 }
 
@@ -174,6 +182,7 @@ async function main(): Promise<void> {
               existingDraftMediaId: input.existingDraftMediaId,
               useDefaultCover: input.useDefaultCover,
               coverTheme: input.coverTheme,
+              ...(input.newspic ? { newspic: input.newspic } : {}),
             },
             status: "queued",
             step: "queued",

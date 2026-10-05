@@ -311,6 +311,8 @@ const IntentSchema = withObjectDefault(
     style_hint: z.string().nullable().default(null),
     cover_theme: z.string().trim().min(1).nullable().default(null),
     newspic_render: NewspicRenderSpecSchema.nullable().default(null),
+    // 用户确认的贴图副本文件，正文不进入状态文件。
+    newspic_file: z.string().optional(),
     requires: IntentRequiresSchema,
     existing_draft_media_id: z.string().nullable().default(null),
     note_id: z.string().nullable().default(null),

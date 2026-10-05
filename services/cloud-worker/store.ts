@@ -14,6 +14,7 @@ export interface CloudJobInput {
   existingDraftMediaId?: string | null;
   useDefaultCover?: boolean;
   coverTheme?: string | null;
+  newspic?: { content: string; photos: string[] };
 }
 
 export interface CloudJob {

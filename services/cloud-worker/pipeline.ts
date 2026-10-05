@@ -121,7 +121,10 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
   const bodyPath = join(workspace, "source.md");
-  await writeFile(bodyPath, input.body, "utf8");
+  // 单独保存贴图副本，避免把用户确认的纯文本再次当 Markdown 改写。
+  await writeFile(bodyPath, input.newspic?.content || input.body, "utf8");
+  const newspicPath = join(workspace, "newspic.json");
+  if (input.newspic) await writeFile(newspicPath, JSON.stringify(input.newspic), "utf8");
 
   const init = await runPipelineCommand(workspace, "init", [
     "--workspace", workspace,
@@ -132,6 +135,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     "--intent-text", input.intentText?.trim() || input.title,
     "--account", input.account,
     "--requires-publish",
+    ...(input.newspic ? ["--newspic-file", newspicPath] : []),
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
     ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
   ], account);
