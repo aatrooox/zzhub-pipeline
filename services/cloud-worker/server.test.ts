@@ -42,6 +42,7 @@ test("worker defaults to loopback and authenticates health and job requests", as
     // 未配置的测试账号会在执行前停止，只验证快照契约与幂等保存。
     const input = { idempotencyKey: "newspic-input", title: "贴图", body: "原文", contentForm: "newspic", account: "missing-account", newspic: { content: "发送正文", photos: ["https://example.test/a.png", "https://example.test/b.png"] } };
     const submit = (value: unknown) => fetch(`${url}/v1/jobs`, { method: "POST", headers, body: JSON.stringify(value) });
+    expect((await submit({ ...input, newspic: { ...input.newspic, content: "😀".repeat(512) + "a" } })).status).toBe(400);
     for (const photos of [null, ["file:///private/photo.png"], Array(21).fill("https://example.test/a.png")])
       expect((await submit({ ...input, newspic: { ...input.newspic, photos } })).status).toBe(400);
     const created = await submit(input);

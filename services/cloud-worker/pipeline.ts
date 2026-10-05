@@ -121,8 +121,8 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
   const bodyPath = join(workspace, "source.md");
-  // 单独保存贴图副本，避免把用户确认的纯文本再次当 Markdown 改写。
-  await writeFile(bodyPath, input.newspic?.content || input.body, "utf8");
+  // 内容图保留完整文章，发送配文通过独立快照传递。
+  await writeFile(bodyPath, input.body, "utf8");
   const newspicPath = join(workspace, "newspic.json");
   if (input.newspic) await writeFile(newspicPath, JSON.stringify(input.newspic), "utf8");
   // 无手动配图时复用长文渲染，生成封面和内容页；给封面预留一张额度。

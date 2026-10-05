@@ -10,7 +10,12 @@ import {
   resolveFilenameFromUrl,
   resolveDraftMediaId,
   readResponseBodyWithLimit,
+  createWechatNewspic,
 } from "./wechat";
+
+test("贴图配文按 UTF-8 长度校验，上传前拒绝超限内容", async () => {
+  await expect(createWechatNewspic({ content: "😀".repeat(512) + "a" } as any)).rejects.toThrow("贴图配文过长");
+});
 
 describe("resolveDraftMediaId", () => {
   test("extracts media_id from a successful draft response", () => {

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { executeCloudJob } from "./pipeline";
-import { AccountStore, JobStore, type CloudJobInput, type StoredCloudJob } from "./store";
+import { AccountStore, JobStore, defaultJobWorkspace, type CloudJobInput, type StoredCloudJob } from "./store";
 
 // 执行真实 CLI 状态机，仅以回环服务代替微信和图片网络边界。
 test.each(["uploaded", "generated", "legacy"])("贴图配图优先上传，否则自动生成封面与内容页：%s", async (mode) => {
@@ -39,9 +39,9 @@ test.each(["uploaded", "generated", "legacy"])("贴图配图优先上传，否�
     const store = new JobStore(join(root, "jobs.json"));
     const input: CloudJobInput = {
       idempotencyKey: "newspic-check", account: "test-account", title: "贴图标题", contentForm: "newspic",
-      body: mode === "legacy" ? "未上传图片，自动生成封面和内容图。\n\n".repeat(20) : "原始文章不可外发 ![旧图](https://invalid.example/unused.png)",
+      body: mode === "uploaded" ? "原始文章不可外发 ![旧图](https://invalid.example/unused.png)" : "未上传图片，自动生成封面和内容图。\n\n".repeat(mode === "legacy" ? 50 : 20),
       ...(mode === "legacy" ? {} : { newspic: {
-        content: mode === "uploaded" ? "第一段正文\n\n第二段正文，保留 **原样** 与 ![示例](https://invalid.example/code.png)" : "用户确认的贴图正文，由 worker 自动排版生成内容图片。\n\n".repeat(20).trim(),
+        content: mode === "uploaded" ? "第一段正文\n\n第二段正文，保留 **原样** 与 ![示例](https://invalid.example/code.png)" : "简短配文，完整文章保留在内容图中。",
         photos: mode === "uploaded" ? [`${relay.url.origin}/photos/first.png`, `${relay.url.origin}/photos/second.png`] : [],
       } }),
     };
@@ -50,10 +50,16 @@ test.each(["uploaded", "generated", "legacy"])("贴图配图优先上传，否�
     await executeCloudJob(job, input, store, accounts, root);
     expect(job.step).toBe("done");
     expect(draft.articles[0].article_type).toBe("newspic");
-    expect(draft.articles[0].content.trim()).toBe((input.newspic?.content || input.body).trim());
+    if (mode === "legacy") {
+      expect(Buffer.byteLength(draft.articles[0].content)).toBeLessThanOrEqual(2048);
+      expect(draft.articles[0].content).toEndWith("…");
+    } else {
+      expect(draft.articles[0].content.trim()).toBe(input.newspic!.content.trim());
+    }
     expect(draft.articles[0].image_info.image_list).toEqual(uploaded.map((_, index) => ({ image_media_id: `image-${index + 1}` })));
     expect(draft.articles[0].thumb_media_id).toBe("image-1");
     const state = JSON.parse(await readFile(job.statePath!, "utf8"));
+    expect(await readFile(join(defaultJobWorkspace(root, job.id), "source.md"), "utf8")).toBe(input.body);
     if (mode === "uploaded") {
       expect(uploaded).toEqual(["first.png", "second.png"]);
       expect(state.intent.requires.render).toBe(false);

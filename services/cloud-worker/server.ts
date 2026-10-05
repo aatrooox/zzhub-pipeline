@@ -59,7 +59,7 @@ function validateInput(value: unknown): CloudJobInput {
   // 独立贴图正文与配图来自用户确认的发送副本。
   const newspic = input.newspic as CloudJobInput["newspic"];
   if (newspic !== undefined && (
-    contentForm !== "newspic" || !newspic || typeof newspic.content !== "string" || !newspic.content.trim() || newspic.content.length > 100_000
+    contentForm !== "newspic" || !newspic || typeof newspic.content !== "string" || !newspic.content.trim() || Buffer.byteLength(newspic.content, "utf8") > 2048
     || !Array.isArray(newspic.photos) || newspic.photos.length > 20
     || newspic.photos.some(photo => typeof photo !== "string" || !/^https?:\/\//i.test(photo) || !URL.canParse(photo))
   )) throw new Error("newspic requires text and up to 20 HTTP image URLs; an empty list generates images");

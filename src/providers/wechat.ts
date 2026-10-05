@@ -676,6 +676,9 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
 }
 
 export async function createWechatNewspic(input: WechatNewspicInput): Promise<Record<string, unknown>> {
+  // 配文超限时在上传图片前拒绝，避免微信返回不明确的 45166。
+  if (Buffer.byteLength(input.content, "utf8") > 2048)
+    throw new Error("贴图配文过长，请精简至 2KB 以内；完整文章可保留在内容图中");
   const runtime = getWxRuntimeConfig(input.config, input.account);
   const fallbackPhotos = input.explicitPhotos ? [] : extractImageUrls(input.content);
   const photos = parsePhotos(input.photos);

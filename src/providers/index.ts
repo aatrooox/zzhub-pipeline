@@ -167,7 +167,10 @@ async function publishWechatNewspicRoute({
     ? JSON.parse(await readFile(state.intent.newspic_file, "utf8")) as { content: string; photos: string[] }
     : null;
   const bodyImageUrls = extractImageUrls(postContent);
-  const cleanContent = snapshot?.content ?? prepareBodyForNewspic(postContent);
+  let cleanContent = snapshot?.content ?? prepareBodyForNewspic(postContent);
+  // 旧入口没有独立配文时使用短摘录，全文已保存在内容图中。
+  if (!snapshot && Buffer.byteLength(cleanContent, "utf8") > 2048)
+    cleanContent = `${Array.from(cleanContent).slice(0, 500).join("")}…`;
   const cleanPath = join(state.asset_path, "post-clean.md");
   if (!dryRun) {
     await writeFile(cleanPath, cleanContent, "utf-8");
