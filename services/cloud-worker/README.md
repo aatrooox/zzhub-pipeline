@@ -164,6 +164,12 @@ curl http://127.0.0.1:18887/v1/jobs/JOB_ID \
 - `result.publishResults`：发布结果，成功目标含 `external_id`（微信草稿 `media_id`）。
 - `error`：失败或中断说明；发布失败时 `result` 也可能保留已有业务结果。
 
+Nezus 首次保存账号时，会通过同一个内网令牌调用 `PUT /v1/accounts/:account` 同步公众号凭据；凭据只写入 worker 的持久卷 `accounts.json`，不进入任务请求或任务状态响应。删除账号使用 `DELETE /v1/accounts/:account`。
+
+`job.json` 至少包含 `idempotencyKey`、`title`、`body`、`contentForm`（`article` 或 `newspic`）和 `account`。用 `GET /v1/jobs/:id` 轮询状态；`succeeded` 表示 Pipeline 已完成目标发布，`failed` 的原因在 `error`。同一个 `idempotencyKey` 会返回原任务，不会重复入队。
+
+生产环境至少配置 `PIPELINE_WORKER_TOKEN`、`PIPELINE_WORKSPACE_ROOT`、`PIPELINE_WORKER_STATE_FILE` 和挂载的 `PIPELINE_CONFIG_FILE`。基础配置保存排版与默认值；Nezus 同步的账号凭据保存到 worker 数据卷的 `accounts.json`。
+
 状态为 `queued → running → succeeded / failed`；服务重启时发现原来在运行的任务，会标记 `interrupted`。成功要求 Pipeline 已完成，并有该账号成功的草稿 `media_id`，不代表文章已经公开发布。
 
 `step` 可能为 `queued`、`starting`、`attach-body`、`prepare`、`review-content`、`prepare-finalize`、`render`、`publish`、`done`。当前 Worker 只返回步骤、状态和结果，不提供云端 SSE、逐文件进度或原始日志；部署时以实际 commit 的接口为准。[本机 Monitor](../../docs/monitor.md) 的 SSE 是另一套接口。
@@ -188,3 +194,7 @@ curl http://127.0.0.1:18887/v1/jobs/JOB_ID \
 Worker 镜像可以独立于前端更新；账号同步等 API 变更仍需与业务后端协调。此实现是单进程 JSON 队列，不具备多副本调度或自动故障重试能力。
 
 边界测试：`bun test services/cloud-worker/server.test.ts`（临时目录内验证鉴权、账号接口和监听限制，不等同于真实微信发布验收）。
+
+### 贴图发送副本
+
+`contentForm=newspic` 可传 `newspic: { content, photos }`：`content` 是用户确认的纯文本，`photos` 为 0–20 个 HTTP(S) 图片地址。未上传图片（空数组或未传副本）时，Worker 通过原状态机生成封面和分页内容图；最多 19 张内容图，另加 1 张封面。上传图片时直接使用这些图片，顺序即草稿配图顺序，首图作为封面，跳过自动生成。副本通过 `init --newspic-file` 传递，正文原样发送，不修改来源笔记。

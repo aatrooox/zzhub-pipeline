@@ -24,7 +24,9 @@ function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null):
   const env = { ...process.env } as Record<string, string>;
   env.NO_COLOR = "1";
   env.FORCE_COLOR = "0";
-  env.ZZHUB_PIPELINE_MONITOR = "0";
+  // 使用现有 CLI 记录器，每个任务独立存放事件，避免账号间串读进度。
+  env.ZZHUB_PIPELINE_MONITOR = "1";
+  env.ZZHUB_PIPELINE_MONITOR_DIR = join(workspace, "monitor");
   env.ZZHUB_WECHAT_PREVIEW_ON_PUBLISH = "0";
   env.ZZHUB_PIPELINE_WORKSPACE_ROOT = workspace;
   env.ZZHUB_PIPELINE_ZOTEPAD_EXPORT_HTML = join(workspace, "exports", "post.html");
@@ -119,7 +121,15 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
   const bodyPath = join(workspace, "source.md");
+  // 内容图保留完整文章，发送配文通过独立快照传递。
   await writeFile(bodyPath, input.body, "utf8");
+  const newspicPath = join(workspace, "newspic.json");
+  if (input.newspic) await writeFile(newspicPath, JSON.stringify(input.newspic), "utf8");
+  // 无手动配图时复用长文渲染，生成封面和内容页；给封面预留一张额度。
+  const generateNewspic = input.contentForm === "newspic" && !input.newspic?.photos.length;
+  const newspicSpecPath = join(workspace, "newspic-render.json");
+  if (generateNewspic)
+    await writeFile(newspicSpecPath, JSON.stringify({ pagination_mode: "multi", max_pages: 19 }), "utf8");
 
   const init = await runPipelineCommand(workspace, "init", [
     "--workspace", workspace,
@@ -130,7 +140,10 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     "--intent-text", input.intentText?.trim() || input.title,
     "--account", input.account,
     "--requires-publish",
+    ...(input.newspic ? ["--newspic-file", newspicPath] : []),
+    ...(generateNewspic ? ["--newspic-render-spec-file", newspicSpecPath] : []),
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
+    ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
   ], account);
   const initResult = init.result as { state_path?: string; run_id?: string };
   let statePath = stringParam(initResult.state_path);

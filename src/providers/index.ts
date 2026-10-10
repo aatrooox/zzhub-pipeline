@@ -168,8 +168,15 @@ async function publishWechatNewspicRoute({
 }: PublishRouteContext): Promise<PublishResult> {
   const postPath = join(state.asset_path, "post.md");
   const postContent = await readFile(postPath, "utf-8");
+  // 副本正文原样发送，手动配图优先，空配图使用生成的封面和内容页。
+  const snapshot = state.intent.newspic_file
+    ? JSON.parse(await readFile(state.intent.newspic_file, "utf8")) as { content: string; photos: string[] }
+    : null;
   const bodyImageUrls = extractImageUrls(postContent);
-  const cleanContent = prepareBodyForNewspic(postContent);
+  let cleanContent = snapshot?.content ?? prepareBodyForNewspic(postContent);
+  // 旧入口没有独立配文时使用短摘录，全文已保存在内容图中。
+  if (!snapshot && Buffer.byteLength(cleanContent, "utf8") > 2048)
+    cleanContent = `${Array.from(cleanContent).slice(0, 500).join("")}…`;
   const cleanPath = join(state.asset_path, "post-clean.md");
   if (!dryRun) {
     await writeFile(cleanPath, cleanContent, "utf-8");
@@ -184,7 +191,7 @@ async function publishWechatNewspicRoute({
     });
 
   const renderPhotos = assets.map((asset) => asset.path);
-  const photos = mergePhotoLists(renderPhotos, bodyImageUrls);
+  const photos = snapshot ? (snapshot.photos.length ? snapshot.photos : renderPhotos) : mergePhotoLists(renderPhotos, bodyImageUrls);
 
   const account = accountOverride || state.route.account;
 
@@ -209,6 +216,7 @@ async function publishWechatNewspicRoute({
       title: state.metadata.title,
       content: cleanContent,
       photos,
+      explicitPhotos: !!snapshot,
       config,
       existingDraftMediaId: state.intent.existing_draft_media_id,
       noteId: state.intent.note_id,

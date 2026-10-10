@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { executeCloudJob } from "./pipeline";
+import { cloudJobProgress } from "./progress";
 import { AccountStore, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
 
 const host = process.env.PIPELINE_WORKER_HOST?.trim() || "127.0.0.1";
@@ -28,10 +29,12 @@ function bearerMatches(request: Request): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-function publicJob(job: StoredCloudJob): Record<string, unknown> {
+async function publicJob(job: StoredCloudJob): Promise<Record<string, unknown>> {
   const safeJob = { ...job } as Record<string, unknown>;
   delete safeJob.body;
-  return { ...safeJob, input: { ...job.input } };
+  delete safeJob.statePath;
+  const progress = await cloudJobProgress({ ...job }, workspaceRoot).catch(() => null);
+  return { ...safeJob, input: { ...job.input }, ...progress };
 }
 
 function validateInput(value: unknown): CloudJobInput {
@@ -53,6 +56,13 @@ function validateInput(value: unknown): CloudJobInput {
     throw new Error("contentForm must be article or newspic");
   if (!/^[a-zA-Z0-9_.-]+$/.test(account))
     throw new Error("account is required and must contain only letters, numbers, _, ., or -");
+  // 独立贴图正文与配图来自用户确认的发送副本。
+  const newspic = input.newspic as CloudJobInput["newspic"];
+  if (newspic !== undefined && (
+    contentForm !== "newspic" || !newspic || typeof newspic.content !== "string" || !newspic.content.trim() || Buffer.byteLength(newspic.content, "utf8") > 2048
+    || !Array.isArray(newspic.photos) || newspic.photos.length > 20
+    || newspic.photos.some(photo => typeof photo !== "string" || !/^https?:\/\//i.test(photo) || !URL.canParse(photo))
+  )) throw new Error("newspic requires text and up to 20 HTTP image URLs; an empty list generates images");
   return {
     idempotencyKey,
     title,
@@ -61,6 +71,7 @@ function validateInput(value: unknown): CloudJobInput {
     account,
     intentText: typeof input.intentText === "string" ? input.intentText.trim() : undefined,
     existingDraftMediaId: typeof input.existingDraftMediaId === "string" ? input.existingDraftMediaId.trim() || null : null,
+    ...(newspic ? { newspic } : {}),
   };
 }
 
@@ -157,7 +168,7 @@ async function main(): Promise<void> {
           if (existing && existing.requestHash !== requestHash(input))
             return json({ error: "idempotency_conflict" }, 409);
           if (existing)
-            return json(publicJob(existing), 200);
+            return json(await publicJob(existing), 200);
           const now = new Date().toISOString();
           const job: StoredCloudJob = {
             id: randomUUID(),
@@ -169,6 +180,9 @@ async function main(): Promise<void> {
               account: input.account,
               intentText: input.intentText,
               existingDraftMediaId: input.existingDraftMediaId,
+              useDefaultCover: input.useDefaultCover,
+              coverTheme: input.coverTheme,
+              ...(input.newspic ? { newspic: input.newspic } : {}),
             },
             status: "queued",
             step: "queued",
@@ -185,13 +199,13 @@ async function main(): Promise<void> {
           await store.set(job);
           queue.push(job.id);
           void drain();
-          return json(publicJob(job), 202);
+          return json(await publicJob(job), 202);
         }
 
         const match = url.pathname.match(/^\/v1\/jobs\/([^/]+)$/);
         if (match && request.method === "GET") {
           const job = store.get(match[1]);
-          return job ? json(publicJob(job)) : json({ error: "job_not_found" }, 404);
+          return job ? json(await publicJob(job)) : json({ error: "job_not_found" }, 404);
         }
         return json({ error: "not_found" }, 404);
       } catch (error) {

@@ -12,6 +12,9 @@ export interface CloudJobInput {
   account: string;
   intentText?: string;
   existingDraftMediaId?: string | null;
+  useDefaultCover?: boolean;
+  coverTheme?: string | null;
+  newspic?: { content: string; photos: string[] };
 }
 
 export interface CloudJob {

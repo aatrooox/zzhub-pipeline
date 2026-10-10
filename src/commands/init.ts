@@ -25,6 +25,7 @@
 
 import { readFile } from "fs/promises";
 import { resolve } from "node:path";
+import { z } from "zod";
 import { parseArgs, requireArg, optionalArg, flagArg } from "../args";
 import { printResult, renderInit } from "../output";
 import { loadConfig, resolveWorkspaceRoot } from "../config";
@@ -60,7 +61,6 @@ Options:
   --content-origin   user | external | unknown (required)
   --intent-text      Original user request for route/account resolution (optional)
   --account          Explicit account override (optional)
-  --article-theme    Local article theme package (optional)
   --newspic-render-spec-file  JSON file for newspic pagination / page-image intent (optional)
   --style-hint       e.g. fact_report (optional)
   --cover-theme      Cover theme ID (optional)
@@ -68,6 +68,7 @@ Options:
   --requires-style     Flag
   --requires-render    Flag
   --requires-publish   Flag
+  --newspic-file       Confirmed newspic text and photos JSON file (optional)
   --existing-draft-media-id  Update existing WeChat draft instead of creating new one (optional)
 `.trim());
     return;
@@ -85,6 +86,12 @@ Options:
   const existingDraftMediaId = optionalArg(parsed, "existing-draft-media-id") ?? null;
   const noteId = optionalArg(parsed, "note-id") ?? null;
   const config = loadConfig();
+  const newspicFile = optionalArg(parsed, "newspic-file");
+  if (newspicFile) {
+    if (contentForm !== "newspic") throw new Error("newspic-file requires content form newspic");
+    z.object({ content: z.string().trim().min(1).max(100_000), photos: z.array(z.string().min(1)).max(20) }).strict()
+      .parse(JSON.parse(await readFile(newspicFile, "utf8")));
+  }
   const workspace = resolveWorkspaceRoot(optionalArg(parsed, "workspace"), config);
   if (coverTheme !== null) resolveCoverTheme(config.render.cover, "poster-3-4", accountOverride, coverTheme);
 
@@ -133,8 +140,8 @@ Options:
     explicit_constraints: [],
     style_hint: styleHint,
     cover_theme: coverTheme,
-    ...(optionalArg(parsed, "article-theme") ? { article_theme: resolve(optionalArg(parsed, "article-theme")!) } : {}),
     newspic_render: newspicRender,
+    ...(newspicFile ? { newspic_file: resolve(newspicFile) } : {}),
     requires: {
       research: flagArg(parsed, "requires-research"),
       style: flagArg(parsed, "requires-style"),

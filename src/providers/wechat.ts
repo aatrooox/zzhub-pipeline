@@ -142,6 +142,8 @@ export interface WechatDraftInput extends BaseWechatPublishInput {
 }
 
 export interface WechatNewspicInput extends BaseWechatPublishInput {
+  /** 明确选择配图时，不从正文中的示例语法补充图片。 */
+  explicitPhotos?: boolean;
   content: string;
   existingDraftMediaId?: string | null;
 }
@@ -685,13 +687,18 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
 }
 
 export async function createWechatNewspic(input: WechatNewspicInput): Promise<Record<string, unknown>> {
+  // 配文超限时在上传图片前拒绝，避免微信返回不明确的 45166。
+  if (Buffer.byteLength(input.content, "utf8") > 2048)
+    throw new Error("贴图配文过长，请精简至 2KB 以内；完整文章可保留在内容图中");
   const runtime = getWxRuntimeConfig(input.config, input.account);
-  const fallbackPhotos = extractImageUrls(input.content);
+  const fallbackPhotos = input.explicitPhotos ? [] : extractImageUrls(input.content);
   const photos = parsePhotos(input.photos);
   const finalPhotos = mergePhotoLists(photos, fallbackPhotos);
   if (finalPhotos.length === 0) {
     throw new Error("No photos available for wx newspic upload");
   }
+  if (finalPhotos.length > 20)
+    throw new Error("微信贴图最多支持 20 张配图");
 
   const tokenTimeout = resolveTimeout(TOKEN_TIMEOUT, runtime.timeout, input.timeout);
   const uploadTimeout = resolveTimeout(UPLOAD_TIMEOUT, runtime.timeout, input.timeout);

@@ -197,7 +197,11 @@ Options:
   // requires.research is intentional (set at init from the user request) and is
   // intentionally not recomputed here.
   const allRoutes = [route.primary, ...route.extras];
-  state.intent.requires.render = allRoutes.some((r) => r !== "blog");
+  // 只有用户明确上传的配图才跳过生成；空配图继续默认渲染流程。
+  const hasUploadedPhotos = state.intent.newspic_file
+    ? JSON.parse(await readFile(state.intent.newspic_file, "utf8")).photos.length > 0
+    : false;
+  state.intent.requires.render = allRoutes.some((r) => r !== "blog" && !(r === "wechat-newspic" && hasUploadedPhotos));
   state.intent.requires.publish = state.intent.task_kind === "publish";
 
   // ── Step 2: Author select ──
