@@ -10,7 +10,7 @@ async function makeTempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-async function captureJsonOutput<T>(fn: () => Promise<void>): Promise<T> {
+async function captureJsonOutput<T>(fn: () => Promise<unknown>): Promise<T> {
   const original = console.log;
   const lines: string[] = [];
   console.log = (...args: unknown[]) => {
@@ -24,7 +24,7 @@ async function captureJsonOutput<T>(fn: () => Promise<void>): Promise<T> {
   return JSON.parse(lines.join("\n").trim()) as T;
 }
 
-async function captureTextOutput(fn: () => Promise<void>): Promise<string> {
+async function captureTextOutput(fn: () => Promise<unknown>): Promise<string> {
   const original = console.log;
   const lines: string[] = [];
   console.log = (...args: unknown[]) => {

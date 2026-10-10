@@ -188,7 +188,7 @@ describe("semantic WeChat HTML export", () => {
       requested.resolve();
       await release.promise;
       const isGif = request.url.endsWith(".gif");
-      return new Response(isGif ? gif : pngBytes, { headers: { "content-type": isGif ? "image/gif" : "image/png", "cache-control": "no-store" } });
+      return new Response(new Uint8Array(isGif ? gif : pngBytes), { headers: { "content-type": isGif ? "image/gif" : "image/png", "cache-control": "no-store" } });
     } });
     const markdownPath = join(tempDir, "images.md");
     await writeFile(markdownPath, `![0.50](http://127.0.0.1:${server.port}/photo.png "远程图注")\n\n![0.50](http://127.0.0.1:${server.port}/motion.gif "动图图注")`);
