@@ -344,6 +344,38 @@ Tests isolate config with `process.env.ZZHUB_PIPELINE_CONFIG = <tmp path>`.
 
 Config structure: `paths`, `services`, `commands`, `wx.accounts`, `cos`, `plugins`, `imgx`, `render`.
 
+### 核心必要配置清单 (Minimal Required Config)
+
+新环境接入或部署时，需具备的基础依赖与配置项：
+
+1. **环境依赖**：
+   - **Bun** (>= 1.1)
+   - **Chrome / Chromium**（图片与公众号排版渲染依赖 headless Chrome）
+   - **中文字体**（排版渲染依赖内置 CJK 字体）
+
+2. **本地开发必要配置 (`config.json`)**：
+   ```json
+   {
+     "wx": {
+       "baseUrl": "https://wx-relay.example.com",
+       "accounts": {
+         "default": {
+           "pat": "RELAY_API_TOKEN",
+           "appId": "wx_your_app_id",
+           "appSecret": "your_app_secret"
+         }
+       }
+     }
+   }
+   ```
+   - `wx.baseUrl`：兼容 `/api/v1/wx/*` 契约的微信中转代理服务地址。
+   - `pat`：中转服务的鉴权令牌。
+   - `appId` & `appSecret`：微信公众号开发者凭据。
+
+3. **Cloud Worker 生产服务必要配置**：
+   - 环境变量 `PIPELINE_WORKER_TOKEN`：服务鉴权 Token。
+   - 宿主机配置挂载：通过 `PIPELINE_CONFIG_FILE` 指定基础配置文件，数据卷挂载至 `/data`。
+
 WeChat publishing requires a compatible `/api/v1/wx/*` relay at `wx.baseUrl` (or `ZZHUB_WX_BASE_URL`), plus account `appId`, `appSecret`, and relay `pat`. COS requires the `/api/v1/upload/cos` STS contract. Neither backend is bundled here; do not document the CLI as a direct client for `api.weixin.qq.com`.
 
 ## Cloud worker and monitoring
