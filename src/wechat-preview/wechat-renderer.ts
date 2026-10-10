@@ -1,5 +1,6 @@
 import juice from "juice/client";
 import type { WechatExportTheme } from "./themes";
+import { getCombinedDefaultCss, getCombinedWechatRenderers } from "./plugins/registry";
 
 export type WechatElementKind =
   | "image"
@@ -39,7 +40,7 @@ export interface ArticleStructure {
 }
 
 export interface WechatElementRenderer {
-  kind: WechatElementKind;
+  kind: WechatElementKind | string;
   selector: string;
   /** Optional selector used after CSS has been inlined. Defaults to selector. */
   finalizeSelector?: string;
@@ -47,7 +48,9 @@ export interface WechatElementRenderer {
   finalize?: (element: HTMLElement, context: WechatRenderContext) => void;
 }
 
-export type WechatRendererOverrides = Partial<Record<WechatElementKind, WechatElementRenderer>>;
+export type WechatRendererOverrides = (Partial<Record<WechatElementKind, WechatElementRenderer>> & {
+  extraRenderers?: WechatElementRenderer[];
+}) | Record<string, WechatElementRenderer>;
 
 export interface RenderWechatHtmlInput {
   structure?: ArticleStructure;
@@ -553,7 +556,11 @@ const DEFAULT_RENDERERS: WechatElementRenderer[] = [
 export function createWechatRendererRegistry(
   overrides: WechatRendererOverrides = {},
 ): WechatElementRenderer[] {
-  return DEFAULT_RENDERERS.map((renderer) => overrides[renderer.kind] ?? renderer);
+  const base = DEFAULT_RENDERERS.map(
+    (renderer) => (overrides as Record<string, WechatElementRenderer | undefined>)[renderer.kind] ?? renderer,
+  );
+  const extra = (overrides as { extraRenderers?: WechatElementRenderer[] }).extraRenderers ?? [];
+  return [...base, ...extra];
 }
 
 /** 按渲染器顺序执行，等待图片尺寸读取完成。 */
@@ -720,7 +727,16 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
   sourceDocument.body.appendChild(compatibilityRoot);
 
   const references: WechatLinkReference[] = [];
-  const renderers = createWechatRendererRegistry(input.renderers);
+  const pluginRenderers = getCombinedWechatRenderers();
+  const pluginCss = getCombinedDefaultCss();
+  const mergedOverrides: WechatRendererOverrides = {
+    ...input.renderers,
+    extraRenderers: [
+      ...((input.renderers as { extraRenderers?: WechatElementRenderer[] })?.extraRenderers ?? []),
+      ...pluginRenderers,
+    ],
+  };
+  const renderers = createWechatRendererRegistry(mergedOverrides);
   await runRendererPhase("prepare", renderers, {
     document: sourceDocument,
     root,
@@ -732,7 +748,7 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
   const css = [
     input.baseCss,
     buildWechatThemeCss(input.editorVars ?? {}, input.theme),
-    '.milkdown .editor mark { background-color: #fff0a8; color: inherit; }',
+    pluginCss,
     input.customCss ?? "",
   ].filter(Boolean).join("\n");
 

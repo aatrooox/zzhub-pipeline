@@ -3,7 +3,7 @@ import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { getHTML } from "@milkdown/kit/utils";
 import articleCss from "@zzclub/milkdown-article-style/article.css?raw";
-import { highlightPlugins } from "./highlight";
+import { getCombinedMilkdownPlugins } from "../plugins/registry";
 import type { ArticleStructure } from "../wechat-renderer";
 import { renderWechatHtml } from "../wechat-renderer";
 import type { WechatExportTheme } from "../themes";
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
     })
     .use(commonmark)
     .use(gfm)
-    .use(highlightPlugins);
+    .use(getCombinedMilkdownPlugins());
   await editor.create();
   // 在解析后处理真实图片节点，引用式图片也生效，代码中的图片语法不被改写。
   const semantic = new DOMParser().parseFromString(editor.action(getHTML()), "text/html");
