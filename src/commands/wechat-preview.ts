@@ -31,6 +31,7 @@ Usage: zzhub-pipeline wechat-preview <subcommand> [options]
 
 Subcommands:
   serve     Start the singleton local preview server (or print existing URL)
+  studio    Start server and open WeChat Visual Studio in browser
   status    Show whether the preview server is running
   open      Open the dashboard in a browser
   list      List registered preview entries
@@ -87,6 +88,38 @@ export async function wechatPreview(args: string[]): Promise<void> {
     });
 
     // Keep process alive when we own the server
+    if (!result.reused) {
+      await new Promise<void>(() => {
+        // blocked until SIGINT/SIGTERM
+      });
+    }
+    return;
+  }
+
+  if (sub === "studio") {
+    const host = optionalArg(parsed, "host");
+    const portRaw = optionalArg(parsed, "port");
+    const port = portRaw ? Number(portRaw) : undefined;
+    const force = flagArg(parsed, "force");
+
+    const result = await startPreviewServer({
+      host,
+      port: port !== undefined && Number.isFinite(port) ? port : undefined,
+      reuseExisting: !force,
+    });
+
+    const studioUrl = `${result.url}/studio`;
+    await openUrl(studioUrl);
+
+    printResult({
+      action: "studio",
+      url: studioUrl,
+      host: result.host,
+      port: result.port,
+      reused: result.reused,
+      message: `WeChat Visual Studio opened at ${studioUrl}`,
+    });
+
     if (!result.reused) {
       await new Promise<void>(() => {
         // blocked until SIGINT/SIGTERM

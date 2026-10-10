@@ -12,10 +12,12 @@ export default defineConfig({
     manifest: true,
     cssCodeSplit: false,
     rollupOptions: {
-      input: resolve(__dirname, "src/wechat-preview/browser/editor-export.ts"),
+      input: {
+        "editor-export": resolve(__dirname, "src/wechat-preview/browser/editor-export.ts"),
+        "studio": resolve(__dirname, "src/wechat-preview/browser/studio/studio.html"),
+      },
       output: {
-        inlineDynamicImports: true,
-        entryFileNames: "editor-export.js",
+        entryFileNames: "[name].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },

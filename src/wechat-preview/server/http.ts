@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
 import {
   previewBaseUrl,
   resolvePreviewHost,
@@ -24,6 +26,10 @@ import {
 } from "./local-file";
 import { renderDashboardHtml, renderFailedEntryHtml } from "./ui";
 import { buildWechatPreviewShell } from "../index";
+import { getPluginDocs } from "../plugins/registry";
+import { getWechatPreviewTheme } from "../themes";
+import { loadConfig, saveConfig, getPipelineConfigPath, resolveConfigRelativePath } from "../../config";
+import { DIST_DIR, WECHAT_PREVIEW_DIR } from "../../runtime-paths";
 import type { PreviewRegisterInput } from "./types";
 
 export interface StartPreviewServerOptions {
@@ -177,6 +183,148 @@ export async function startPreviewServer(
           return json({
             error: error instanceof Error ? error.message : String(error),
           }, 500);
+        }
+      }
+
+      if (pathname === "/api/studio/config" && req.method === "GET") {
+        const config = loadConfig();
+        const configPath = getPipelineConfigPath();
+        const accountsData: Record<string, unknown> = {};
+
+        for (const [key, account] of Object.entries(config.wx.accounts)) {
+          let customCssContent = "";
+          if (account.customCss) {
+            const resolved = resolveConfigRelativePath(account.customCss, configPath);
+            if (resolved && existsSync(resolved)) {
+              try {
+                customCssContent = readFileSync(resolved, "utf-8");
+              } catch {
+                // ignore
+              }
+            }
+          }
+
+          const defaultTheme = getWechatPreviewTheme(key);
+
+          accountsData[key] = {
+            name: account.name || key,
+            customCssPath: account.customCss,
+            customCssContent,
+            theme: {
+              editorVars: { ...defaultTheme.editorVars, ...account.theme?.editorVars },
+              exportTheme: { ...defaultTheme.exportTheme, ...account.theme?.exportTheme },
+            },
+            articleTheme: account.articleTheme ?? null,
+          };
+        }
+
+        let sampleMarkdown = "";
+        const fixturePath = join(WECHAT_PREVIEW_DIR, "fixtures/all-nodes.md");
+        if (existsSync(fixturePath)) {
+          try {
+            sampleMarkdown = readFileSync(fixturePath, "utf-8");
+          } catch {
+            // ignore
+          }
+        }
+
+        return json({
+          defaultAccount: config.wx.defaultAccount || "default",
+          accounts: accountsData,
+          plugins: getPluginDocs(),
+          sampleMarkdown,
+        });
+      }
+
+      if (pathname === "/api/studio/save-config" && req.method === "POST") {
+        let body: any;
+        try {
+          body = await req.json();
+        } catch {
+          return json({ error: "invalid JSON body" }, 400);
+        }
+
+        const config = loadConfig();
+        const accountKey = String(body.account || config.wx.defaultAccount || "default");
+        if (!config.wx.accounts[accountKey]) {
+          config.wx.accounts[accountKey] = {
+            name: accountKey,
+            pat: "",
+            appId: "",
+            appSecret: "",
+            customCss: null,
+            theme: {
+              editorVars: {},
+              exportTheme: {},
+            },
+          };
+        }
+
+        const account = config.wx.accounts[accountKey];
+        if (body.editorVars && typeof body.editorVars === "object") {
+          account.theme.editorVars = { ...account.theme.editorVars, ...body.editorVars };
+        }
+        if (body.exportTheme && typeof body.exportTheme === "object") {
+          account.theme.exportTheme = { ...account.theme.exportTheme, ...body.exportTheme };
+        }
+
+        if (typeof body.customCss === "string") {
+          const configPath = getPipelineConfigPath();
+          let cssPath = account.customCss
+            ? resolveConfigRelativePath(account.customCss, configPath)
+            : null;
+
+          if (!cssPath) {
+            cssPath = join(dirname(configPath), `custom-css-${accountKey}.css`);
+            account.customCss = `custom-css-${accountKey}.css`;
+          }
+
+          try {
+            writeFileSync(cssPath, body.customCss, "utf-8");
+          } catch (err) {
+            return json({ error: `Failed to write custom CSS: ${String(err)}` }, 500);
+          }
+        }
+
+        try {
+          saveConfig(config);
+          return json({ ok: true, account: accountKey, message: "Configuration saved successfully" });
+        } catch (err) {
+          return json({ error: `Failed to save config: ${String(err)}` }, 500);
+        }
+      }
+
+      if (pathname === "/studio" || pathname === "/studio/" || pathname === "/studio/index.html") {
+        const studioHtmlPath = join(DIST_DIR, "src/wechat-preview/browser/studio/studio.html");
+        const fallbackPath = join(DIST_DIR, "studio.html");
+        const targetHtmlPath = existsSync(studioHtmlPath) ? studioHtmlPath : fallbackPath;
+        if (existsSync(targetHtmlPath)) {
+          return html(readFileSync(targetHtmlPath, "utf-8"));
+        }
+        return html("<h1>Studio not built. Run bun run build:wechat-preview first.</h1>", 500);
+      }
+
+      if (pathname === "/studio.js" || pathname === "/editor-export.js") {
+        const filePath = join(DIST_DIR, pathname.slice(1));
+        if (existsSync(filePath)) {
+          return new Response(readFileSync(filePath), {
+            headers: {
+              "content-type": "application/javascript; charset=utf-8",
+              "cache-control": "no-cache",
+            },
+          });
+        }
+      }
+
+      if (pathname.startsWith("/assets/")) {
+        const filePath = join(DIST_DIR, pathname.slice(1));
+        if (existsSync(filePath)) {
+          return new Response(readFileSync(filePath), {
+            headers: {
+              "content-type": guessContentType(filePath),
+              "cache-control": "public, max-age=3600",
+            },
+          });
         }
       }
 

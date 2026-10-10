@@ -133,6 +133,13 @@ export function getWechatPreviewBundleSources(): string[] {
   return [
     join(WECHAT_PREVIEW_DIR, "browser/editor-export.ts"),
     join(WECHAT_PREVIEW_DIR, "browser/highlight.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/studio.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/studio.html"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/studio.css"),
+    join(WECHAT_PREVIEW_DIR, "plugins/registry.ts"),
+    join(WECHAT_PREVIEW_DIR, "plugins/builtin-callout.ts"),
+    join(WECHAT_PREVIEW_DIR, "plugins/builtin-kbd.ts"),
+    join(WECHAT_PREVIEW_DIR, "plugins/builtin-badge.ts"),
     resolveMilkdownArticleStylePath(),
     join(WECHAT_PREVIEW_DIR, "wechat-renderer.ts"),
   ];

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeChat Article Visual Studio - 排版可视化工作台</title>
+  <link rel="stylesheet" href="./studio.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="studio-header">
+    <div class="brand-section">
+      <span class="brand-logo">🎨</span>
+      <h1 class="brand-title">WeChat Visual Studio</h1>
+      <span class="brand-badge">实时调优</span>
+    </div>
+
+    <div class="header-controls">
+      <div class="account-select-wrap">
+        <span>公众号账号:</span>
+        <select id="account-select" class="account-select">
+          <option value="default">默认账号 (default)</option>
+        </select>
+      </div>
+
+      <button id="btn-reset" class="btn" title="恢复当前账号默认样式">
+        <span>🔄 重置</span>
+      </button>
+
+      <button id="btn-save" class="btn btn-primary" title="保存当前调整至本地 config.json">
+        <span>💾 保存至配置</span>
+      </button>
+
+      <button id="btn-copy" class="btn btn-success" title="复制内联富文本，可直接粘贴到微信公众号后台">
+        <span>📋 一键复制到公众号</span>
+      </button>
+
+      <a href="/" class="btn" title="返回导出历史">
+        <span>📜 历史记录</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <main class="studio-body">
+    <!-- Left: Tuning & Plugins -->
+    <aside class="panel left-panel">
+      <nav class="tab-nav">
+        <button id="tab-btn-style" class="tab-btn active">🎨 样式调优</button>
+        <button id="tab-btn-syntax" class="tab-btn">🧩 语法与组件</button>
+      </nav>
+
+      <!-- Tab 1: Style Tuning -->
+      <div id="tab-content-style" class="tab-content">
+        <!-- Typography -->
+        <div class="config-section">
+          <div class="section-label">
+            <span>📐 字号与排版</span>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>正文字号</span>
+              <span id="val-font-size" class="form-val">16px</span>
+            </div>
+            <input type="range" id="input-font-size" class="slider-input" min="14" max="18" step="1" value="16">
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>行高倍数</span>
+              <span id="val-line-height" class="form-val">1.84</span>
+            </div>
+            <input type="range" id="input-line-height" class="slider-input" min="1.5" max="2.2" step="0.02" value="1.84">
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>字间距 (Letter Spacing)</span>
+              <span id="val-letter-spacing" class="form-val">0.012em</span>
+            </div>
+            <input type="range" id="input-letter-spacing" class="slider-input" min="0" max="0.05" step="0.002" value="0.012">
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>段落间距 (Margin Bottom)</span>
+              <span id="val-para-spacing" class="form-val">1.2em</span>
+            </div>
+            <input type="range" id="input-para-spacing" class="slider-input" min="0.8" max="2.0" step="0.1" value="1.2">
+          </div>
+        </div>
+
+        <!-- Colors -->
+        <div class="config-section">
+          <div class="section-label">
+            <span>🎨 颜色系统</span>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>品牌主色 (Brand)</span>
+            </div>
+            <div class="color-input-row">
+              <input type="color" id="picker-brand-color" class="color-picker" value="#ca6093">
+              <input type="text" id="hex-brand-color" class="color-hex" value="#ca6093">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>正文字色 (Body Text)</span>
+            </div>
+            <div class="color-input-row">
+              <input type="color" id="picker-text-color" class="color-picker" value="#292526">
+              <input type="text" id="hex-text-color" class="color-hex" value="#292526">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>二级标题颜色 (H2)</span>
+            </div>
+            <div class="color-input-row">
+              <input type="color" id="picker-h2-color" class="color-picker" value="#1f1b1c">
+              <input type="text" id="hex-h2-color" class="color-hex" value="#1f1b1c">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>三级标题颜色 (H3)</span>
+            </div>
+            <div class="color-input-row">
+              <input type="color" id="picker-h3-color" class="color-picker" value="#5c5658">
+              <input type="text" id="hex-h3-color" class="color-hex" value="#5c5658">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>引用边框与重点色</span>
+            </div>
+            <div class="color-input-row">
+              <input type="color" id="picker-quote-color" class="color-picker" value="#e8c9d7">
+              <input type="text" id="hex-quote-color" class="color-hex" value="#e8c9d7">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>分割线颜色 (Divider)</span>
+            </div>
+            <div class="color-input-row">
+              <input type="color" id="picker-divider-color" class="color-picker" value="#e2dcdf">
+              <input type="text" id="hex-divider-color" class="color-hex" value="#e2dcdf">
+            </div>
+          </div>
+        </div>
+
+        <!-- Structure -->
+        <div class="config-section">
+          <div class="section-label">
+            <span>🏛️ 装饰与结构</span>
+          </div>
+
+          <div class="form-group">
+            <label class="switch-label">
+              <span>二级标题自动编号 (01, 02)</span>
+              <span class="switch-toggle">
+                <input type="checkbox" id="switch-numbered-headings">
+                <span class="slider-round"></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>标题前缀标签 (例: CHAPTER)</span>
+            </div>
+            <input type="text" id="input-heading-label" class="color-hex" style="width:100%" placeholder="如：CHAPTER">
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">
+              <span>引言前缀标签 (例: 摘录)</span>
+            </div>
+            <input type="text" id="input-quote-label" class="color-hex" style="width:100%" placeholder="如：摘录">
+          </div>
+        </div>
+
+        <!-- Custom CSS -->
+        <div class="config-section">
+          <div class="section-label">
+            <span>💻 自定义 CSS 覆盖</span>
+          </div>
+          <textarea id="input-custom-css" class="css-editor" placeholder="/* 在此处输入自定义 CSS 规则，实时生效 */&#10;h2 { letter-spacing: 0.05em; }&#10;p { text-align: justify; }"></textarea>
+        </div>
+      </div>
+
+      <!-- Tab 2: Syntax Cheatsheet -->
+      <div id="tab-content-syntax" class="tab-content" style="display: none;">
+        <div id="syntax-card-list">
+          <!-- Populated dynamically by studio.ts -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center: Markdown Input -->
+    <section class="panel editor-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>📝</span>
+          <span>Markdown 草稿编辑</span>
+        </div>
+        <div class="editor-toolbar">
+          <button id="btn-load-sample" class="btn" title="加载全语法验收用例">📄 官方测试稿</button>
+          <button id="btn-clear-md" class="btn" title="清空编辑器内容">🗑️ 清空</button>
+        </div>
+      </div>
+
+      <textarea id="editor-markdown" class="editor-textarea" spellcheck="false" placeholder="在此粘贴或输入 Markdown 文章内容..."></textarea>
+
+      <div class="editor-footer">
+        <span id="editor-stats">字数: 0 字 | 预计阅读: 1 分钟</span>
+        <span>实时渲染: 50ms 防抖</span>
+      </div>
+    </section>
+
+    <!-- Right: Live WeChat Viewport -->
+    <section class="panel preview-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>📱</span>
+          <span>微信手机仿真视口 (430px)</span>
+        </div>
+        <div>
+          <button id="btn-toggle-view" class="btn" style="font-size: 11px;">🔍 查看 HTML 源码</button>
+        </div>
+      </div>
+
+      <div class="preview-container">
+        <!-- Phone Simulator Frame -->
+        <div class="device-frame">
+          <div class="device-notch-bar">
+            <span>9:41</span>
+            <span>WeChat Article</span>
+            <span>100% 🔋</span>
+          </div>
+          <div id="preview-screen" class="device-screen">
+            <!-- Injected by live renderer -->
+          </div>
+        </div>
+
+        <!-- HTML Code Viewer (Hidden by default) -->
+        <div id="html-source-container" style="display: none; width: 100%; margin-top: 16px;">
+          <textarea id="html-source-code" class="css-editor" style="height: 380px; width: 100%;" readonly></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Hidden Milkdown Engine Mount Host -->
+  <div id="studio-editor-host"></div>
+
+  <!-- Studio Script -->
+  <script type="module" src="./studio.ts"></script>
+</body>
+</html>

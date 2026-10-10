@@ -161,6 +161,7 @@ export function renderDashboardHtml(baseUrl: string): string {
     <h1>WeChat Preview</h1>
     <button type="button" id="btn-refresh">刷新</button>
     <button type="button" id="btn-clear">清空</button>
+    <a href="/studio" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:8px;border:1px solid #ca6093;background:#ca6093;color:#fff;font-size:12px;font-weight:600;margin-left:8px;">🎨 可视化工作台 (Studio)</a>
     <span class="meta" id="server-meta">${escapeHtml(baseUrl)}</span>
   </header>
   <div class="layout">
