@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.16.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.15.0...v0.16.0)
+
+### Features
+
+- Sync cloud pipeline accounts from Nezus ([dad268d](https://github.com/aatrooox/zzhub-pipeline/commit/dad268d))
+- Expose cloud worker progress ([d7cb5e9](https://github.com/aatrooox/zzhub-pipeline/commit/d7cb5e9))
+- **wechat-preview:** Implement milkdown plugin system with callout, kbd, badge and highlight ([6fa9e97](https://github.com/aatrooox/zzhub-pipeline/commit/6fa9e97))
+- **wechat-preview:** Implement WeChat Visual Studio and studio server endpoints ([8201d0e](https://github.com/aatrooox/zzhub-pipeline/commit/8201d0e))
+- **studio:** Add syntax presets selector and custom override integration ([eada98b](https://github.com/aatrooox/zzhub-pipeline/commit/eada98b))
+- **wechat-preview:** Add contrast-green h2 preset, css extraction button, and curated color palettes ([7d13bb9](https://github.com/aatrooox/zzhub-pipeline/commit/7d13bb9))
+- **wechat-preview:** Connect syntaxPresets and structure into export pipeline and save-config ([8b54d18](https://github.com/aatrooox/zzhub-pipeline/commit/8b54d18))
+- **wechat-preview:** List all markdown syntaxes in presets panel with 1-click css extract ([149c9f6](https://github.com/aatrooox/zzhub-pipeline/commit/149c9f6))
+- **wechat-preview:** Support custom callout titles, emojis, and presets ([4fd94bf](https://github.com/aatrooox/zzhub-pipeline/commit/4fd94bf))
+- **wechat-preview:** Support --no-open flag in studio command ([6e4987c](https://github.com/aatrooox/zzhub-pipeline/commit/6e4987c))
+
+### Fixes
+
+- Preserve cloud worker job credentials ([08b5e2f](https://github.com/aatrooox/zzhub-pipeline/commit/08b5e2f))
+- Send explicit newspic photos and text through cloud jobs ([dcdbc18](https://github.com/aatrooox/zzhub-pipeline/commit/dcdbc18))
+- Generate newspic images when uploads are omitted ([efad1e6](https://github.com/aatrooox/zzhub-pipeline/commit/efad1e6))
+- Keep full photo article while bounding draft captions ([8ef6b76](https://github.com/aatrooox/zzhub-pipeline/commit/8ef6b76))
+
+### Documentation
+
+- Add minimal required environment config to AGENTS.md ([0710c3e](https://github.com/aatrooox/zzhub-pipeline/commit/0710c3e))
+- Add wechat visual studio and plugin architecture plan ([337fd22](https://github.com/aatrooox/zzhub-pipeline/commit/337fd22))
+- Add visual studio guide and remote config sync workflow ([86a3ddb](https://github.com/aatrooox/zzhub-pipeline/commit/86a3ddb))
+
+### Chore
+
+- Fix test types and keep tsc clean ([da1e68f](https://github.com/aatrooox/zzhub-pipeline/commit/da1e68f))
+- Ignore IDEA.md ([d219447](https://github.com/aatrooox/zzhub-pipeline/commit/d219447))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+- Aatrox <gnakzz@qq.com>
+
 ## v0.15.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.14.0...v0.15.0)
