@@ -8,6 +8,7 @@ import { renderWechatHtml } from "../../wechat-renderer";
 import type { WechatPluginDoc } from "../../plugins/types";
 import type { ArticleStructure } from "../../wechat-renderer";
 import type { WechatExportTheme } from "../../themes";
+import { SYNTAX_CATEGORIES, buildCombinedPresetsCss } from "./syntax-presets";
 
 interface AccountData {
   name: string;
@@ -16,6 +17,7 @@ interface AccountData {
   theme: {
     editorVars: Record<string, string>;
     exportTheme: Partial<WechatExportTheme>;
+    syntaxPresets?: Record<string, string>;
   };
   articleTheme?: string | null;
 }
@@ -33,6 +35,7 @@ let pluginsList: WechatPluginDoc[] = [];
 let latestWechatHtml = "";
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let showingHtmlSource = false;
+let currentSyntaxPresets: Record<string, string> = {};
 
 // DOM Elements
 const accountSelect = document.getElementById("account-select") as HTMLSelectElement;
@@ -134,8 +137,11 @@ async function doRender() {
     const textColor = hexTextColor.value || "#292526";
     const h2Color = hexH2Color.value || "#1f1b1c";
     const h3Color = hexH3Color.value || "#5c5658";
-    const quoteColor = hexQuoteColor.value || "#e8c9d7";
-    const dividerColor = hexDividerColor.value || "#e2dcdf";
+    const quoteColor = hexQuoteColor.value || "#ca6093";
+    const dividerColor = hexDividerColor.value || "#dadce0";
+
+    const baseExportTheme = accounts[currentAccount]?.theme?.exportTheme || {};
+    const baseEditorVars = accounts[currentAccount]?.theme?.editorVars || {};
 
     const containerStyle = [
       "max-width: 100%",
@@ -154,12 +160,13 @@ async function doRender() {
     ].join("; ");
 
     const exportTheme: WechatExportTheme = {
+      ...baseExportTheme,
       containerStyle,
-      footerText: "",
-      footerStyle: "margin-top: 32px; text-align: center; font-size: 12px; color: #6f696b;",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+      footerText: baseExportTheme.footerText ?? "",
+      footerStyle: baseExportTheme.footerStyle ?? "margin-top: 32px; text-align: center; font-size: 12px; color: #6f696b;",
+      fontFamily: baseExportTheme.fontFamily || "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
       bodyColor: textColor,
-      mutedColor: "#6f696b",
+      mutedColor: baseExportTheme.mutedColor || "#5f6368",
       h2Color,
       h3Color,
       primaryColor: brandColor,
@@ -170,10 +177,11 @@ async function doRender() {
     };
 
     const editorVars: Record<string, string> = {
+      ...baseEditorVars,
       "--primary": brandColor,
       "--brand": brandColor,
-      "--brand-soft": brandColor,
-      "--brand-bg": "rgba(202, 96, 147, 0.08)",
+      "--brand-soft": baseEditorVars["--brand-soft"] || brandColor,
+      "--brand-bg": baseEditorVars["--brand-bg"] || "rgba(202, 96, 147, 0.08)",
       "--text": textColor,
       "--divider": dividerColor,
     };
@@ -184,10 +192,13 @@ async function doRender() {
       quoteLabel: inputQuoteLabel.value.trim() || undefined,
     };
 
+    const combinedPresetsCss = buildCombinedPresetsCss(currentSyntaxPresets);
+
     const customCssWithPara = [
+      combinedPresetsCss,
       inputCustomCss.value,
-      `.milkdown .editor p { margin: ${paraSpacing} 0; }`,
-    ].filter(Boolean).join("\n");
+      `.milkdown .editor p { margin: 0 0 ${paraSpacing}; }`,
+    ].filter(Boolean).join("\n\n");
 
     // 3. Render inlined WeChat HTML
     const inlinedHtml = await renderWechatHtml({
@@ -274,6 +285,56 @@ function insertTextAtCursor(text: string) {
   scheduleRender(20);
 }
 
+function renderSyntaxPresetControls() {
+  const container = document.getElementById("syntax-preset-container");
+  if (!container) return;
+  container.innerHTML = "";
+
+  for (const cat of SYNTAX_CATEGORIES) {
+    const group = document.createElement("div");
+    group.className = "preset-group";
+
+    const header = document.createElement("div");
+    header.className = "preset-header";
+
+    const title = document.createElement("span");
+    title.className = "preset-title";
+    title.textContent = `${cat.icon} ${cat.label}`;
+    header.appendChild(title);
+    group.appendChild(header);
+
+    const select = document.createElement("select");
+    select.className = "preset-select";
+    select.dataset.category = cat.key;
+
+    for (const preset of cat.presets) {
+      const opt = document.createElement("option");
+      opt.value = preset.id;
+      opt.textContent = preset.name;
+      select.appendChild(opt);
+    }
+
+    const activePresetId = currentSyntaxPresets[cat.key] || cat.defaultPresetId;
+    select.value = activePresetId;
+    group.appendChild(select);
+
+    const desc = document.createElement("div");
+    desc.className = "preset-desc";
+    const activePreset = cat.presets.find((p) => p.id === activePresetId) || cat.presets[0];
+    desc.textContent = activePreset?.description || "";
+    group.appendChild(desc);
+
+    select.addEventListener("change", () => {
+      currentSyntaxPresets[cat.key] = select.value;
+      const p = cat.presets.find((preset) => preset.id === select.value);
+      desc.textContent = p?.description || "";
+      scheduleRender(20);
+    });
+
+    container.appendChild(group);
+  }
+}
+
 function applyAccountConfig(accountKey: string) {
   const account = accounts[accountKey];
   if (!account) return;
@@ -281,18 +342,40 @@ function applyAccountConfig(accountKey: string) {
   const exportTheme = account.theme?.exportTheme || {};
   const editorVars = account.theme?.editorVars || {};
 
+  // 1. Font size
+  if (exportTheme.containerStyle) {
+    const match = exportTheme.containerStyle.match(/font-size:\s*(\d+)px/);
+    if (match) {
+      inputFontSize.value = match[1];
+      valFontSize.textContent = `${match[1]}px`;
+    }
+  }
+
+  // 2. Line height
   if (exportTheme.bodyLineHeight) {
     inputLineHeight.value = exportTheme.bodyLineHeight;
     valLineHeight.textContent = exportTheme.bodyLineHeight;
   }
+
+  // 3. Letter spacing (e.g. "0.03em")
+  if (exportTheme.bodyLetterSpacing) {
+    const spacingNum = parseFloat(exportTheme.bodyLetterSpacing);
+    if (!isNaN(spacingNum)) {
+      inputLetterSpacing.value = String(spacingNum);
+      valLetterSpacing.textContent = `${spacingNum}em`;
+    }
+  }
+
+  // 4. Colors
   const brand = editorVars["--brand"] || exportTheme.primaryColor;
   if (brand) {
     pickerBrandColor.value = brand;
     hexBrandColor.value = brand;
   }
-  if (exportTheme.bodyColor) {
-    pickerTextColor.value = exportTheme.bodyColor;
-    hexTextColor.value = exportTheme.bodyColor;
+  const textColor = exportTheme.bodyColor || editorVars["--text"];
+  if (textColor) {
+    pickerTextColor.value = textColor;
+    hexTextColor.value = textColor;
   }
   if (exportTheme.h2Color) {
     pickerH2Color.value = exportTheme.h2Color;
@@ -302,17 +385,29 @@ function applyAccountConfig(accountKey: string) {
     pickerH3Color.value = exportTheme.h3Color;
     hexH3Color.value = exportTheme.h3Color;
   }
-  if (exportTheme.blockquoteBorderColor) {
-    pickerQuoteColor.value = exportTheme.blockquoteBorderColor;
-    hexQuoteColor.value = exportTheme.blockquoteBorderColor;
+  const quoteColor = exportTheme.blockquoteBorderColor || brand;
+  if (quoteColor) {
+    pickerQuoteColor.value = quoteColor;
+    hexQuoteColor.value = quoteColor;
   }
-  if (exportTheme.dividerColor) {
-    pickerDividerColor.value = exportTheme.dividerColor;
-    hexDividerColor.value = exportTheme.dividerColor;
+  const dividerColor = exportTheme.dividerColor || editorVars["--divider"];
+  if (dividerColor) {
+    pickerDividerColor.value = dividerColor;
+    hexDividerColor.value = dividerColor;
   }
   if (account.customCssContent) {
     inputCustomCss.value = account.customCssContent;
+  } else {
+    inputCustomCss.value = "";
   }
+
+  // 5. Syntax Presets
+  const savedPresets = account.theme?.syntaxPresets || {};
+  currentSyntaxPresets = {};
+  for (const cat of SYNTAX_CATEGORIES) {
+    currentSyntaxPresets[cat.key] = savedPresets[cat.key] || cat.defaultPresetId;
+  }
+  renderSyntaxPresetControls();
 
   scheduleRender(20);
 }
@@ -458,17 +553,20 @@ document.getElementById("btn-save")?.addEventListener("click", async () => {
   const quoteColor = hexQuoteColor.value;
   const dividerColor = hexDividerColor.value;
 
+  const baseEditorVars = accounts[currentAccount]?.theme?.editorVars || {};
+  const baseExportTheme = accounts[currentAccount]?.theme?.exportTheme || {};
+
   const payload = {
     account: currentAccount,
     editorVars: {
+      ...baseEditorVars,
       "--primary": brandColor,
       "--brand": brandColor,
-      "--brand-soft": brandColor,
-      "--brand-bg": "rgba(202, 96, 147, 0.08)",
       "--text": textColor,
       "--divider": dividerColor,
     },
     exportTheme: {
+      ...baseExportTheme,
       fontSize: `${fontSize}px`,
       bodyColor: textColor,
       h2Color,
@@ -479,6 +577,7 @@ document.getElementById("btn-save")?.addEventListener("click", async () => {
       bodyLineHeight: lineHeight,
       bodyLetterSpacing: letterSpacing,
     },
+    syntaxPresets: currentSyntaxPresets,
     customCss: inputCustomCss.value,
     structure: {
       numberedHeadings: switchNumberedHeadings.checked,
@@ -495,6 +594,9 @@ document.getElementById("btn-save")?.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (res.ok && data.ok) {
+      if (accounts[currentAccount]?.theme) {
+        accounts[currentAccount].theme.syntaxPresets = { ...currentSyntaxPresets };
+      }
       showToast("✅ 配置已成功保存至本地 config.json！", "success");
     } else {
       showToast(`保存失败: ${data.error || "未知错误"}`, "error");

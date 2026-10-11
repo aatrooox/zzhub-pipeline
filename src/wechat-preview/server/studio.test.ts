@@ -6,7 +6,9 @@ import { startPreviewServer, type StartPreviewServerResult } from "./http";
 
 let server: StartPreviewServerResult;
 const testConfigPath = join(tmpdir(), `zzhub-test-studio-server-${process.pid}.json`);
+const testServerDir = join(tmpdir(), `zzhub-test-studio-server-dir-${process.pid}`);
 process.env.ZZHUB_PIPELINE_CONFIG = testConfigPath;
+process.env.ZZHUB_WECHAT_PREVIEW_DIR = testServerDir;
 
 beforeAll(async () => {
   server = await startPreviewServer({
@@ -51,6 +53,10 @@ describe("wechat-preview studio server APIs", () => {
         bodyLineHeight: "1.92",
         primaryColor: "#336699",
       },
+      syntaxPresets: {
+        h2: "gradient-pill",
+        blockquote: "tint-card",
+      },
       customCss: "/* studio test css */\nh2 { color: #336699; }",
     };
 
@@ -71,6 +77,8 @@ describe("wechat-preview studio server APIs", () => {
     const defaultAccount = checkData.accounts.default;
     expect(defaultAccount.theme.editorVars["--brand"]).toBe("#336699");
     expect(defaultAccount.theme.exportTheme.bodyLineHeight).toBe("1.92");
+    expect(defaultAccount.theme.syntaxPresets?.h2).toBe("gradient-pill");
+    expect(defaultAccount.theme.syntaxPresets?.blockquote).toBe("tint-card");
     expect(defaultAccount.customCssContent).toContain("/* studio test css */");
   });
 

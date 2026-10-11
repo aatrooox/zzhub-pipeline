@@ -558,6 +558,62 @@ input:checked + .slider-round:before {
   border: 1px solid #10b981;
 }
 
+/* Syntax Presets */
+.preset-group {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s;
+}
+
+.preset-group:hover {
+  border-color: #cbd5e1;
+}
+
+.preset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.preset-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.preset-select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text-main);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.preset-select:focus {
+  border-color: var(--brand);
+}
+
+.preset-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  line-height: 1.4;
+  padding-left: 2px;
+}
+
 /* Hidden milkdown host used for in-browser AST parsing */
 #studio-editor-host {
   display: none;

@@ -53,6 +53,7 @@ const WechatThemeOverridesSchema = withObjectDefault(
   z.object({
     editorVars: z.record(z.string(), z.string()).default({}),
     exportTheme: withObjectDefault(WechatExportThemeOverridesSchema),
+    syntaxPresets: z.record(z.string(), z.string()).optional(),
   }),
 );
 

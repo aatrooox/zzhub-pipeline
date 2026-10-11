@@ -213,6 +213,7 @@ export async function startPreviewServer(
             theme: {
               editorVars: { ...defaultTheme.editorVars, ...account.theme?.editorVars },
               exportTheme: { ...defaultTheme.exportTheme, ...account.theme?.exportTheme },
+              syntaxPresets: account.theme?.syntaxPresets || {},
             },
             articleTheme: account.articleTheme ?? null,
           };
@@ -256,6 +257,7 @@ export async function startPreviewServer(
             theme: {
               editorVars: {},
               exportTheme: {},
+              syntaxPresets: {},
             },
           };
         }
@@ -266,6 +268,9 @@ export async function startPreviewServer(
         }
         if (body.exportTheme && typeof body.exportTheme === "object") {
           account.theme.exportTheme = { ...account.theme.exportTheme, ...body.exportTheme };
+        }
+        if (body.syntaxPresets && typeof body.syntaxPresets === "object") {
+          account.theme.syntaxPresets = { ...account.theme.syntaxPresets, ...body.syntaxPresets };
         }
 
         if (typeof body.customCss === "string") {

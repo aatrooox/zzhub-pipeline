@@ -254,6 +254,19 @@ export interface WechatMarkdownPlugin {
 - `[MODIFY] src/commands/wechat-preview.ts`:
   - 支持 `zzp wechat-preview studio` 或打印提示已集成在同一服务器中。
 
+### [Component 4: Markdown 语法预设选择器与组件样式分类]
+- `[NEW] src/wechat-preview/browser/studio/syntax-presets.ts`:
+  - 定义 H2、H3、Blockquote、Divider 等常用语法节点的官方精选风格预设矩阵（如左侧呼吸柱、极浅底分割、水平渐变微衬底、全包裹微卡片等）。
+  - 提供 `buildCombinedPresetsCss` 将所选各节点预设与用户全局自定义 CSS 自动化平滑拼接。
+- `[NEW] src/wechat-preview/browser/studio/syntax-presets.test.ts`:
+  - 单测覆盖预设定义、规则完整性与合成逻辑。
+- `[MODIFY] src/wechat-preview/browser/studio/studio.html`:
+  - 在样式调优面板新增「🧩 语法节点风格预设」独立控制区。
+- `[MODIFY] src/wechat-preview/browser/studio/studio.ts`:
+  - 动态渲染预设选择器，实时联动 50ms 渲染引擎，并在保存时向配置持久化 `syntaxPresets`。
+- `[MODIFY] src/schema/config.ts`:
+  - 在 `WechatThemeOverridesSchema` 中增加可选的 `syntaxPresets: z.record(z.string(), z.string()).optional()`。
+
 ---
 
 ## 验证计划 (Verification Plan)
