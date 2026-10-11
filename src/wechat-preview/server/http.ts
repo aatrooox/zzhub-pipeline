@@ -100,10 +100,10 @@ export async function startPreviewServer(
     async fetch(req) {
       const url = new URL(req.url);
       const { pathname } = url;
-      const effectiveBaseUrl = previewBaseUrl(host, server?.port ?? port);
+      const baseUrl = previewBaseUrl(host, server?.port ?? port);
 
       if (pathname === "/api/health") {
-        return json({ ok: true, service: "wechat-preview", url: effectiveBaseUrl, pid: process.pid });
+        return json({ ok: true, service: "wechat-preview", url: baseUrl, pid: process.pid });
       }
 
       if (pathname === "/api/entries" && req.method === "GET") {
@@ -214,6 +214,7 @@ export async function startPreviewServer(
               editorVars: { ...defaultTheme.editorVars, ...account.theme?.editorVars },
               exportTheme: { ...defaultTheme.exportTheme, ...account.theme?.exportTheme },
               syntaxPresets: account.theme?.syntaxPresets || {},
+              structure: account.theme?.structure || {},
             },
             articleTheme: account.articleTheme ?? null,
           };
@@ -271,6 +272,9 @@ export async function startPreviewServer(
         }
         if (body.syntaxPresets && typeof body.syntaxPresets === "object") {
           account.theme.syntaxPresets = { ...account.theme.syntaxPresets, ...body.syntaxPresets };
+        }
+        if (body.structure && typeof body.structure === "object") {
+          account.theme.structure = { ...account.theme.structure, ...body.structure };
         }
 
         if (typeof body.customCss === "string") {

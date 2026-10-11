@@ -23,6 +23,7 @@ import { extractFrontmatter } from "./frontmatter-handler";
 import { readArticleTheme } from "../article-theme";
 import { getWechatPreviewStyleName, getWechatPreviewTheme } from "./themes";
 import { stripLeadingH1 } from "../text";
+import { buildCombinedPresetsCss } from "./browser/studio/syntax-presets";
 
 interface ViteManifestEntry {
   file: string;
@@ -95,6 +96,12 @@ export interface ExportMarkdownToWechatHtmlInput {
   themeOverrides?: {
     editorVars?: Record<string, string>;
     exportTheme?: Record<string, string>;
+    syntaxPresets?: Record<string, string>;
+    structure?: {
+      numberedHeadings?: boolean;
+      headingLabel?: string;
+      quoteLabel?: string;
+    };
   };
   /** 浏览器真实等待上限，默认 15000 毫秒。 */
   timeoutMs?: number;
@@ -393,12 +400,16 @@ export async function exportMarkdownToWechatHtml(
       editorVars: { ...articleTheme.manifest.editorVars, ...input.themeOverrides?.editorVars },
       exportTheme: { footerText: "", ...articleTheme.manifest.exportTheme, ...input.themeOverrides?.exportTheme },
     } : input.themeOverrides);
-    const customCss = [articleTheme?.css, input.customCss ? await readFile(input.customCss, "utf-8") : ""].filter(Boolean).join("\n");
+    const presetsCss = input.themeOverrides?.syntaxPresets
+      ? buildCombinedPresetsCss(input.themeOverrides.syntaxPresets)
+      : "";
+    const customCss = [presetsCss, articleTheme?.css, input.customCss ? await readFile(input.customCss, "utf-8") : ""].filter(Boolean).join("\n\n");
     const structure = articleTheme ? {
       ...articleTheme.manifest.structure,
+      ...input.themeOverrides?.structure,
       headerImageUrl: articleTheme.manifest.structure.headerImage
         ? `data:image/${articleTheme.manifest.structure.headerImage.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")};base64,${Buffer.from(articleTheme.files.get(articleTheme.manifest.structure.headerImage)!).toString("base64")}` : null,
-    } : undefined;
+    } : (input.themeOverrides?.structure ? { ...input.themeOverrides.structure } : undefined);
     const shell = readUtf8(TEMPLATE_PATH);
     const payloadJson = escapeInlineJson(
       JSON.stringify({

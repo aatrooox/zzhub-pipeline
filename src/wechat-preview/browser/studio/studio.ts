@@ -19,6 +19,11 @@ interface AccountData {
     editorVars: Record<string, string>;
     exportTheme: Partial<WechatExportTheme>;
     syntaxPresets?: Record<string, string>;
+    structure?: {
+      numberedHeadings?: boolean;
+      headingLabel?: string;
+      quoteLabel?: string;
+    };
   };
   articleTheme?: string | null;
 }
@@ -431,6 +436,12 @@ function applyAccountConfig(accountKey: string) {
     currentSyntaxPresets[cat.key] = savedPresets[cat.key] || cat.defaultPresetId;
   }
   renderSyntaxPresetControls();
+
+  // 6. Structure
+  const structure = account.theme?.structure || {};
+  switchNumberedHeadings.checked = Boolean(structure.numberedHeadings);
+  inputHeadingLabel.value = structure.headingLabel || "";
+  inputQuoteLabel.value = structure.quoteLabel || "";
 
   scheduleRender(20);
 }
