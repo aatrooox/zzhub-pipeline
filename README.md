@@ -22,6 +22,7 @@ Pipeline 可以独立使用，也可以作为 Web、App、桌面客户端背后�
 | 可恢复工作流 | 保存任务状态、素材、审核决定、渲染版本和发布结果，失败后可以继续或重置 |
 | 多账号与多目标 | 支持多个公众号账号，以及微信、博客等发布目标 |
 | 排版扩展 | 封面主题、正文模板、品牌配置和可替换渲染插件 |
+| 排版工作台 | `zzp wechat-preview studio` 提供所见即所得排版调优、配色选型、语法预设与配置持久化 |
 | 本机监控 | `zzp monitor` 提供任务快照、日志和 SSE 事件流 |
 | 云端执行 | 私有 HTTP Worker 提供账号同步、串行队列、持久化任务和状态轮询 |
 
@@ -88,6 +89,18 @@ zzp wechat-export \
   --preview-shell-out ./article-preview.html \
   --no-preview
 ```
+
+### 视觉排版工作台 (WeChat Visual Studio)
+
+Pipeline 提供了开箱即用的所见即所得排版工作台：
+
+```bash
+zzp wechat-preview studio
+```
+
+终端启动后会自动唤起浏览器打开 `http://127.0.0.1:18765/studio`。你可以在界面中直观调整主题配色、二级标题与表格语法预设、提示卡片（Callout）自定义 Emoji，并一键复制到微信后台或保存为全局配置。
+
+> **云端使用者注意**：本地 Studio 保存的样式会写入本地 `config.json`。若使用私有云端 Worker，需将调整后的配置同步至服务器，详见 [Visual Studio 排版调优与云端配置同步指南](docs/visual-studio-and-config-sync.md)。
 
 ### 推进一个发布任务
 
@@ -247,6 +260,7 @@ zzp monitor stop
 
 ## 其他文档
 
+- [Visual Studio 排版调优与云端配置同步指南](docs/visual-studio-and-config-sync.md)
 - [文章发布入门](docs/cli-intro-for-article.md)：面向第一次接入的使用说明
 - [云端 Worker API、部署与更新](services/cloud-worker/README.md)
 - [封面主题和图片排版](docs/render-themes.md)

@@ -17,3 +17,4 @@ logs/
 docs/*
 !docs/monitor.md
 !docs/render-themes.md
+!docs/visual-studio-and-config-sync.md
