@@ -74,6 +74,27 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
 }`,
       },
       {
+        id: "contrast-green",
+        name: "反差色绿底（白字反色块）",
+        description: "高级生态绿底色 + 纯白文字 + 4px 圆角 + 8px 14px 饱满内边距",
+        css: `.milkdown .editor h2 {
+  margin: 2.8em 0 0.8em;
+  padding: 8px 14px;
+  background-color: #1f7a4d;
+  border-left: none;
+  border-bottom: none;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.36;
+  letter-spacing: 0.02em;
+}
+.milkdown .editor h2 span {
+  color: #ffffff;
+}`,
+      },
+      {
         id: "card-tag",
         name: "温润小卡片",
         description: "包裹式浅色暖底 + 居左微内边距 + 紧实字号",

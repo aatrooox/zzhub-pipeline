@@ -57,13 +57,13 @@ export function ensurePreviewServerDirs(): void {
 }
 
 export function resolvePreviewPort(port?: number): number {
-  if (typeof port === "number" && Number.isFinite(port) && port > 0) {
+  if (typeof port === "number" && Number.isFinite(port) && port >= 0) {
     return Math.floor(port);
   }
   const env = process.env.ZZHUB_WECHAT_PREVIEW_PORT?.trim();
   if (env) {
     const n = Number(env);
-    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
   }
   return DEFAULT_PREVIEW_PORT;
 }

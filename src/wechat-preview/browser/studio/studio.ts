@@ -9,6 +9,7 @@ import type { WechatPluginDoc } from "../../plugins/types";
 import type { ArticleStructure } from "../../wechat-renderer";
 import type { WechatExportTheme } from "../../themes";
 import { SYNTAX_CATEGORIES, buildCombinedPresetsCss } from "./syntax-presets";
+import { COLOR_PALETTES } from "./color-palettes";
 
 interface AccountData {
   name: string;
@@ -56,6 +57,9 @@ const inputLetterSpacing = document.getElementById("input-letter-spacing") as HT
 const valLetterSpacing = document.getElementById("val-letter-spacing") as HTMLElement;
 const inputParaSpacing = document.getElementById("input-para-spacing") as HTMLInputElement;
 const valParaSpacing = document.getElementById("val-para-spacing") as HTMLElement;
+
+const paletteSelect = document.getElementById("palette-select") as HTMLSelectElement;
+const paletteDesc = document.getElementById("palette-desc") as HTMLElement;
 
 const pickerBrandColor = document.getElementById("picker-brand-color") as HTMLInputElement;
 const hexBrandColor = document.getElementById("hex-brand-color") as HTMLInputElement;
@@ -301,6 +305,25 @@ function renderSyntaxPresetControls() {
     title.className = "preset-title";
     title.textContent = `${cat.icon} ${cat.label}`;
     header.appendChild(title);
+
+    const extractBtn = document.createElement("button");
+    extractBtn.type = "button";
+    extractBtn.className = "btn-extract-css";
+    extractBtn.textContent = "📋 提取 CSS";
+    extractBtn.title = "将此语法的当前预设 CSS 追加到底部自定义编辑器，方便微调";
+    extractBtn.addEventListener("click", () => {
+      const activeId = currentSyntaxPresets[cat.key] || cat.defaultPresetId;
+      const p = cat.presets.find((preset) => preset.id === activeId) || cat.presets[0];
+      if (!p) return;
+      const snippet = `/* [${cat.label}] - ${p.name} */\n${p.css.trim()}\n`;
+      inputCustomCss.value = inputCustomCss.value ? `${inputCustomCss.value.trim()}\n\n${snippet}` : snippet;
+      inputCustomCss.focus();
+      inputCustomCss.scrollTop = inputCustomCss.scrollHeight;
+      showToast(`已将「${p.name}」CSS 追加到底部编辑框！`, "info");
+      scheduleRender(20);
+    });
+    header.appendChild(extractBtn);
+
     group.appendChild(header);
 
     const select = document.createElement("select");
@@ -412,7 +435,32 @@ function applyAccountConfig(accountKey: string) {
   scheduleRender(20);
 }
 
+function initColorPalettes() {
+  if (!paletteSelect) return;
+  paletteSelect.innerHTML = `<option value="">-- 选择推荐调色盘 (一键应用) --</option>`;
+  for (const p of COLOR_PALETTES) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.name} · ${p.category}`;
+    paletteSelect.appendChild(opt);
+  }
+  paletteSelect.addEventListener("change", () => {
+    const pal = COLOR_PALETTES.find((p) => p.id === paletteSelect.value);
+    if (!pal) return;
+    pickerBrandColor.value = hexBrandColor.value = pal.colors.brand;
+    pickerTextColor.value = hexTextColor.value = pal.colors.text;
+    pickerH2Color.value = hexH2Color.value = pal.colors.h2;
+    pickerH3Color.value = hexH3Color.value = pal.colors.h3;
+    pickerQuoteColor.value = hexQuoteColor.value = pal.colors.quote;
+    pickerDividerColor.value = hexDividerColor.value = pal.colors.divider;
+    if (paletteDesc) paletteDesc.textContent = pal.description;
+    showToast(`已应用「${pal.name}」高级配色方案！`, "info");
+    scheduleRender(20);
+  });
+}
+
 async function initStudio() {
+  initColorPalettes();
   try {
     const res = await fetch("/api/studio/config");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

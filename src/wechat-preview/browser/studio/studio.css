@@ -614,6 +614,24 @@ input:checked + .slider-round:before {
   padding-left: 2px;
 }
 
+.btn-extract-css {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--brand);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-extract-css:hover {
+  background: #f1f5f9;
+  border-color: var(--brand);
+}
+
 /* Hidden milkdown host used for in-browser AST parsing */
 #studio-editor-host {
   display: none;

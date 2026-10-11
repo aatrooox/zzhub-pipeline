@@ -93,17 +93,17 @@ export async function startPreviewServer(
     clearServerLock();
   }
 
-  const baseUrl = previewBaseUrl(host, port);
-
-  const server = Bun.serve({
+  let server: ReturnType<typeof Bun.serve>;
+  server = Bun.serve({
     hostname: host,
     port,
     async fetch(req) {
       const url = new URL(req.url);
       const { pathname } = url;
+      const effectiveBaseUrl = previewBaseUrl(host, server?.port ?? port);
 
       if (pathname === "/api/health") {
-        return json({ ok: true, service: "wechat-preview", url: baseUrl, pid: process.pid });
+        return json({ ok: true, service: "wechat-preview", url: effectiveBaseUrl, pid: process.pid });
       }
 
       if (pathname === "/api/entries" && req.method === "GET") {

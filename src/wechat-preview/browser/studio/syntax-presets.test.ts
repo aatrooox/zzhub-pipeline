@@ -10,13 +10,14 @@ describe("syntax presets module", () => {
     expect(keys).toContain("divider");
   });
 
-  test("h2 category includes pillar, bottom-line, gradient-pill, card-tag, and plain presets", () => {
+  test("h2 category includes pillar, bottom-line, gradient-pill, contrast-green, card-tag, and plain presets", () => {
     const h2Cat = SYNTAX_CATEGORIES.find((c) => c.key === "h2");
     expect(h2Cat).toBeDefined();
     const presetIds = h2Cat!.presets.map((p) => p.id);
     expect(presetIds).toContain("pillar");
     expect(presetIds).toContain("bottom-line");
     expect(presetIds).toContain("gradient-pill");
+    expect(presetIds).toContain("contrast-green");
     expect(presetIds).toContain("card-tag");
     expect(presetIds).toContain("plain");
   });

@@ -86,18 +86,20 @@ export async function findExistingServer(
   }
 
   // Probe default/requested address without lock
-  const url = previewBaseUrl(host, port);
-  if (await probeHealth(url)) {
-    return {
-      kind: "running",
-      lock: {
-        pid: lock?.pid ?? 0,
-        host,
-        port,
-        url,
-        started_at: lock?.started_at ?? new Date().toISOString(),
-      },
-    };
+  if (port > 0) {
+    const url = previewBaseUrl(host, port);
+    if (await probeHealth(url)) {
+      return {
+        kind: "running",
+        lock: {
+          pid: lock?.pid ?? 0,
+          host,
+          port,
+          url,
+          started_at: lock?.started_at ?? new Date().toISOString(),
+        },
+      };
+    }
   }
 
   if (lock && !isProcessAlive(lock.pid)) {
