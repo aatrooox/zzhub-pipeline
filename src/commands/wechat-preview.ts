@@ -109,7 +109,9 @@ export async function wechatPreview(args: string[]): Promise<void> {
     });
 
     const studioUrl = `${result.url}/studio`;
-    await openUrl(studioUrl);
+    if (!flagArg(parsed, "no-open")) {
+      await openUrl(studioUrl);
+    }
 
     printResult({
       action: "studio",
