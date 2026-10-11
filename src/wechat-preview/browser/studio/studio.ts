@@ -311,53 +311,68 @@ function renderSyntaxPresetControls() {
     title.textContent = `${cat.icon} ${cat.label}`;
     header.appendChild(title);
 
+    const hasMultiplePresets = Boolean(cat.presets && cat.presets.length > 1);
+
     const extractBtn = document.createElement("button");
     extractBtn.type = "button";
     extractBtn.className = "btn-extract-css";
     extractBtn.textContent = "📋 提取 CSS";
-    extractBtn.title = "将此语法的当前预设 CSS 追加到底部自定义编辑器，方便微调";
+    extractBtn.title = "将此语法的 CSS 追加到底部自定义编辑器，方便微调覆盖";
     extractBtn.addEventListener("click", () => {
-      const activeId = currentSyntaxPresets[cat.key] || cat.defaultPresetId;
-      const p = cat.presets.find((preset) => preset.id === activeId) || cat.presets[0];
-      if (!p) return;
-      const snippet = `/* [${cat.label}] - ${p.name} */\n${p.css.trim()}\n`;
+      let snippet = "";
+      if (hasMultiplePresets && cat.presets) {
+        const activeId = currentSyntaxPresets[cat.key] || cat.defaultPresetId || cat.presets[0].id;
+        const p = cat.presets.find((preset) => preset.id === activeId) || cat.presets[0];
+        snippet = `/* [${cat.label}] - ${p.name} */\n${p.css.trim()}\n`;
+      } else {
+        const cssContent = cat.css || (cat.presets && cat.presets[0]?.css) || "";
+        snippet = `/* [${cat.label}] 基础样式 */\n${cssContent.trim()}\n`;
+      }
+      if (!snippet) return;
       inputCustomCss.value = inputCustomCss.value ? `${inputCustomCss.value.trim()}\n\n${snippet}` : snippet;
       inputCustomCss.focus();
       inputCustomCss.scrollTop = inputCustomCss.scrollHeight;
-      showToast(`已将「${p.name}」CSS 追加到底部编辑框！`, "info");
+      showToast(`已将「${cat.label}」CSS 追加到底部编辑框！`, "info");
       scheduleRender(20);
     });
     header.appendChild(extractBtn);
 
     group.appendChild(header);
 
-    const select = document.createElement("select");
-    select.className = "preset-select";
-    select.dataset.category = cat.key;
+    if (hasMultiplePresets && cat.presets) {
+      const select = document.createElement("select");
+      select.className = "preset-select";
+      select.dataset.category = cat.key;
 
-    for (const preset of cat.presets) {
-      const opt = document.createElement("option");
-      opt.value = preset.id;
-      opt.textContent = preset.name;
-      select.appendChild(opt);
+      for (const preset of cat.presets) {
+        const opt = document.createElement("option");
+        opt.value = preset.id;
+        opt.textContent = preset.name;
+        select.appendChild(opt);
+      }
+
+      const activePresetId = currentSyntaxPresets[cat.key] || cat.defaultPresetId || cat.presets[0].id;
+      select.value = activePresetId;
+      group.appendChild(select);
+
+      const desc = document.createElement("div");
+      desc.className = "preset-desc";
+      const activePreset = cat.presets.find((p) => p.id === activePresetId) || cat.presets[0];
+      desc.textContent = activePreset?.description || "";
+      group.appendChild(desc);
+
+      select.addEventListener("change", () => {
+        currentSyntaxPresets[cat.key] = select.value;
+        const p = cat.presets!.find((preset) => preset.id === select.value);
+        desc.textContent = p?.description || "";
+        scheduleRender(20);
+      });
+    } else if (cat.description) {
+      const desc = document.createElement("div");
+      desc.className = "preset-desc";
+      desc.textContent = cat.description;
+      group.appendChild(desc);
     }
-
-    const activePresetId = currentSyntaxPresets[cat.key] || cat.defaultPresetId;
-    select.value = activePresetId;
-    group.appendChild(select);
-
-    const desc = document.createElement("div");
-    desc.className = "preset-desc";
-    const activePreset = cat.presets.find((p) => p.id === activePresetId) || cat.presets[0];
-    desc.textContent = activePreset?.description || "";
-    group.appendChild(desc);
-
-    select.addEventListener("change", () => {
-      currentSyntaxPresets[cat.key] = select.value;
-      const p = cat.presets.find((preset) => preset.id === select.value);
-      desc.textContent = p?.description || "";
-      scheduleRender(20);
-    });
 
     container.appendChild(group);
   }
@@ -433,7 +448,9 @@ function applyAccountConfig(accountKey: string) {
   const savedPresets = account.theme?.syntaxPresets || {};
   currentSyntaxPresets = {};
   for (const cat of SYNTAX_CATEGORIES) {
-    currentSyntaxPresets[cat.key] = savedPresets[cat.key] || cat.defaultPresetId;
+    if (cat.defaultPresetId) {
+      currentSyntaxPresets[cat.key] = savedPresets[cat.key] || cat.defaultPresetId;
+    }
   }
   renderSyntaxPresetControls();
 
