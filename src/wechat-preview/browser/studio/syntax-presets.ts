@@ -527,7 +527,8 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
   border-radius: 0 6px 6px 0;
   background-color: var(--wx-soft-surface, #fbfafb);
 }
-.milkdown .editor [data-wechat-node="callout-title"] {
+.milkdown .editor [data-wechat-node="callout-header"],
+.milkdown .editor .wechat-callout-header {
   font-weight: 700;
   font-size: 14px;
   margin-bottom: 6px;

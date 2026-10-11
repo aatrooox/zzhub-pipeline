@@ -23,6 +23,7 @@ interface AccountData {
       numberedHeadings?: boolean;
       headingLabel?: string;
       quoteLabel?: string;
+      calloutPresets?: Record<string, { title?: string; icon?: string }>;
     };
   };
   articleTheme?: string | null;
@@ -199,6 +200,7 @@ async function doRender() {
       numberedHeadings: switchNumberedHeadings.checked,
       headingLabel: inputHeadingLabel.value.trim() || undefined,
       quoteLabel: inputQuoteLabel.value.trim() || undefined,
+      calloutPresets: accounts[currentAccount]?.theme?.structure?.calloutPresets,
     };
 
     const combinedPresetsCss = buildCombinedPresetsCss(currentSyntaxPresets);
@@ -656,6 +658,7 @@ document.getElementById("btn-save")?.addEventListener("click", async () => {
     syntaxPresets: currentSyntaxPresets,
     customCss: inputCustomCss.value,
     structure: {
+      ...accounts[currentAccount]?.theme?.structure,
       numberedHeadings: switchNumberedHeadings.checked,
       headingLabel: inputHeadingLabel.value.trim() || undefined,
       quoteLabel: inputQuoteLabel.value.trim() || undefined,

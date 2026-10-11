@@ -63,9 +63,10 @@ export function remarkCallout() {
         ) {
           const firstText = firstParagraph.children[0];
           if (firstText && firstText.type === "text" && typeof firstText.value === "string") {
-            const match = firstText.value.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*\n)?/i);
+            const match = firstText.value.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:[ \t]+([^\r\n]+))?(?:\r?\n|$)/i);
             if (match) {
               const rawType = match[1].toLowerCase();
+              const customTitle = match[2] ? match[2].trim() : "";
               // Strip the [!TAG] marker
               firstText.value = firstText.value.slice(match[0].length);
               if (!firstText.value.trim() && firstParagraph.children.length > 1) {
@@ -75,6 +76,7 @@ export function remarkCallout() {
               }
               node.type = "callout";
               node.calloutType = rawType;
+              node.customTitle = customTitle;
             }
           }
         }
@@ -97,12 +99,14 @@ export const calloutMilkdownPlugins = [
     defining: true,
     attrs: {
       type: { default: "note" },
+      title: { default: "" },
     },
     parseDOM: [
       {
         tag: "section[data-wechat-node='callout']",
         getAttrs: (dom) => ({
           type: (dom as HTMLElement).getAttribute("data-callout-type") || "note",
+          title: (dom as HTMLElement).getAttribute("data-callout-title") || "",
         }),
       },
     ],
@@ -112,13 +116,17 @@ export const calloutMilkdownPlugins = [
         class: `wechat-callout wechat-callout-${node.attrs.type}`,
         "data-wechat-node": "callout",
         "data-callout-type": node.attrs.type,
+        ...(node.attrs.title ? { "data-callout-title": node.attrs.title } : {}),
       },
       0,
     ],
     parseMarkdown: {
       match: (node) => node.type === "callout",
       runner: (state, node, type) => {
-        state.openNode(type, { type: node.calloutType || "note" });
+        state.openNode(type, {
+          type: node.calloutType || "note",
+          title: node.customTitle || "",
+        });
         state.next(node.children);
         state.closeNode();
       },
@@ -139,7 +147,27 @@ export const calloutWechatRenderer: WechatElementRenderer = {
   selector: 'section[data-wechat-node="callout"]',
   prepare(element, context) {
     const type = element.getAttribute("data-callout-type") || "note";
-    const preset = CALLOUT_PRESETS[type] || CALLOUT_PRESETS.note;
+    const customTitleAttr = element.getAttribute("data-callout-title");
+    const configuredPreset = context.structure?.calloutPresets?.[type];
+    const basePreset = CALLOUT_PRESETS[type] || CALLOUT_PRESETS.note;
+    const preset = {
+      ...basePreset,
+      ...configuredPreset,
+    };
+
+    let iconText = preset.icon;
+    let titleText = preset.title;
+
+    if (customTitleAttr && customTitleAttr.trim()) {
+      const trimmed = customTitleAttr.trim();
+      const emojiMatch = trimmed.match(/^(\p{Extended_Pictographic}|\p{Emoji_Presentation})\s*(.*)$/u);
+      if (emojiMatch) {
+        iconText = emojiMatch[1];
+        titleText = emojiMatch[2].trim() || preset.title;
+      } else {
+        titleText = trimmed;
+      }
+    }
 
     // Build callout header section
     const header = context.document.createElement("section");
@@ -148,12 +176,12 @@ export const calloutWechatRenderer: WechatElementRenderer = {
 
     const icon = context.document.createElement("span");
     icon.className = "wechat-callout-icon";
-    icon.textContent = preset.icon;
+    icon.textContent = iconText;
     header.appendChild(icon);
 
     const title = context.document.createElement("strong");
     title.className = "wechat-callout-title";
-    title.textContent = preset.title;
+    title.textContent = titleText;
     header.appendChild(title);
 
     element.prepend(header);
@@ -167,14 +195,14 @@ export const builtinCalloutPlugin: WechatMarkdownPlugin = {
     category: "block",
     description: "使用 GFM 规范语法 (> [!NOTE]) 生成带左侧边框与图标的微信高亮卡片",
     sampleMarkdown: `> [!NOTE]
-> 这里是一条重要提示，适用于关键信息与操作备忘。
+> 这里是一条标准提示，适用于操作备忘。
 
-> [!TIP]
-> 这是一个推荐的快捷技巧，能大幅提升排版效率。
+> [!TIP] 实用技巧
+> 这是带自定义标题的建议卡片。
 
-> [!WARNING]
-> 请注意检查网络配置，避免外部资源因微信限制而丢失。`,
-    syntaxGuide: "> [!NOTE]\n> 提示内容...",
+> [!WARNING] ⚠️ 重点防护
+> 这是带自定义 Emoji 与标题的警告卡片。`,
+    syntaxGuide: "> [!NOTE] 自定义标题 (可选，可包含 Emoji)\n> 提示内容...",
     cssSelectors: [
       'section[data-wechat-node="callout"]',
       ".wechat-callout",

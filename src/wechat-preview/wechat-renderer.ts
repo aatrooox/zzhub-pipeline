@@ -37,6 +37,7 @@ export interface ArticleStructure {
   headingLabel?: string;
   quoteLabel?: string;
   headerImageUrl?: string | null;
+  calloutPresets?: Record<string, { title?: string; icon?: string }>;
 }
 
 export interface WechatElementRenderer {

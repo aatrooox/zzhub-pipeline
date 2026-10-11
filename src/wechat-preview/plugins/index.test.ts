@@ -73,7 +73,59 @@ describe("wechat-preview plugins system", () => {
     const callout = tree.children[0] as any;
     expect(callout.type).toBe("callout");
     expect(callout.calloutType).toBe("note");
+    expect(callout.customTitle).toBe("");
     expect(callout.children[0].children[0].value).toBe("这是一个测试提示");
+  });
+
+  test("remarkCallout parses GFM alerts with inline custom title and emoji", () => {
+    const tree = {
+      type: "root",
+      children: [
+        {
+          type: "blockquote",
+          children: [
+            {
+              type: "paragraph",
+              children: [
+                {
+                  type: "text",
+                  value: "[!TIP] 实用技巧\n这是一个技巧说明",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "blockquote",
+          children: [
+            {
+              type: "paragraph",
+              children: [
+                {
+                  type: "text",
+                  value: "[!WARNING] ⚠️ 重点防护\n这是一个警告说明",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const transform = remarkCallout();
+    transform(tree);
+
+    const tipCallout = tree.children[0] as any;
+    expect(tipCallout.type).toBe("callout");
+    expect(tipCallout.calloutType).toBe("tip");
+    expect(tipCallout.customTitle).toBe("实用技巧");
+    expect(tipCallout.children[0].children[0].value).toBe("这是一个技巧说明");
+
+    const warnCallout = tree.children[1] as any;
+    expect(warnCallout.type).toBe("callout");
+    expect(warnCallout.calloutType).toBe("warning");
+    expect(warnCallout.customTitle).toBe("⚠️ 重点防护");
+    expect(warnCallout.children[0].children[0].value).toBe("这是一个警告说明");
   });
 
   test("remarkKbd parses [[kbd:Key]] into kbd nodes", () => {
@@ -173,6 +225,69 @@ describe("wechat-preview plugins system", () => {
     expect(header.attributes["data-wechat-node"]).toBe("callout-header");
     expect(header.children[0].textContent).toBe("✨");
     expect(header.children[1].textContent).toBe("建议");
+  });
+
+  test("calloutWechatRenderer handles custom title text and emoji", () => {
+    const renderers = getCombinedWechatRenderers();
+    const callout = renderers.find((r) => r.kind === "callout");
+
+    const mockDocument: any = {
+      createElement: (tag: string) => {
+        const el = {
+          tagName: tag,
+          className: "",
+          attributes: {} as Record<string, string>,
+          children: [] as any[],
+          setAttribute: (name: string, val: string) => { el.attributes[name] = val; },
+          appendChild: (c: any) => { el.children.push(c); },
+          prepend: (c: any) => { el.children.unshift(c); },
+        };
+        return el;
+      },
+    };
+
+    // Case 1: Custom title text without emoji (retains default emoji)
+    const el1: any = {
+      attributes: { "data-callout-type": "note", "data-callout-title": "核心注意项" },
+      children: [],
+      getAttribute: (name: string) => el1.attributes[name],
+      prepend: (c: any) => { el1.children.unshift(c); },
+    };
+    callout?.prepare?.(el1, { document: mockDocument } as any);
+    const header1 = el1.children[0];
+    expect(header1.children[0].textContent).toBe("💡");
+    expect(header1.children[1].textContent).toBe("核心注意项");
+
+    // Case 2: Custom title with leading emoji
+    const el2: any = {
+      attributes: { "data-callout-type": "tip", "data-callout-title": "🚀 快速上手" },
+      children: [],
+      getAttribute: (name: string) => el2.attributes[name],
+      prepend: (c: any) => { el2.children.unshift(c); },
+    };
+    callout?.prepare?.(el2, { document: mockDocument } as any);
+    const header2 = el2.children[0];
+    expect(header2.children[0].textContent).toBe("🚀");
+    expect(header2.children[1].textContent).toBe("快速上手");
+
+    // Case 3: Structure level preset override
+    const el3: any = {
+      attributes: { "data-callout-type": "warning" },
+      children: [],
+      getAttribute: (name: string) => el3.attributes[name],
+      prepend: (c: any) => { el3.children.unshift(c); },
+    };
+    callout?.prepare?.(el3, {
+      document: mockDocument,
+      structure: {
+        calloutPresets: {
+          warning: { title: "避坑指南", icon: "💣" },
+        },
+      },
+    } as any);
+    const header3 = el3.children[0];
+    expect(header3.children[0].textContent).toBe("💣");
+    expect(header3.children[1].textContent).toBe("避坑指南");
   });
 
   test("allows registering custom plugins", () => {

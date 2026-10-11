@@ -45,6 +45,7 @@ const TEST_CONFIG_PATH = join(
   `zzhub-pipeline-test-config-${process.pid}.json`,
 );
 process.env.ZZHUB_PIPELINE_CONFIG = TEST_CONFIG_PATH;
+process.env.NO_COLOR = "1";
 
 async function makeTempDir(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));

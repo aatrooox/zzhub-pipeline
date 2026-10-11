@@ -58,6 +58,10 @@ const WechatThemeOverridesSchema = withObjectDefault(
       numberedHeadings: z.boolean().optional(),
       headingLabel: z.string().optional(),
       quoteLabel: z.string().optional(),
+      calloutPresets: z.record(z.string(), z.object({
+        title: z.string().optional(),
+        icon: z.string().optional(),
+      })).optional(),
     }).optional(),
   }),
 );

@@ -101,6 +101,7 @@ export interface ExportMarkdownToWechatHtmlInput {
       numberedHeadings?: boolean;
       headingLabel?: string;
       quoteLabel?: string;
+      calloutPresets?: Record<string, { title?: string; icon?: string }>;
     };
   };
   /** 浏览器真实等待上限，默认 15000 毫秒。 */
