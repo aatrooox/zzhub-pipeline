@@ -313,7 +313,7 @@ describe("wechat-preview plugins system", () => {
     expect(getCombinedDefaultCss()).toContain(".test-plugin { color: red; }");
   });
 
-  test("remarkArticleCards parses [!INTRO], [!AUTHOR], [!CTA] into articleCard nodes", () => {
+  test("remarkArticleCards parses [!INTRO] and [!CTA] into articleCard nodes", () => {
     const tree = {
       type: "root",
       children: [
@@ -326,20 +326,6 @@ describe("wechat-preview plugins system", () => {
                 {
                   type: "text",
                   value: "[!INTRO] 导读指南\n本文共 3,200 字，预计阅读 6 分钟。",
-                },
-              ],
-            },
-          ],
-        },
-        {
-          type: "blockquote",
-          children: [
-            {
-              type: "paragraph",
-              children: [
-                {
-                  type: "text",
-                  value: "[!AUTHOR]\n全栈开发者",
                 },
               ],
             },
@@ -385,22 +371,16 @@ describe("wechat-preview plugins system", () => {
     expect(introNode.customTitle).toBe("导读指南");
     expect(introNode.children[0].children[0].value).toBe("本文共 3,200 字，预计阅读 6 分钟。");
 
-    const authorNode = tree.children[1] as any;
-    expect(authorNode.type).toBe("articleCard");
-    expect(authorNode.cardType).toBe("author");
-    expect(authorNode.customTitle).toBe("");
-    expect(authorNode.children[0].children[0].value).toBe("全栈开发者");
-
-    const ctaNode = tree.children[2] as any;
+    const ctaNode = tree.children[1] as any;
     expect(ctaNode.type).toBe("articleCard");
     expect(ctaNode.cardType).toBe("cta");
     expect(ctaNode.customTitle).toBe("欢迎交流");
 
-    const normalNode = tree.children[3] as any;
+    const normalNode = tree.children[2] as any;
     expect(normalNode.type).toBe("blockquote");
   });
 
-  test("articleCardWechatRenderer prepares intro card with eyebrow", () => {
+  test("articleCardWechatRenderer prepares intro card with eyebrow, meta and guide", () => {
     const mockDocument: any = {
       createElement: (tag: string) => {
         const el = {
@@ -414,27 +394,63 @@ describe("wechat-preview plugins system", () => {
         };
         return el;
       },
+    };
+
+    const metaP: any = {
+      tagName: "p",
+      className: "",
+      textContent: "文 / Aatrox · 预计阅读 5 分钟",
+      attributes: {} as Record<string, string>,
+      setAttribute: (name: string, val: string) => { metaP.attributes[name] = val; },
+    };
+
+    const bodyP: any = {
+      tagName: "p",
+      className: "",
+      textContent: "本文系统解析工作流核心状态机与排版架构。",
+      attributes: {} as Record<string, string>,
+      setAttribute: (name: string, val: string) => { bodyP.attributes[name] = val; },
+    };
+
+    const guideP: any = {
+      tagName: "p",
+      className: "",
+      textContent: "💡 欢迎关注公众号「早早集市」，星标不错过每次更新。",
+      attributes: {} as Record<string, string>,
+      setAttribute: (name: string, val: string) => { guideP.attributes[name] = val; },
     };
 
     const element: any = {
       attributes: { "data-card-type": "intro", "data-card-title": "本篇导读" },
-      childNodes: [],
-      children: [],
+      childNodes: [metaP, bodyP, guideP],
+      children: [metaP, bodyP, guideP],
       getAttribute: (name: string) => element.attributes[name],
       prepend: (c: any) => { element.children.unshift(c); },
-      querySelector: () => null,
+      querySelectorAll: (sel: string) => (sel === "p" ? [metaP, bodyP, guideP] : []),
     };
 
     articleCardWechatRenderer.prepare?.(element, { document: mockDocument } as any);
 
-    expect(element.children.length).toBe(1);
+    // Eyebrow inserted at beginning
+    expect(element.children.length).toBe(4);
     const eyebrow = element.children[0];
     expect(eyebrow.attributes["data-wechat-node"]).toBe("card-eyebrow");
-    expect(eyebrow.children[0].textContent).toBe("📖");
-    expect(eyebrow.children[1].textContent).toBe("本篇导读");
+    const badge = eyebrow.children[0];
+    expect(badge.attributes["data-wechat-node"]).toBe("card-eyebrow-badge");
+    expect(badge.children[0].textContent).toBe("📖");
+    expect(badge.children[1].textContent).toBe("本篇导读");
+
+    // Paragraph tagging
+    expect(metaP.attributes["data-wechat-node"]).toBe("intro-meta");
+    expect(metaP.className).toContain("wechat-intro-meta");
+
+    expect(bodyP.attributes["data-wechat-node"]).toBeUndefined();
+
+    expect(guideP.attributes["data-wechat-node"]).toBe("intro-guide");
+    expect(guideP.className).toContain("wechat-intro-guide");
   });
 
-  test("articleCardWechatRenderer prepares author card with avatar extraction", () => {
+  test("articleCardWechatRenderer prepares CTA card with eyebrow", () => {
     const mockDocument: any = {
       createElement: (tag: string) => {
         const el = {
@@ -450,67 +466,26 @@ describe("wechat-preview plugins system", () => {
       },
     };
 
-    const mockImg: any = {
-      tagName: "IMG",
-      className: "",
-      attributes: { src: "https://example.com/avatar.png" },
-      setAttribute: (name: string, val: string) => { mockImg.attributes[name] = val; },
-      parentElement: null,
-    };
-
-    const mockImgParagraph: any = {
-      tagName: "P",
-      children: [mockImg],
-      childNodes: [mockImg],
-      parentElement: null,
-      removeChild: (c: any) => {
-        const idx = mockImgParagraph.childNodes.indexOf(c);
-        if (idx >= 0) mockImgParagraph.childNodes.splice(idx, 1);
-      },
-    };
-    mockImg.parentElement = mockImgParagraph;
-
-    const mockBioParagraph: any = {
-      tagName: "P",
-      textContent: "独立全栈开发者",
+    const p: any = {
+      tagName: "p",
+      textContent: "点赞支持",
     };
 
     const element: any = {
-      attributes: { "data-card-type": "author" },
-      childNodes: [mockImgParagraph, mockBioParagraph],
-      firstChild: mockImgParagraph,
+      attributes: { "data-card-type": "cta", "data-card-title": "互动交流" },
+      children: [p],
       getAttribute: (name: string) => element.attributes[name],
-      querySelector: (sel: string) => (sel === "img" ? mockImg : null),
-      removeChild: (c: any) => {
-        const idx = element.childNodes.indexOf(c);
-        if (idx >= 0) element.childNodes.splice(idx, 1);
-        element.firstChild = element.childNodes[0] || null;
-      },
-      appendChild: (c: any) => {
-        element.childNodes.push(c);
-        element.firstChild = element.childNodes[0];
-      },
+      prepend: (c: any) => { element.children.unshift(c); },
     };
-    mockImgParagraph.parentElement = element;
 
     articleCardWechatRenderer.prepare?.(element, { document: mockDocument } as any);
 
-    // After extraction, element contains eyebrow and row
-    expect(element.childNodes.length).toBe(2);
-    const eyebrow = element.childNodes[0];
+    expect(element.children.length).toBe(2);
+    const eyebrow = element.children[0];
     expect(eyebrow.attributes["data-wechat-node"]).toBe("card-eyebrow");
-    expect(eyebrow.children[0].textContent).toBe("👤");
-
-    const row = element.childNodes[1];
-    expect(row.attributes["data-wechat-node"]).toBe("author-row");
-    expect(row.children.length).toBe(2);
-
-    const avatarWrap = row.children[0];
-    expect(avatarWrap.attributes["data-wechat-node"]).toBe("author-avatar-wrap");
-    expect(avatarWrap.children[0]).toBe(mockImg);
-
-    const infoWrap = row.children[1];
-    expect(infoWrap.attributes["data-wechat-node"]).toBe("author-info");
-    expect(infoWrap.children[0]).toBe(mockBioParagraph);
+    const badge = eyebrow.children[0];
+    expect(badge.attributes["data-wechat-node"]).toBe("card-eyebrow-badge");
+    expect(badge.children[0].textContent).toBe("✨");
+    expect(badge.children[1].textContent).toBe("互动交流");
   });
 });

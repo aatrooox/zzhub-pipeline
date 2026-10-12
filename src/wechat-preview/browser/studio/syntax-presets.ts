@@ -575,28 +575,145 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
   },
   {
     key: "article-card",
-    label: "扩展：结构卡片 (Article Card)",
+    label: "扩展：篇章结构卡片",
     icon: "🎴",
-    description: "文章开头导读 (> [!INTRO])、结尾名片 (> [!AUTHOR]) 与互动号召 (> [!CTA])",
-    css: `.milkdown .editor section[data-wechat-node="article-card"] {
+    description: "文章开头导读 (> [!INTRO]) 与结尾互动号召 (> [!CTA])",
+    defaultPresetId: "magazine",
+    presets: [
+      {
+        id: "magazine",
+        name: "杂志编者按（推荐）",
+        description: "柔和浅底卡 + 1px 细微框线 + 胶囊标 + 13px 精致小字 + 悬挂元信息与引导条",
+        css: `.milkdown .editor section[data-wechat-node="article-card"],
+.milkdown .editor .wechat-article-card {
   margin: 1.8em 0;
   padding: 16px 20px;
-  border-radius: 8px;
+  border-radius: 10px;
+  box-sizing: border-box;
 }
 .milkdown .editor .wechat-article-card-intro {
-  background-color: var(--wx-soft-surface, #fbfafb);
-  border-left: 4px solid var(--wx-brand-accent, #ca6093);
-}
-.milkdown .editor .wechat-article-card-author {
-  background-color: var(--wx-soft-surface, #faf9fa);
-  border: 1px solid var(--wx-divider, #e5e0e3);
-  border-radius: 10px;
+  background-color: var(--wx-soft-surface, #faf8f9);
+  border: 1px solid var(--wx-divider, #eae4e7);
 }
 .milkdown .editor .wechat-article-card-cta {
   background-color: rgba(202, 96, 147, 0.04);
   border: 1px dashed var(--wx-brand-accent, #ca6093);
   text-align: center;
+}
+.milkdown .editor .wechat-article-card p {
+  margin: 0.4em 0;
+  font-size: 13px;
+  line-height: 1.72;
+  color: var(--wx-text-soft, #555555);
+}
+.milkdown .editor .wechat-intro-meta {
+  margin: 4px 0 10px 0 !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--wx-divider, #f0ebed);
+  font-size: 12px !important;
+  color: var(--wx-muted-color, #756b6e) !important;
+}
+.milkdown .editor .wechat-intro-meta strong {
+  color: var(--wx-brand-accent, #ca6093);
+}
+.milkdown .editor .wechat-intro-guide {
+  margin-top: 10px !important;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(202, 96, 147, 0.25);
+  font-size: 12px !important;
+  color: var(--wx-brand-accent, #ca6093) !important;
 }`,
+      },
+      {
+        id: "top-line",
+        name: "顶部色彩微线",
+        description: "顶部 3px 品牌色微边线 + 纯白底色 + 浅微边框 + 13px 精致小字",
+        css: `.milkdown .editor section[data-wechat-node="article-card"],
+.milkdown .editor .wechat-article-card {
+  margin: 1.8em 0;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.milkdown .editor .wechat-article-card-intro {
+  background-color: #ffffff;
+  border: 1px solid var(--wx-divider, #eae4e7);
+  border-top: 3px solid var(--wx-brand-accent, #ca6093);
+}
+.milkdown .editor .wechat-article-card-cta {
+  background-color: rgba(202, 96, 147, 0.04);
+  border: 1px dashed var(--wx-brand-accent, #ca6093);
+  text-align: center;
+}
+.milkdown .editor .wechat-article-card p {
+  margin: 0.4em 0;
+  font-size: 13px;
+  line-height: 1.72;
+  color: var(--wx-text-soft, #555555);
+}
+.milkdown .editor .wechat-intro-meta {
+  margin: 4px 0 10px 0 !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--wx-divider, #f0ebed);
+  font-size: 12px !important;
+  color: var(--wx-muted-color, #756b6e) !important;
+}
+.milkdown .editor .wechat-intro-meta strong {
+  color: var(--wx-brand-accent, #ca6093);
+}
+.milkdown .editor .wechat-intro-guide {
+  margin-top: 10px !important;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(202, 96, 147, 0.25);
+  font-size: 12px !important;
+  color: var(--wx-brand-accent, #ca6093) !important;
+}`,
+      },
+      {
+        id: "minimal",
+        name: "极简纯白框",
+        description: "纯白背景 + 1px 细微框线 + 13px 精致小字",
+        css: `.milkdown .editor section[data-wechat-node="article-card"],
+.milkdown .editor .wechat-article-card {
+  margin: 1.8em 0;
+  padding: 16px 20px;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+.milkdown .editor .wechat-article-card-intro {
+  background-color: #ffffff;
+  border: 1px solid var(--wx-divider, #eae4e7);
+}
+.milkdown .editor .wechat-article-card-cta {
+  background-color: #ffffff;
+  border: 1px dashed var(--wx-divider, #dadce0);
+  text-align: center;
+}
+.milkdown .editor .wechat-article-card p {
+  margin: 0.4em 0;
+  font-size: 13px;
+  line-height: 1.72;
+  color: var(--wx-text-soft, #555555);
+}
+.milkdown .editor .wechat-intro-meta {
+  margin: 4px 0 10px 0 !important;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--wx-divider, #f0ebed);
+  font-size: 12px !important;
+  color: var(--wx-muted-color, #756b6e) !important;
+}
+.milkdown .editor .wechat-intro-meta strong {
+  color: var(--wx-brand-accent, #ca6093);
+}
+.milkdown .editor .wechat-intro-guide {
+  margin-top: 10px !important;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(202, 96, 147, 0.25);
+  font-size: 12px !important;
+  color: var(--wx-brand-accent, #ca6093) !important;
+}`,
+      },
+    ],
   },
 ];
 
