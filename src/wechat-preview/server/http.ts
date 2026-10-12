@@ -26,7 +26,7 @@ import {
 } from "./local-file";
 import { renderDashboardHtml, renderFailedEntryHtml } from "./ui";
 import { buildWechatPreviewShell } from "../index";
-import { getPluginDocs } from "../plugins/registry";
+import { getPluginDocs } from "@akairos/milkdown-article-plugins";
 import { getWechatPreviewTheme } from "../themes";
 import { loadConfig, saveConfig, getPipelineConfigPath, resolveConfigRelativePath } from "../../config";
 import { DIST_DIR, WECHAT_PREVIEW_DIR } from "../../runtime-paths";

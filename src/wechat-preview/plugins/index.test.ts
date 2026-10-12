@@ -6,11 +6,12 @@ import {
   getCombinedDefaultCss,
   getCombinedWechatRenderers,
   registerPlugin,
-} from "./registry";
-import { remarkCallout } from "./builtin-callout";
-import { remarkKbd } from "./builtin-kbd";
-import { remarkBadge } from "./builtin-badge";
-import { remarkArticleCards, articleCardWechatRenderer } from "./builtin-article-cards";
+  remarkCallout,
+  remarkKbd,
+  remarkBadge,
+  remarkArticleCards,
+  articleCardWechatRenderer,
+} from "@akairos/milkdown-article-plugins";
 
 describe("wechat-preview plugins system", () => {
   test("loads all built-in plugins and documentation metadata", () => {
@@ -199,6 +200,7 @@ describe("wechat-preview plugins system", () => {
         const el = {
           tagName: tag,
           className: "",
+          style: {} as Record<string, string>,
           attributes: {} as Record<string, string>,
           children: [] as any[],
           setAttribute: (name: string, val: string) => { el.attributes[name] = val; },
@@ -238,6 +240,7 @@ describe("wechat-preview plugins system", () => {
         const el = {
           tagName: tag,
           className: "",
+          style: {} as Record<string, string>,
           attributes: {} as Record<string, string>,
           children: [] as any[],
           setAttribute: (name: string, val: string) => { el.attributes[name] = val; },

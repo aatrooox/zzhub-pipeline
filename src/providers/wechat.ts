@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "fs";
 import { basename, extname } from "path";
+import { imageSize } from "image-size";
 import { PipelineConfig, WxAccountConfig } from "../config";
 import { reportProgress } from "../monitor/recorder";
 
@@ -604,6 +605,26 @@ async function uploadPhotos(
   };
 }
 
+export function calculatePicCrop(width: number, height: number): { pic_crop_235_1: string; pic_crop_1_1: string } {
+  const ratio = width / height;
+  if (ratio >= 3.0) {
+    // 微信头图 split 双比例：左侧 2.35:1，右侧 1:1
+    const splitX = Math.min(1, (height * 2.35) / width);
+    return {
+      pic_crop_235_1: `0_0_${splitX.toFixed(4)}_1`,
+      pic_crop_1_1: `${splitX.toFixed(4)}_0_1_1`,
+    };
+  }
+  // 单图 2.35:1 或其他宽高比封面：全宽 2.35:1，居中 1:1 裁切
+  const crop11Width = Math.min(1, height / width);
+  const x1 = Math.max(0, (1 - crop11Width) / 2);
+  const x2 = Math.min(1, x1 + crop11Width);
+  return {
+    pic_crop_235_1: "0_0_1_1",
+    pic_crop_1_1: `${x1.toFixed(4)}_0_${x2.toFixed(4)}_1`,
+  };
+}
+
 export async function createWechatDraft(input: WechatDraftInput): Promise<Record<string, unknown>> {
   const runtime = getWxRuntimeConfig(input.config, input.account);
   const fallbackPhotos = extractImageUrls(input.html);
@@ -620,6 +641,19 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
   const uploadResult = await uploadPhotos(runtime, accessToken, finalPhotos, uploadTimeout);
   const replacedHtml = replaceImageUrls(input.html, uploadResult.imageUrlMap);
 
+  let cropParams: { pic_crop_235_1?: string; pic_crop_1_1?: string } = {};
+  try {
+    const coverPath = finalPhotos[0];
+    if (coverPath && existsSync(coverPath)) {
+      const dims = imageSize(readFileSync(coverPath));
+      if (dims.width && dims.height) {
+        cropParams = calculatePicCrop(dims.width, dims.height);
+      }
+    }
+  } catch {
+    // 允许尺寸检测失败时平滑回退
+  }
+
   const isUpdate = !!input.existingDraftMediaId;
   const draftPath = isUpdate ? DRAFT_UPDATE_PATH : DRAFT_ADD_PATH;
   const draftBody = isUpdate
@@ -632,6 +666,8 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
           title: input.title,
           content: replacedHtml,
           thumb_media_id: uploadResult.coverMediaId,
+          ...(cropParams.pic_crop_235_1 ? { pic_crop_235_1: cropParams.pic_crop_235_1 } : {}),
+          ...(cropParams.pic_crop_1_1 ? { pic_crop_1_1: cropParams.pic_crop_1_1 } : {}),
         },
       }
     : {
@@ -642,6 +678,8 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
             title: input.title,
             content: replacedHtml,
             thumb_media_id: uploadResult.coverMediaId,
+            ...(cropParams.pic_crop_235_1 ? { pic_crop_235_1: cropParams.pic_crop_235_1 } : {}),
+            ...(cropParams.pic_crop_1_1 ? { pic_crop_1_1: cropParams.pic_crop_1_1 } : {}),
           },
         ],
       };

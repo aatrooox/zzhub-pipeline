@@ -187,7 +187,7 @@ interface PrepareOutput {
 
 export function renderPrepare(data: unknown): string {
   const d = data as PrepareOutput;
-  const extras = d.route.extras.length > 0 ? `  ${c.dim("+")}  ${d.route.extras.join(", ")}` : "";
+  const extras = d.route.extras?.length ? `  ${c.dim("+")}  ${d.route.extras.join(", ")}` : "";
   const lines: string[] = [
     divider("prepare"),
     kv("title", c.bold(d.metadata.title)),
@@ -195,9 +195,9 @@ export function renderPrepare(data: unknown): string {
     kv("date", d.metadata.date),
     kv("route", `${c.cyan(d.route.primary)}${extras}  ${c.dim(`@${d.route.account}`)}`),
     kv("style", d.requires_style ? c.yellow("requested") : c.dim("none")),
-    kv("rewrite", d.authoring.rewrite_allowed ? c.yellow("allowed") : c.dim("no")),
+    kv("rewrite", d.authoring?.rewrite_allowed ? c.yellow("allowed") : c.dim("no")),
   ];
-  if (d.illustration_markers.length > 0) {
+  if (d.illustration_markers?.length) {
     lines.push(kv("markers", d.illustration_markers.join(", ")));
   }
   lines.push(kv("body →", c.dim(d.body_formatted_path)));

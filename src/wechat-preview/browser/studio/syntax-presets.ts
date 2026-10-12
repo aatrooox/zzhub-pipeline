@@ -519,20 +519,46 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
     key: "callout",
     label: "扩展：提示卡片 (Callout Alert)",
     icon: "💡",
-    description: "高亮提示盒：左侧品牌色标线，浅底色包裹与加粗小标",
-    css: `.milkdown .editor [data-wechat-node="callout"] {
+    description: "高亮提示盒：标准 GFM 语义色彩（Note 蓝 / Tip 绿 / Warning 橙 / Caution 红 / Important 紫）",
+    css: `.milkdown .editor [data-wechat-node="callout"],
+.milkdown .editor .wechat-callout {
   margin: 1.4em 0;
   padding: 12px 16px;
-  border-left: 3px solid var(--wx-brand-accent, #ca6093);
-  border-radius: 0 6px 6px 0;
-  background-color: var(--wx-soft-surface, #fbfafb);
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+.milkdown .editor [data-callout-type="note"],
+.milkdown .editor .wechat-callout-note {
+  border-left-color: #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+.milkdown .editor [data-callout-type="tip"],
+.milkdown .editor .wechat-callout-tip {
+  border-left-color: #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+.milkdown .editor [data-callout-type="important"],
+.milkdown .editor .wechat-callout-important {
+  border-left-color: #8b5cf6 !important;
+  background-color: rgba(139, 92, 246, 0.08) !important;
+}
+.milkdown .editor [data-callout-type="warning"],
+.milkdown .editor .wechat-callout-warning {
+  border-left-color: #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+.milkdown .editor [data-callout-type="caution"],
+.milkdown .editor .wechat-callout-caution {
+  border-left-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.08) !important;
 }
 .milkdown .editor [data-wechat-node="callout-header"],
 .milkdown .editor .wechat-callout-header {
   font-weight: 700;
   font-size: 14px;
   margin-bottom: 6px;
-  color: var(--wx-h2-color, #1f1b1c);
 }`,
   },
   {

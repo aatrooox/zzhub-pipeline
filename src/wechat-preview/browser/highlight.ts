@@ -1,2 +1,1 @@
-export { highlightMilkdownPlugins as highlightPlugins } from "../plugins/builtin-highlight";
-
+export { highlightMilkdownPlugins as highlightPlugins } from "@akairos/milkdown-article-plugins";

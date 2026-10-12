@@ -341,15 +341,17 @@ Options:
     route: {
       primary: state.route.primary,
       account: state.route.account,
+      extras: state.route.extras || [],
     },
     metadata: {
       title: state.metadata.title,
       slug: state.metadata.slug,
       date: state.metadata.date,
     },
+    authoring: state.authoring,
     requires_style: state.intent.requires.style,
     body_formatted_path: formattedBodyPath,
-    ...(illustrationMarkers.length > 0 ? { illustration_markers: illustrationMarkers } : {}),
+    illustration_markers: illustrationMarkers,
   };
   printResult(output, renderPrepare);
 }

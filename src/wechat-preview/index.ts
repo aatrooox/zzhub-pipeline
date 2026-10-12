@@ -125,13 +125,13 @@ export interface ExportMarkdownToWechatHtmlResult {
 
 const requireFromHere = createRequire(import.meta.url);
 
-/** Absolute path to shared article.css (@zzclub/milkdown-article-style). */
+/** Absolute path to shared article.css (@akairos/milkdown-article-style). */
 export function resolveMilkdownArticleStylePath(): string {
   try {
-    return requireFromHere.resolve("@zzclub/milkdown-article-style/article.css");
+    return requireFromHere.resolve("@akairos/milkdown-article-style/article.css");
   } catch {
     // Bun / Node may need package root + relative when exports are CSS-only.
-    const pkgRoot = dirname(requireFromHere.resolve("@zzclub/milkdown-article-style/package.json"));
+    const pkgRoot = dirname(requireFromHere.resolve("@akairos/milkdown-article-style/package.json"));
     return join(pkgRoot, "article.css");
   }
 }
@@ -145,9 +145,6 @@ export function getWechatPreviewBundleSources(): string[] {
     join(WECHAT_PREVIEW_DIR, "browser/studio/studio.html"),
     join(WECHAT_PREVIEW_DIR, "browser/studio/studio.css"),
     join(WECHAT_PREVIEW_DIR, "plugins/registry.ts"),
-    join(WECHAT_PREVIEW_DIR, "plugins/builtin-callout.ts"),
-    join(WECHAT_PREVIEW_DIR, "plugins/builtin-kbd.ts"),
-    join(WECHAT_PREVIEW_DIR, "plugins/builtin-badge.ts"),
     resolveMilkdownArticleStylePath(),
     join(WECHAT_PREVIEW_DIR, "wechat-renderer.ts"),
   ];

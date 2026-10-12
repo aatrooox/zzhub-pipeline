@@ -2,10 +2,9 @@ import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { getHTML } from "@milkdown/kit/utils";
-import articleCss from "@zzclub/milkdown-article-style/article.css?raw";
-import { getCombinedMilkdownPlugins } from "../../plugins/registry";
+import articleCss from "@akairos/milkdown-article-style/article.css?raw";
+import { getCombinedMilkdownPlugins, type WechatPluginDoc } from "@akairos/milkdown-article-plugins";
 import { renderWechatHtml } from "../../wechat-renderer";
-import type { WechatPluginDoc } from "../../plugins/types";
 import type { ArticleStructure } from "../../wechat-renderer";
 import type { WechatExportTheme } from "../../themes";
 import { SYNTAX_CATEGORIES, buildCombinedPresetsCss } from "./syntax-presets";
@@ -226,6 +225,10 @@ async function doRender() {
     htmlSourceCode.value = inlinedHtml;
   } catch (error) {
     console.error("Studio render error:", error);
+    (window as any).__LAST_STUDIO_ERROR__ = {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    };
     const msg = error instanceof Error ? error.message : String(error);
     previewScreen.innerHTML = `<div style="color:#b91c1c;padding:16px;background:#fef2f2;border-radius:8px;">渲染错误: ${msg}</div>`;
   }

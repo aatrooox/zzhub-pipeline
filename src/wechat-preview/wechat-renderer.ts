@@ -1,6 +1,6 @@
 import juice from "juice/client";
 import type { WechatExportTheme } from "./themes";
-import { getCombinedDefaultCss, getCombinedWechatRenderers } from "./plugins/registry";
+import { getCombinedDefaultCss, getCombinedWechatRenderers } from "@akairos/milkdown-article-plugins";
 
 export type WechatElementKind =
   | "image"
@@ -728,7 +728,7 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
   sourceDocument.body.appendChild(compatibilityRoot);
 
   const references: WechatLinkReference[] = [];
-  const pluginRenderers = getCombinedWechatRenderers();
+  const pluginRenderers = getCombinedWechatRenderers() as unknown as WechatElementRenderer[];
   const pluginCss = getCombinedDefaultCss();
   const mergedOverrides: WechatRendererOverrides = {
     ...input.renderers,
@@ -766,6 +766,7 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
     preservePseudos: false,
     removeStyleTags: true,
     resolveCSSVariables: true,
+    decodeStyleAttributes: true,
   });
 
   const finalDocument = parseHtml(inlinedHtml);
