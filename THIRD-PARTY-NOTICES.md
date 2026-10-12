@@ -1,6 +1,6 @@
 # Bundled article styles
 
-The browser renderer includes `@zzclub/milkdown-article-style` (`article.css` and `tokens-default.css`), distributed under the following license. Other dependencies retain their own licenses. Commercial article templates are separate packages and are not covered by this license.
+The browser renderer includes `@akairos/milkdown-article-style` (`article.css` and `tokens-default.css`), distributed under the following license. Other dependencies retain their own licenses. Commercial article templates are separate packages and are not covered by this license.
 
 MIT License
 

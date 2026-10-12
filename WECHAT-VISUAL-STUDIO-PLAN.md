@@ -72,7 +72,7 @@ flowchart TD
 > **2. 实时渲染的执行环境机制**
 > - **原机制**：CLI 下的 `wechat-export` 是通过 Bun 启动 headless Chrome 进程渲染 `export-shell.html`，每次需要 1~2 秒，适合文件导出，但不适合滑块拖动等高频实时交互。
 > - **工作台机制**：因为用户打开 Web Studio 时本身就已经在浏览器（Chrome/Edge/Safari）中，Milkdown 与 `renderWechatHtml`（基于 `juice/client`）都是浏览器原生兼容的代码。我们在 Web Studio 中**直接在浏览器进程内执行渲染**，渲染延迟降至 30~50ms，实现拖动滑块时真正的无延迟实时重绘！
-> - **一致性保证**：浏览器端与 CLI Chrome 端使用的是完全同一套 `@zzclub/milkdown-article-style`、同一套主题变量逻辑和同一套插件体系，因此 Web 调优结果与 CLI 导出结果绝对一致。
+> - **一致性保证**：浏览器端与 CLI Chrome 端使用的是完全同一套 `@akairos/milkdown-article-style`、同一套主题变量逻辑和同一套插件体系，因此 Web 调优结果与 CLI 导出结果绝对一致。
 
 > [!WARNING]
 > **3. 插件化定义与生效边界**

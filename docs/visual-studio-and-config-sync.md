@@ -12,7 +12,7 @@ WeChat Visual Studio 是 `zzhub-pipeline` 内置的所见即所得排版调优�
 ## 一、 本地启动与排版调优
 
 ### 1. 快速启动
-在安装有 `@zzclub/pipeline`（或克隆本仓库）的本地环境中执行：
+在安装有 `@akairos/pipeline`（或克隆本仓库）的本地环境中执行：
 
 ```bash
 zzp wechat-preview studio

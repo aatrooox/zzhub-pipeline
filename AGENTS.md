@@ -476,18 +476,21 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 
 ### Shared article styles
 
-Typography is owned by **`@zzclub/milkdown-article-style`** on npm
-(`article.css` + `tokens-default.css`). Pipeline export and Nezus Milkdown both
-depend on it so writing preview matches WeChat output. Edit CSS only in that
-package (repo: `milkdown-article-style`); do not fork rules into this repo.
+Typography and syntax plugins are modularized under `@akairos`:
+- **`@akairos/milkdown-article-style`** on npm (`article.css` + `tokens-default.css`): Shared typography specification.
+- **`@akairos/milkdown-article-plugins`** on npm: Callouts, Badges, Kbd, and Article Cards Remark/Milkdown plugins.
+- **`@akairos/typeset-studio`** on npm: Header and banner image composition.
+
+Edit CSS only in that package; do not fork rules into this repo.
 
 ```json
-"@zzclub/milkdown-article-style": "^0.1.0"
+"@akairos/milkdown-article-style": "^0.1.1",
+"@akairos/milkdown-article-plugins": "^0.1.3"
 ```
 
 ### Style modification requires rebuild
 
-The export entry imports `@zzclub/milkdown-article-style/article.css` and
+The export entry imports `@akairos/milkdown-article-style/article.css` and
 **bundles it into** `browser-dist/editor-export.js` at build time. The runtime
 `wechat-export` command loads the built bundle, not the package CSS file.
 

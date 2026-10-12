@@ -4,7 +4,7 @@
 
 ## 运行与分发
 
-- 包名：`@zzclub/pipeline`；CLI 别名：`zzp`、`zzhub-pipeline`。
+- 包名：`@akairos/pipeline`；CLI 别名：`zzp`、`zzhub-pipeline`。
 - npm 的 `bin` 指向 `src/cli.ts`，使用 Bun；`bun run build:npm` 的 `dist/cli.js` 是另一个构建产物。
 - `bun run build` 生成独立二进制及资源目录；不要把它与 npm 安装入口混淆。
 - 浏览器端 HTML 渲染 bundle 由 `bun run build:wechat-preview` 构建。全局安装副本用 `bun install --global .` 更新。

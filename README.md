@@ -16,7 +16,9 @@ Pipeline 可以独立使用，也可以作为 Web、App、桌面客户端背后�
 
 | 能力 | 说明 |
 | --- | --- |
-| 公众号文章 | Markdown 转微信兼容 HTML，生成封面，上传图片，创建或更新文章草稿 |
+| 公众号文章 | Markdown 转微信兼容 HTML，生成自适应头图，上传图片，创建或更新文章草稿 |
+| 全语法与扩展组件 | 支持 GFM Callout（含自定义标题/Emoji）、导读卡 (Intro/CTA)、行内徽章 (Badge)、按键 (Kbd)、荧光笔与防拉伸短分割线 |
+| 智能封面裁切 | 自动计算 2.35:1 与 1:1 双视图坐标比率，彻底规避微信 53401 拒收报错 |
 | 公众号贴图 | 渲染单页卡片或多页 PNG 图集，创建 `newspic` 草稿 |
 | 博客同步 | 把 Markdown 和图片同步到配置的博客项目，并执行发布命令 |
 | 可恢复工作流 | 保存任务状态、素材、审核决定、渲染版本和发布结果，失败后可以继续或重置 |
@@ -101,6 +103,62 @@ zzp wechat-preview studio
 终端启动后会自动唤起浏览器打开 `http://127.0.0.1:18765/studio`。你可以在界面中直观调整主题配色、二级标题与表格语法预设、提示卡片（Callout）自定义 Emoji，并一键复制到微信后台或保存为全局配置。
 
 > **云端使用者注意**：本地 Studio 保存的样式会写入本地 `config.json`。若使用私有云端 Worker，需将调整后的配置同步至服务器，详见 [Visual Studio 排版调优与云端配置同步指南](docs/visual-studio-and-config-sync.md)。
+
+### 公众号全语法与扩展组件
+
+Pipeline 内置基于 `@akairos/milkdown-article-plugins` 与 `@akairos/milkdown-article-style` 的现代排版扩展，所有语法在导出与发布时均会自动编译为微信内联样式：
+
+#### 1. 语义提示卡片 (Callout Alerts)
+支持 GFM 标准的 5 种语义卡片，并支持行内自定义标题与 Emoji：
+```markdown
+> [!NOTE]
+> 标准提示卡片，采用温和中性灰，适合补充背景说明。
+
+> [!TIP] 实用技巧
+> 自定义标题技巧卡片，非常适合放置操作小窍门。
+
+> [!WARNING] ⚠️ 重点防护
+> 自定义标题与 Emoji 的警告卡片，橙黄双色渐层强化视觉警示。
+
+> [!IMPORTANT]
+> 关键要点卡片，适合陈述架构必须原则或核心结论。
+
+> [!CAUTION]
+> 破坏性操作警告卡片，深红醒目提示。
+```
+
+#### 2. 导读卡与关注引导卡 (Article Cards)
+专为公众号排版设计的文章头尾卡片：
+```markdown
+> [!INTRO]
+> 眉题：大模型前沿实战
+> 作者：Kairos · 阅读时间：3 分钟
+> 本篇系统实测 Kairos 排版引擎在微信生态下的完整视觉呈现。
+
+> [!CTA]
+> 感谢阅读本次排版效果实测！
+> 欢迎关注公众号，获取第一手排版组件与工程实战经验。
+```
+
+#### 3. 行内组件 (Badge / Kbd / Highlight)
+- **状态徽章**：`[badge:primary|活力橙红]`、`[badge:success|运行正常]`、`[badge:warning|重点监测]`、`[badge:purple|专业模式]`
+- **键盘按键**：按 `[[kbd:Cmd]] + [[kbd:K]]` 快速调起指令，按 `[[kbd:Shift]] + [[kbd:Enter]]` 换行
+- **荧光笔高亮**：使用 `==荧光笔标记核心概念与重点论述==`
+
+#### 4. 智能居中防拉伸分割线 (Divider)
+标准 Markdown `---` 会自动应用 Studio 中配置的分割线预设（如 `short-center` 居中 36% 呼吸线、`dashed` 极简虚线、`hairline` 细实线），并自动编译为抗样式覆盖的 `<section>` 节点，防止被微信移动端强行拉伸至 100% 通栏。
+
+#### 5. 智能封面裁切比率自动适配
+Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸并计算居中 1:1 与满宽 2.35:1 裁切坐标比率，自动注入 `pic_crop_235_1` 与 `pic_crop_1_1` 微信 API 参数，彻底告别微信官方接口的 `53401`（`WX_CONTENT_REJECTED`）拒收报错。
+
+### 模块化生态组成
+
+| 模块包名 | 职责说明 |
+| --- | --- |
+| **`@akairos/pipeline`** | 核心可恢复状态机、CLI 工具链与多端发布器 |
+| **`@akairos/milkdown-article-style`** | Kairos 原创微信排版 CSS 样式规范与设计令牌 |
+| **`@akairos/milkdown-article-plugins`** | Remark / Milkdown 全语法自定义解析与渲染插件 |
+| **`@akairos/typeset-studio`** | 微信大图头图、多比例排版与卡片视觉合成引擎 |
 
 ### 推进一个发布任务
 

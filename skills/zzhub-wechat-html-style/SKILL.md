@@ -41,7 +41,7 @@ imgx 封面/长图（那是另一套模板与主题）。
 | 浏览器入口（Milkdown + 调 renderer） | `src/wechat-preview/browser/editor-export.ts` |
 | 语义节点 + Juice + 清理 | `src/wechat-preview/wechat-renderer.ts` |
 | 账号主题令牌 | `src/wechat-preview/themes.ts` |
-| 共享排版 CSS（npm 包，**不在本仓库**） | `@zzclub/milkdown-article-style` |
+| 共享排版 CSS（npm 包，**不在本仓库**） | `@akairos/milkdown-article-style` |
 | Vite 打包 | `vite.wechat-preview.config.ts` → `src/wechat-preview/assets/browser-dist/editor-export.js` |
 | 发布路径 | `src/providers/index.ts`（与 `wechat-export` 同一 renderer） |
 
@@ -79,7 +79,7 @@ finalize 标签改写（样式已先内联，再改名）：
 
 ### 1.1 共享排版（段落、标题层级、列表、代码、表格、引用结构）
 
-**位置**：独立包 `@zzclub/milkdown-article-style`  
+**位置**：独立包 `@akairos/milkdown-article-style`  
 本地 sibling 仓库（若存在）：`../milkdown-article-style/`（与 pipeline 同级 `core/` 下）
 
 | 文件 | 职责 |
@@ -93,7 +93,7 @@ finalize 标签改写（样式已先内联，再改名）：
 - **不要**往 `src/wechat-preview/browser/editor-export.css` 写规则——它只是 re-export 桩，且 Vite 入口用 `article.css?raw`（`?raw` **不会**展开 `@import`），真正打进 bundle 的是包文件。
 - 选择器保持 `.milkdown .editor …`，否则导出 DOM（`.milkdown` > `.editor.zzhub-wechat-article`）匹配不到。
 
-当前 pipeline 依赖版本见根目录 `package.json` 的 `@zzclub/milkdown-article-style`。
+当前 pipeline 依赖版本见根目录 `package.json` 的 `@akairos/milkdown-article-style`。
 
 ### 1.2 账号主题色 / 页脚文案 / 行高字距（令牌，非结构）
 
@@ -183,7 +183,7 @@ finalize 标签改写（样式已先内联，再改名）：
 
 ### 2.1 改共享 `article.css`
 
-1. 在 `milkdown-article-style` 仓库编辑 `article.css`（或临时改 `node_modules/@zzclub/milkdown-article-style/article.css` 做验证——**不能**当最终交付）。
+1. 在 `milkdown-article-style` 仓库编辑 `article.css`（或临时改 `node_modules/@akairos/milkdown-article-style/article.css` 做验证——**不能**当最终交付）。
 2. 选择器一律：`.milkdown .editor h2`、`.milkdown .editor [data-wechat-node="code-block"]` 等。
 3. 可用 token：`--wx-body-color`、`--wx-h2-color`、`--wx-brand-ink` 等（导出时 Juice 会 resolve）。
 4. 微信/CJK 注意：
@@ -192,7 +192,7 @@ finalize 标签改写（样式已先内联，再改名）：
 5. 包版本 bump 后：pipeline 升依赖 → 再走 §3 生效步骤。本地联调可用：
 
 ```json
-"@zzclub/milkdown-article-style": "file:../milkdown-article-style"
+"@akairos/milkdown-article-style": "file:../milkdown-article-style"
 ```
 
 ### 2.2 改 `themes.ts`
@@ -296,7 +296,7 @@ bun run src/cli.ts wechat-export --markdown … --out … --open
 `ensureBundle()`（`index.ts`）会比较以下源的 mtime 与 `browser-dist/.vite/manifest.json`：
 
 - `browser/editor-export.ts`
-- `@zzclub/milkdown-article-style/article.css`
+- `@akairos/milkdown-article-style/article.css`
 - `wechat-renderer.ts`
 
 源更新且能跑 Vite 时，export 会自动 rebuild。若 Vite/devDependency 不可用，会 **回退旧 dist** 并标 `bundle_stale`——**不能**当成功。  
