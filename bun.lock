@@ -7,7 +7,7 @@
       "dependencies": {
         "@akairos/milkdown-article-plugins": "^0.1.3",
         "@akairos/milkdown-article-style": "^0.1.1",
-        "@akairos/typeset-studio": "^0.2.0",
+        "@akairos/typeset-studio": "0.2.1",
         "@chenglou/pretext": "0.0.8",
         "image-size": "^2.0.2",
         "pngjs": "^7.0.0",
@@ -34,7 +34,7 @@
 
     "@akairos/milkdown-article-style": ["@akairos/milkdown-article-style@0.1.1", "", {}, "sha512-vjmvOLww2KT8Y4pge4IksZZE8UsWDAGeq0Z7yCY9h5Ta7vCmwf6eOxTmv7qUkOvp6Ll/sUplrKFJTxe53E+/Qg=="],
 
-    "@akairos/typeset-studio": ["@akairos/typeset-studio@0.2.0", "", { "dependencies": { "@chenglou/pretext": "^0.0.8", "@napi-rs/canvas": "^1.0.10", "clsx": "^2.1.1", "hono": "^4.7.4", "html-to-image": "^1.11.11", "lucide-react": "^1.16.0", "react": "^19.0.0", "react-dom": "^19.0.0", "tailwind-merge": "^3.0.2" } }, "sha512-+oE29BkDW/J/zLjQGUNLlBqq3ns+yl5Q0RepcXWtHCCGxBVszXwd/POBHYZkmsg2uBoglZJ/XI8tZ3Jl+i66yA=="],
+    "@akairos/typeset-studio": ["@akairos/typeset-studio@0.2.1", "", { "dependencies": { "@chenglou/pretext": "^0.0.8", "@napi-rs/canvas": "^1.0.10", "clsx": "^2.1.1", "hono": "^4.7.4", "html-to-image": "^1.11.11", "lucide-react": "^1.16.0", "react": "^19.0.0", "react-dom": "^19.0.0", "tailwind-merge": "^3.0.2" } }, "sha512-VLLhMuTCJfSqHElCcYoCuZKckslRCrufU34tkI2qc8FlT0JX+ACjmurPCrE6tYTj+rjSDkS3Zk+eaLdE8nnvSA=="],
 
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.27.1", "", {}, "sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA=="],
 

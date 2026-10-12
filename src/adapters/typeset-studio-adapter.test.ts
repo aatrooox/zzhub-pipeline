@@ -15,7 +15,7 @@ test("@akairos/typeset-studio npm plugin dynamically loads and renders in pipeli
 
   const renderer = await resolveImageRenderer(config);
   expect(renderer.name).toBe("typeset-studio");
-  expect(renderer.version).toBe("0.2.0");
+  expect(renderer.version).toMatch(/^0\.2\./);
 
   const doctorChecks = await renderer.doctor?.();
   expect(doctorChecks).toBeDefined();
