@@ -5,12 +5,14 @@ import { builtinHighlightPlugin } from "./builtin-highlight";
 import { builtinCalloutPlugin } from "./builtin-callout";
 import { builtinKbdPlugin } from "./builtin-kbd";
 import { builtinBadgePlugin } from "./builtin-badge";
+import { builtinArticleCardsPlugin } from "./builtin-article-cards";
 
 const BUILTIN_PLUGINS: WechatMarkdownPlugin[] = [
   builtinHighlightPlugin,
   builtinCalloutPlugin,
   builtinKbdPlugin,
   builtinBadgePlugin,
+  builtinArticleCardsPlugin,
 ];
 
 const customPlugins: WechatMarkdownPlugin[] = [];

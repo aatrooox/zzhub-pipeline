@@ -7,6 +7,9 @@ slug: wechat-renderer-all-nodes
 
 # 一级标题：克制的中文编辑部
 
+> [!INTRO] 导读指南
+> 本文共 3,200 字，预计阅读 6 分钟。系统解析工作流核心状态机与排版架构。
+
 这是一段用于检查正文密度的中文。它包含 **加粗文字**、*强调文字*、~~删除文字~~、`inlineCode()`，以及一个[外部链接](https://example.com/reading-guide?from=wechat)。
 
 这一行之后保留硬换行。\
@@ -104,3 +107,11 @@ Setext 标题
 ```markdown
 ![代码示例](./missing-example.png)
 ```
+
+> [!AUTHOR]
+> ![头像](https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop)
+> **Aatrox** · 全栈独立开发者
+> 持续探索 Agentic Coding 与个人技术资产沉淀。[badge:brand|AI 含量 20%]
+
+> [!CTA] 欢迎交流与关注
+> 如果这篇文章对你有所启发，欢迎点击右下角 **「点赞」** 和 **「在看」** 支持！

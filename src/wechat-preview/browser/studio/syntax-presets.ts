@@ -573,6 +573,31 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
   color: var(--wx-brand-accent, #ca6093);
 }`,
   },
+  {
+    key: "article-card",
+    label: "扩展：结构卡片 (Article Card)",
+    icon: "🎴",
+    description: "文章开头导读 (> [!INTRO])、结尾名片 (> [!AUTHOR]) 与互动号召 (> [!CTA])",
+    css: `.milkdown .editor section[data-wechat-node="article-card"] {
+  margin: 1.8em 0;
+  padding: 16px 20px;
+  border-radius: 8px;
+}
+.milkdown .editor .wechat-article-card-intro {
+  background-color: var(--wx-soft-surface, #fbfafb);
+  border-left: 4px solid var(--wx-brand-accent, #ca6093);
+}
+.milkdown .editor .wechat-article-card-author {
+  background-color: var(--wx-soft-surface, #faf9fa);
+  border: 1px solid var(--wx-divider, #e5e0e3);
+  border-radius: 10px;
+}
+.milkdown .editor .wechat-article-card-cta {
+  background-color: rgba(202, 96, 147, 0.04);
+  border: 1px dashed var(--wx-brand-accent, #ca6093);
+  text-align: center;
+}`,
+  },
 ];
 
 export function buildCombinedPresetsCss(selected: Record<string, string>): string {
