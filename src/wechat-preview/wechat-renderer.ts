@@ -491,6 +491,9 @@ const dividerRenderer: WechatElementRenderer = {
   prepare(element) {
     setNodeKind(element, "divider");
   },
+  finalize(element) {
+    replaceTag(element, "section");
+  },
 };
 
 const hardBreakRenderer: WechatElementRenderer = {

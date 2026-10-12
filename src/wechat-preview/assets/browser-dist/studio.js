@@ -1,4 +1,4 @@
-import{E as ge,r as fe,d as xe,c as he,g as we,a as ve,b as ke,e as ye,f as Ce}from"./assets/wechat-renderer-DaOvfzFU.js";(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))i(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const c of a.addedNodes)c.tagName==="LINK"&&c.rel==="modulepreload"&&i(c)}).observe(document,{childList:!0,subtree:!0});function t(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function i(n){if(n.ep)return;n.ep=!0;const a=t(n);fetch(n.href,a)}})();const _=[{key:"h1",label:"一级标题 (H1)",icon:"👑",description:"文章大标题：26px，加粗，紧贴后续正文，无边框背景修饰",css:`.milkdown .editor h1 {
+import{E as ge,r as fe,d as xe,c as he,g as we,a as ve,b as ke,e as ye,f as Ce}from"./assets/wechat-renderer-SMPMCqAg.js";(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))i(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const c of a.addedNodes)c.tagName==="LINK"&&c.rel==="modulepreload"&&i(c)}).observe(document,{childList:!0,subtree:!0});function t(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function i(n){if(n.ep)return;n.ep=!0;const a=t(n);fetch(n.href,a)}})();const _=[{key:"h1",label:"一级标题 (H1)",icon:"👑",description:"文章大标题：26px，加粗，紧贴后续正文，无边框背景修饰",css:`.milkdown .editor h1 {
   margin: 2.45em 0 0.85em;
   color: var(--wx-h2-color, #1f1b1c);
   font-size: 26px;
@@ -212,17 +212,20 @@ import{E as ge,r as fe,d as xe,c as he,g as we,a as ve,b as ke,e as ye,f as Ce}f
   min-width: 1.35em;
   color: var(--wx-brand-accent, #ca6093);
   font-weight: 700;
-}`},{key:"divider",label:"分割线 (Divider)",icon:"➖",defaultPresetId:"hairline",presets:[{id:"hairline",name:"极细实线（默认）",description:"1px 浅灰色水平实线",css:`.milkdown .editor hr {
+}`},{key:"divider",label:"分割线 (Divider)",icon:"➖",defaultPresetId:"hairline",presets:[{id:"hairline",name:"极细实线（默认）",description:"1px 浅灰色水平实线",css:`.milkdown .editor hr,
+.milkdown .editor [data-wechat-node="divider"] {
   margin: 2.4em 0;
   width: 100%;
   border: none;
   border-top: 1px solid var(--wx-divider-color, #e2dcdf);
-}`},{id:"dashed",name:"极简虚线",description:"1px 虚线划分节奏",css:`.milkdown .editor hr {
+}`},{id:"dashed",name:"极简虚线",description:"1px 虚线划分节奏",css:`.milkdown .editor hr,
+.milkdown .editor [data-wechat-node="divider"] {
   margin: 2.4em 0;
   width: 100%;
   border: none;
   border-top: 1px dashed var(--wx-divider-color, #d4cecf);
-}`},{id:"short-center",name:"居中短呼吸线",description:"宽度 36%，居中呼吸线",css:`.milkdown .editor hr {
+}`},{id:"short-center",name:"居中短呼吸线",description:"宽度 36%，居中呼吸线",css:`.milkdown .editor hr,
+.milkdown .editor [data-wechat-node="divider"] {
   margin: 2.8em auto;
   width: 36%;
   border: none;

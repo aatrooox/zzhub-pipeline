@@ -51,7 +51,7 @@ Pipeline 需要 [Bun](https://bun.sh/) 运行。npm 可以安装包，但命令�
 
 ```bash
 # 从 npm 安装
-npm install -g @zzclub/pipeline
+npm install -g @akairos/pipeline
 
 # 或从源码运行
 git clone https://github.com/aatrooox/zzhub-pipeline.git

@@ -478,10 +478,16 @@ describe("formatArticle", () => {
     expect(result).toContain("使用 OpenClaw 的方法");
     // No heading numbers
     expect(result).not.toMatch(/## \d+\./);
-    // No horizontal rules
-    expect(result).not.toMatch(/^---$/m);
+    // Horizontal rules preserved by default for syntax divider styling
+    expect(result).toMatch(/^---$/m);
     // Compressed blank lines
     expect(result).not.toContain("\n\n\n\n");
+  });
+
+  test("removes horizontal rules when requested", () => {
+    const input = "# 1. 使用OpenClaw的方法\n---\nBody text";
+    const result = formatArticle(input, { removeHorizontalRules: true });
+    expect(result).not.toMatch(/^---$/m);
   });
 
   test("is idempotent", () => {

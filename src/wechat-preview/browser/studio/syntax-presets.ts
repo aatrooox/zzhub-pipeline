@@ -411,7 +411,8 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
         id: "hairline",
         name: "极细实线（默认）",
         description: "1px 浅灰色水平实线",
-        css: `.milkdown .editor hr {
+        css: `.milkdown .editor hr,
+.milkdown .editor [data-wechat-node="divider"] {
   margin: 2.4em 0;
   width: 100%;
   border: none;
@@ -422,7 +423,8 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
         id: "dashed",
         name: "极简虚线",
         description: "1px 虚线划分节奏",
-        css: `.milkdown .editor hr {
+        css: `.milkdown .editor hr,
+.milkdown .editor [data-wechat-node="divider"] {
   margin: 2.4em 0;
   width: 100%;
   border: none;
@@ -433,7 +435,8 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
         id: "short-center",
         name: "居中短呼吸线",
         description: "宽度 36%，居中呼吸线",
-        css: `.milkdown .editor hr {
+        css: `.milkdown .editor hr,
+.milkdown .editor [data-wechat-node="divider"] {
   margin: 2.8em auto;
   width: 36%;
   border: none;

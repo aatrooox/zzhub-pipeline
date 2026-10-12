@@ -581,17 +581,21 @@ export function extractHighlightWords(title: string): string[] {
  * 1. Fix CJK-ASCII spacing
  * 2. Downgrade H1 to H2
  * 3. Remove heading number prefixes
- * 4. Replace horizontal rules with blank lines
- * 5. Strip newspic pagination markers (【第N页】)
- * 6. Strip illustration markers ([插图1], [插图 1], 插图1, etc.)
- * 7. Compress consecutive blank lines (max 2)
+ * 4. Remove newspic pagination markers (【第N页】)
+ * 5. Remove illustration markers ([插图1], [插图 1], 插图1, etc.)
+ * 6. Compress consecutive blank lines (max 2)
  */
-export function formatArticle(body: string): string {
+export function formatArticle(
+  body: string,
+  options?: { removeHorizontalRules?: boolean },
+): string {
   let result = body;
   result = fixCjkSpacing(result);
   result = downgradeH1(result);
   result = removeHeadingNumbers(result);
-  result = removeHorizontalRules(result);
+  if (options?.removeHorizontalRules) {
+    result = removeHorizontalRules(result);
+  }
   result = removePageMarkers(result);
   result = removeIllustrationMarkers(result);
   result = compressBlankLines(result);

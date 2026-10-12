@@ -511,7 +511,7 @@ This also applies when `ensureBundle()` auto-builds on first export (if `manifes
 
 ## npm release workflow
 
-Package name: `@zzclub/pipeline`, `publishConfig.access` is `public`.
+Package name: `@akairos/pipeline`, `publishConfig.access` is `public`.
 
 `files` includes the source tree: `src/`.
 CLI entry: `src/cli.ts` (runs directly via Bun shebang).
