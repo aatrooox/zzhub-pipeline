@@ -461,6 +461,12 @@ describe("wechat-preview plugins system", () => {
     const mockImgParagraph: any = {
       tagName: "P",
       children: [mockImg],
+      childNodes: [mockImg],
+      parentElement: null,
+      removeChild: (c: any) => {
+        const idx = mockImgParagraph.childNodes.indexOf(c);
+        if (idx >= 0) mockImgParagraph.childNodes.splice(idx, 1);
+      },
     };
     mockImg.parentElement = mockImgParagraph;
 
@@ -485,6 +491,7 @@ describe("wechat-preview plugins system", () => {
         element.firstChild = element.childNodes[0];
       },
     };
+    mockImgParagraph.parentElement = element;
 
     articleCardWechatRenderer.prepare?.(element, { document: mockDocument } as any);
 

@@ -1,6 +1,6 @@
 {
-  "_wechat-renderer-B_XhVJHQ.js": {
-    "file": "assets/wechat-renderer-B_XhVJHQ.js",
+  "_wechat-renderer-B8-qqmjM.js": {
+    "file": "assets/wechat-renderer-B8-qqmjM.js",
     "name": "wechat-renderer"
   },
   "src/wechat-preview/browser/editor-export.ts": {
@@ -9,7 +9,7 @@
     "src": "src/wechat-preview/browser/editor-export.ts",
     "isEntry": true,
     "imports": [
-      "_wechat-renderer-B_XhVJHQ.js"
+      "_wechat-renderer-B8-qqmjM.js"
     ]
   },
   "src/wechat-preview/browser/studio/studio.html": {
@@ -18,7 +18,7 @@
     "src": "src/wechat-preview/browser/studio/studio.html",
     "isEntry": true,
     "imports": [
-      "_wechat-renderer-B_XhVJHQ.js"
+      "_wechat-renderer-B8-qqmjM.js"
     ]
   },
   "style.css": {

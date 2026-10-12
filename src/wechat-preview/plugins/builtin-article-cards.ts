@@ -145,14 +145,34 @@ export const articleCardWechatRenderer: WechatElementRenderer = {
     if (type === "author") {
       const img = element.querySelector("img");
       if (img) {
-        // Find avatar image and detach its parent paragraph if it only had the image
         const imgParent = img.parentElement;
+        if (imgParent) {
+          if (typeof (img as any).remove === "function") {
+            img.remove();
+          } else {
+            imgParent.removeChild(img);
+          }
+
+          // If imgParent was only containing whitespace or empty text, remove it from element
+          const hasRemainingContent = Array.from(imgParent.childNodes).some((child: any) => {
+            if (child.nodeType === 3 /* TEXT_NODE */) {
+              return Boolean(child.textContent?.trim());
+            }
+            if (child.tagName?.toLowerCase() === "br") return false;
+            return true;
+          });
+          if (!hasRemainingContent) {
+            if (typeof (imgParent as any).remove === "function") {
+              imgParent.remove();
+            } else if (imgParent.parentElement) {
+              imgParent.parentElement.removeChild(imgParent);
+            }
+          }
+        }
+
         const remainingNodes: any[] = [];
         for (let i = 0; i < element.childNodes.length; i++) {
-          const child = element.childNodes[i];
-          if (child !== imgParent) {
-            remainingNodes.push(child);
-          }
+          remainingNodes.push(element.childNodes[i]);
         }
 
         const row = context.document.createElement("section");
