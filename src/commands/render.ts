@@ -223,6 +223,7 @@ Options:
 
   // ── Invoke image renderer adapter ───────────────────────────────
 
+  try {
   const imageRenderer = await resolveImageRenderer(config);
   reportProgress({ stage: "render.adapter", message: "开始生成图片" });
 
@@ -293,10 +294,20 @@ Options:
       );
     });
   }
+  state.images.render_assets = routeAssets;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.phase.render = { status: "failed", error: message };
+    state.phase.current = "render";
+    state.mode = "failed";
+    await writeState(statePath, state);
+    const failure = error instanceof Error ? error : new Error(message);
+    failure.message += `\n渲染未完成，未发布；任务已停止。修复后执行 zzp reset --state "${statePath}" --mode render 再重试。`;
+    throw failure;
+  }
 
   // ── Update state ────────────────────────────────────────────────
 
-  state.images.render_assets = routeAssets;
   state.images.plan.status = "rendered";
   state.phase.render = { status: "done", error: null };
   state.phase.current = state.intent.requires.publish ? "publish" : "done";
@@ -308,7 +319,7 @@ Options:
 
   printResult({
     plan: state.images.plan,
-    render_assets: routeAssets,
+    render_assets: state.images.render_assets,
     render_version: state.artifacts.render_version,
     phase: state.phase.current,
   }, renderRender);

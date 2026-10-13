@@ -2,13 +2,11 @@
  * Adapter loader — resolves and validates rendering plugins.
  *
  * Priority:
- * 1. User-provided plugin (via config.plugins, loaded via dynamic import)
+ * 1. User-provided plugin (via config.plugins, executed in an isolated process)
  * 2. Built-in adapter (builtin-imgx / builtin-wechat-preview)
  */
 
 import type { PipelineConfig } from "./schema/config";
-import { isAbsolute, resolve } from "path";
-import { pathToFileURL } from "url";
 import type {
   ImageRenderPlugin,
   MarkdownRenderPlugin,
@@ -16,58 +14,13 @@ import type {
 } from "./adapter-types";
 import { builtinImageRenderer } from "./adapters/builtin-image-renderer";
 import { builtinMarkdownRenderer } from "./adapters/builtin-markdown-renderer";
-
-// ── Validation ───────────────────────────────────────────────────
-
-function validateImageRenderPlugin(plugin: unknown, specifier: string): ImageRenderPlugin {
-  if (!plugin || typeof plugin !== "object") {
-    throw new Error(`image renderer plugin "${specifier}" must export an object`);
-  }
-  const p = plugin as Record<string, unknown>;
-  if (typeof p.name !== "string" || !p.name) {
-    throw new Error(`image renderer plugin "${specifier}" must have a string "name" property`);
-  }
-  if (typeof p.render !== "function") {
-    throw new Error(`image renderer plugin "${specifier}" must have a "render" function`);
-  }
-  return plugin as ImageRenderPlugin;
-}
-
-function validateMarkdownRenderPlugin(plugin: unknown, specifier: string): MarkdownRenderPlugin {
-  if (!plugin || typeof plugin !== "object") {
-    throw new Error(`markdown renderer plugin "${specifier}" must export an object`);
-  }
-  const p = plugin as Record<string, unknown>;
-  if (typeof p.name !== "string" || !p.name) {
-    throw new Error(`markdown renderer plugin "${specifier}" must have a string "name" property`);
-  }
-  if (typeof p.render !== "function") {
-    throw new Error(`markdown renderer plugin "${specifier}" must have a "render" function`);
-  }
-  return plugin as MarkdownRenderPlugin;
-}
-
-// ── Dynamic import ───────────────────────────────────────────────
-
-async function importPlugin(specifier: string): Promise<unknown> {
-  try {
-    const importSpecifier = specifier.startsWith(".") || isAbsolute(specifier)
-      ? pathToFileURL(resolve(specifier)).href
-      : specifier;
-    const mod = await import(importSpecifier);
-    // Support both default exports and named `plugin` exports
-    return mod.default ?? mod.plugin ?? mod;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`failed to load plugin "${specifier}": ${message}`);
-  }
-}
+import { PluginDoctorSchema, PluginImageOutputSchema, PluginMarkdownOutputSchema, PluginMetadataSchema, runExternalPlugin } from "./plugin-runtime";
 
 // ── Public API ───────────────────────────────────────────────────
 
 /**
  * Resolve the image renderer plugin.
- * If config.plugins.imageRenderer is set, loads it via dynamic import.
+ * 配置外部插件时，加载与调用在子进程执行。
  * Otherwise returns the built-in imgx adapter.
  */
 export async function resolveImageRenderer(
@@ -76,8 +29,14 @@ export async function resolveImageRenderer(
   const specifier = config.plugins.imageRenderer;
 
   if (specifier && specifier.trim()) {
-    const mod = await importPlugin(specifier.trim());
-    return validateImageRenderPlugin(mod, specifier.trim());
+    const pluginPath = specifier.trim();
+    const metadata = await runExternalPlugin(pluginPath, "describe", PluginMetadataSchema);
+    return {
+      name: metadata.name,
+      version: metadata.version,
+      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema) } : {}),
+      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginImageOutputSchema, input, onProgress),
+    };
   }
 
   return builtinImageRenderer;
@@ -85,7 +44,7 @@ export async function resolveImageRenderer(
 
 /**
  * Resolve the markdown renderer plugin.
- * If config.plugins.markdownRenderer is set, loads it via dynamic import.
+ * 配置外部插件时，加载与调用在子进程执行。
  * Otherwise returns the built-in wechat-preview adapter.
  */
 export async function resolveMarkdownRenderer(
@@ -94,8 +53,15 @@ export async function resolveMarkdownRenderer(
   const specifier = config.plugins.markdownRenderer;
 
   if (specifier && specifier.trim()) {
-    const mod = await importPlugin(specifier.trim());
-    return validateMarkdownRenderPlugin(mod, specifier.trim());
+    const pluginPath = specifier.trim();
+    const metadata = await runExternalPlugin(pluginPath, "describe", PluginMetadataSchema);
+    return {
+      name: metadata.name,
+      version: metadata.version,
+      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema) } : {}),
+      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginMarkdownOutputSchema, input, onProgress,
+        input.timeoutMs && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0 ? input.timeoutMs + 10_000 : 120_000),
+    };
   }
 
   return builtinMarkdownRenderer;

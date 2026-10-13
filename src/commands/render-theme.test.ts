@@ -9,6 +9,7 @@ import { init } from "./init";
 import { ingestHandoff } from "./ingest-handoff";
 import { render } from "./render";
 import { configCommand } from "./config";
+import { getTaskByStatePath } from "../task-manager";
 
 let workspace: string;
 let previousConfig: string | undefined;
@@ -127,5 +128,28 @@ describe("cover CLI contract", () => {
     await expect(render(["--state", state.state_path])).rejects.toThrow("at least 3");
     expect((await readState(state.state_path)).phase.render.status).not.toBe("done");
     expect((await readState(state.state_path)).artifacts.render_version).toBe(0);
+    expect((await readState(state.state_path)).mode).toBe("failed");
+    expect((await getTaskByStatePath(state.state_path)).next_action.action).toBe("reset-or-repair");
+  });
+
+  test("plugin process exit stops the task and releases the lock for explicit retry", async () => {
+    const state = await preparedTask();
+    const pluginPath = join(workspace, "crash-plugin.mjs");
+    await writeFile(pluginPath, 'export default {name:"crash-plugin",render(){process.exit(42)}};');
+    const config = loadConfig();
+    config.plugins.imageRenderer = pluginPath;
+    saveConfig(config);
+    await expect(render(["--state", state.state_path])).rejects.toThrow("任务已停止");
+    const failed = await readState(state.state_path);
+    expect(failed.phase.render.status).toBe("failed");
+    expect(failed.phase.render.error).toContain("插件进程退出");
+    expect(failed.content_review.status).toBe("passed");
+    const { reset } = await import("./reset");
+    await reset(["--state", state.state_path, "--mode", "render"]);
+    config.plugins.imageRenderer = join(workspace, "repaired-plugin.mjs");
+    await writeFile(config.plugins.imageRenderer, 'import {writeFile} from "node:fs/promises"; import {join} from "node:path"; export default {name:"repaired",async render(input){const path=join(input.state.asset_path,"cover.png");await writeFile(path,"stub");return {assets:[{kind:"cover",route:input.route,path}],pageCount:1,pages:[]}}};');
+    saveConfig(config);
+    await render(["--state", state.state_path]);
+    expect((await readState(state.state_path)).phase.render.status).toBe("done");
   });
 });

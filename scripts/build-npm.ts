@@ -88,6 +88,10 @@ if (buildResult.exitCode !== 0) {
 }
 console.log("  → dist/cli.js");
 
+// 外部插件使用独立 Bun 进程，分发时携带执行入口。
+const pluginBuild = await Bun.build({ entrypoints: [join(ROOT, "src/plugin-runner.ts")], outdir: OUT, target: "bun" });
+if (!pluginBuild.success) throw new Error("Plugin runner build failed");
+
 // ── Step 3: Copy static assets ─────────────────────────────────
 
 console.log("\nStep 3: Copy static assets...");

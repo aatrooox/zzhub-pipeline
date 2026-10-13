@@ -160,6 +160,10 @@ Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸并�
 | **`@akairos/milkdown-article-plugins`** | Remark / Milkdown 全语法自定义解析与渲染插件 |
 | **`@akairos/typeset-studio`** | 微信大图头图、多比例排版与卡片视觉合成引擎 |
 
+配置在 `plugins.imageRenderer` / `plugins.markdownRenderer` 的外部插件在独立 Bun 子进程中加载和执行。加载与 doctor 默认上限为 10 秒，渲染为 120 秒；Markdown 渲染显式传入 `timeoutMs` 时，子进程上限额外预留 10 秒。可通过 `ZZHUB_PIPELINE_PLUGIN_TIMEOUT_MS` 覆盖调用上限。同步死循环、超时和异常退出会终止插件进程，非法返回值会给出 `PLUGIN_*` 错误，命令不会自动重试或静默切换模板。
+
+图片渲染失败后任务进入失败状态，保留正文与审核结果。修复插件后执行 `zzp reset --state <state_path> --mode render`，再继续任务；也可以将对应的 `plugins.*Renderer` 配置设为 `null` 使用内置渲染器。外部插件通过 `onProgress` 回传进度，不应依赖修改输入对象或跨调用保存内存状态。子进程继承当前环境和文件权限，这一机制负责故障隔离，不是权限沙箱。
+
 ### 推进一个发布任务
 
 Pipeline 每次只推进一个动作。创建任务后，反复执行 `status`，按照返回的 `next_action` 继续；不要直接修改 `workflow-state.json`。
