@@ -452,7 +452,8 @@ const linkRenderer: WechatElementRenderer = {
     element.after(marker);
   },
   finalize(element) {
-    if (element.dataset.wechatNode === "external-link") replaceTag(element, "span");
+    // 微信草稿拒绝文内锚点，保留链接文字与排版。
+    if (element.dataset.wechatNode === "external-link" || element.getAttribute("href")?.startsWith("#")) replaceTag(element, "span");
   },
 };
 

@@ -144,6 +144,8 @@ window.__zzhubRenderReady = (async () => {
     expect(html).toContain("[1] 外部链接: https://example.com/reading-guide?from=wechat");
     expect(html).toContain("[2] 资料链接: https://example.org/reference");
     expect(html).toContain("相关链接");
+    expect(html).toContain("文内链接</span>");
+    expect(html).not.toMatch(/<a\b[^>]*href="#/);
     expect(html).toMatch(/color: (?:#123456|rgb\(18, 52, 86\))/);
     expect(html).toMatch(/color: (?:#224466|rgb\(34, 68, 102\))/);
     expect(html).toMatch(/background-color: (?:#abcdef|rgb\(171, 205, 239\))/);
