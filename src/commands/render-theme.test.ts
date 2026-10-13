@@ -103,6 +103,35 @@ describe("cover CLI contract", () => {
     expect((await readState(state.state_path)).images.plan.cover_theme).toBe("minimal");
   });
 
+  test("persists Studio template selections and image replacements independently of body images", async () => {
+    const state = await preparedTask();
+    const pluginPath = join(workspace, "studio-probe.mjs");
+    await writeFile(pluginPath, 'import {writeFile} from "node:fs/promises"; import {join} from "node:path"; export default {name:"studio-probe",async render(input){await writeFile(join(input.state.asset_path,"received.json"),JSON.stringify(input));const path=join(input.state.asset_path,"cover.png");await writeFile(path,"stub");return {assets:[{kind:"cover",route:input.route,path}],pageCount:1,pages:[]}}};');
+    const config = loadConfig();
+    config.plugins.imageRenderer = pluginPath;
+    saveConfig(config);
+    const mappingPath = join(workspace, "images.json");
+    await writeFile(mappingPath, JSON.stringify({ cover: { background: "replacement.png" }, content: { logo: "https://example.com/logo.png" } }));
+    await render(["--state", state.state_path, "--studio-cover-template", "封面模板", "--studio-content-template", "正文模板", "--template-images-file", mappingPath]);
+    let received = JSON.parse(await readFile(join(state.asset_path, "received.json"), "utf8"));
+    expect(received.studioTemplates).toEqual({ cover: "封面模板", content: "正文模板" });
+    expect(received.templateImageOverrides).toEqual({ cover: { background: join(workspace, "replacement.png") }, content: { logo: "https://example.com/logo.png" } });
+    expect(received.bodyImages).toEqual([]);
+    const persisted = (await readState(state.state_path)).intent.studio_render;
+    expect(persisted?.templates?.cover).toBe("封面模板");
+    await render(["--state", state.state_path]);
+    received = JSON.parse(await readFile(join(state.asset_path, "received.json"), "utf8"));
+    expect(received.templateImageOverrides).toEqual(persisted?.image_overrides);
+    await writeFile(mappingPath, "{}");
+    await render(["--state", state.state_path, "--studio-cover-template", "", "--template-images-file", mappingPath]);
+    received = JSON.parse(await readFile(join(state.asset_path, "received.json"), "utf8"));
+    expect(received.studioTemplates).toEqual({ content: "正文模板" });
+    expect(received.templateImageOverrides).toEqual({});
+    expect((await readState(state.state_path)).content_review.status).toBe("passed");
+    await writeFile(mappingPath, JSON.stringify({ cover: { background: 123 } }));
+    await expect(render(["--state", state.state_path, "--template-images-file", mappingPath])).rejects.toThrow();
+  });
+
   test("config import merges one theme and schema works even with a broken config file", async () => {
     const path = join(workspace, "import.json");
     await writeFile(path, JSON.stringify({ render: { cover: { themes: { business: { colors: { accent: "#135790" } } } } } }));

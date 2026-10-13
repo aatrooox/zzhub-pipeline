@@ -30,6 +30,9 @@ export interface PipelinePluginDoctorCheck {
  */
 export interface ImageRenderInput {
   /** 已解析的封面主题；旧插件可忽略。 */
+  /** Studio 模板与任务素材替换，旧插件可忽略。 */
+  studioTemplates?: { cover?: string; content?: string };
+  templateImageOverrides?: { cover?: Record<string, string>; content?: Record<string, string> };
   coverTheme?: ResolvedCoverTheme;
   /** 可选进度通知，旧插件可忽略。 */
   onProgress?: (progress: MonitorProgress) => void;

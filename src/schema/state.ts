@@ -299,6 +299,15 @@ const HandoffSchema = withObjectDefault(
   }),
 );
 
+// Studio 专属参数与正文配图分开保存，旧任务不需要迁移。
+export const StudioRenderSchema = z.object({
+  templates: z.object({ cover: z.string().trim().min(1).optional(), content: z.string().trim().min(1).optional() }).strict().optional(),
+  image_overrides: z.object({
+    cover: z.record(z.string().regex(/^[a-zA-Z0-9_-]+$/), z.string().trim().min(1)).optional(),
+    content: z.record(z.string().regex(/^[a-zA-Z0-9_-]+$/), z.string().trim().min(1)).optional(),
+  }).strict().optional(),
+}).strict();
+
 const IntentSchema = withObjectDefault(
   z.object({
     task_kind: TaskKindSchema,
@@ -312,6 +321,7 @@ const IntentSchema = withObjectDefault(
       .transform((arr) => arr.filter((s) => s.trim().length > 0)),
     style_hint: z.string().nullable().default(null),
     cover_theme: z.string().trim().min(1).nullable().default(null),
+    studio_render: StudioRenderSchema.optional(),
     article_theme: z.string().nullable().optional(),
     newspic_render: NewspicRenderSpecSchema.nullable().default(null),
     // 用户确认的贴图副本文件，正文不进入状态文件。

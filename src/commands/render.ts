@@ -15,7 +15,8 @@
  */
 
 import { access, readFile } from "fs/promises";
-import { join } from "path";
+import { dirname, isAbsolute, join, resolve } from "path";
+import { StudioRenderSchema } from "../schema/state";
 
 import { parseArgs, requireArg, flagArg } from "../args";
 import { printResult, renderRender } from "../output";
@@ -64,6 +65,9 @@ Options:
   --state        Path to state JSON (required)
   --skip-render  Plan only, don't invoke renderer (optional)
   --cover-theme  Cover theme ID; saves the task choice (optional)
+  --studio-cover-template  Studio cover template ID/name; empty resets to slot default
+  --studio-content-template  Studio content template ID/name; empty resets to slot default
+  --template-images-file  JSON with cover/content asset-key -> image reference mappings
 `.trim());
     return;
   }
@@ -104,6 +108,33 @@ Options:
   if (requestedTheme !== undefined && requestedTheme !== state.intent.cover_theme) {
     if (!coverTheme) throw new Error("blog 路由不需要封面主题");
     state.intent.cover_theme = requestedTheme;
+    reenterRender(state);
+    await writeState(statePath, state);
+  }
+
+  // 任务级模板替换独立于正文配图，空映射文件用于清除覆盖。
+  const studioRender = structuredClone(state.intent.studio_render || {});
+  for (const [flag, kind] of [["studio-cover-template", "cover"], ["studio-content-template", "content"]] as const) {
+    if (parsed[flag] === undefined) continue;
+    const selected = requireArg(parsed, flag, "Studio template ID/name").trim();
+    studioRender.templates ||= {};
+    if (selected) studioRender.templates[kind] = selected;
+    else delete studioRender.templates[kind];
+  }
+  if (parsed["template-images-file"] !== undefined) {
+    const mappingPath = resolve(requireArg(parsed, "template-images-file", "template image mapping JSON"));
+    const raw: unknown = JSON.parse(await readFile(mappingPath, "utf8"));
+    const mappings = StudioRenderSchema.shape.image_overrides.unwrap().parse(raw);
+    for (const mapping of Object.values(mappings)) {
+      for (const [key, src] of Object.entries(mapping || {})) {
+        if (!/^(https?:|data:)/i.test(src) && !isAbsolute(src)) mapping![key] = resolve(dirname(mappingPath), src);
+      }
+    }
+    studioRender.image_overrides = mappings;
+  }
+  const validatedStudioRender = StudioRenderSchema.parse(studioRender);
+  if (JSON.stringify(validatedStudioRender) !== JSON.stringify(state.intent.studio_render || {})) {
+    state.intent.studio_render = validatedStudioRender;
     reenterRender(state);
     await writeState(statePath, state);
   }
@@ -237,6 +268,8 @@ Options:
   const branding = resolveRenderBranding(config, state.route.account);
   const renderResult = await imageRenderer.render({
     coverTheme,
+    studioTemplates: state.intent.studio_render?.templates,
+    templateImageOverrides: state.intent.studio_render?.image_overrides,
     onProgress: reportProgress,
     state,
     bodyText: cleanBody,

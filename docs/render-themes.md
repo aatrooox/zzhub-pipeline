@@ -127,3 +127,33 @@ bun run src/cli.ts render --state /path/to/workflow-state.json --cover-theme min
 正文、列表和引用默认 40px / 64px，三级标题依次为 56/72、50/66、44/60px。强调在分页前解析，使用 pretext 0.0.8 的 rich-inline 测量，最终按相同字体、行高和片段绘制。每页左下显示一次账号署名，右下显示正文页码。
 
 `pagination_mode: multi` 不依赖逐页规则是否存在。自动分页保留段落与标题关联；填充率为软目标，最大页数不足时会尝试使用完整可用高度，仍不够则报告所需页数。最少页数无法满足时也会终止并说明原因，不缩小正文字号或扩展画布。正文页数不包含单独的封面，单图模式仍返回一张封面。
+
+## Studio 模板与固定素材
+
+使用 Typeset Studio 插件时，Studio 模板决定字体、配色、排版和图片布局；本页的 pipeline 封面主题、账号配色与字体不会覆盖有效的 Studio 模板。模板选择顺序为任务指定的封面／正文模板、兼容旧调用的具体模板名、当前账号的用途槽位默认模板。`wechat-cover-split`、`poster-3-4`、`longform-3-4` 继续作为模式标记。
+
+```bash
+zzp render --state /absolute/path/workflow-state.json \
+  --studio-cover-template tpl_my_cover \
+  --studio-content-template tpl_my_content \
+  --template-images-file /absolute/path/template-images.json
+```
+
+映射文件按封面、正文分别填写素材标识：
+
+```json
+{
+  "cover": { "background": "./new-background.png" },
+  "content": { "logo": "https://example.com/logo.png" }
+}
+```
+
+这三个参数保存为可选的 `intent.studio_render.templates` 和 `intent.studio_render.image_overrides`，重跑任务自动复用。模板参数传空字符串（如 `--studio-cover-template ""`）恢复槽位默认；映射文件整体替换任务原映射，`{}` 清除全部替换。相对文件路径按映射文件目录解析为绝对路径。配置变化复用 `reenterRender`，保留已审核正文。
+
+插件接收可选的 `ImageRenderInput.studioTemplates` 和 `ImageRenderInput.templateImageOverrides`，二者均按 `cover/content` 区分。其他插件可忽略，旧任务无需迁移。固定素材不进入 `bodyImages`、正文配图等待或标记过滤流程，也不计入插件返回的正文配图摘要；固定背景无法满足“每页必须有正文配图”的要求。
+
+在 Studio 图片卡片中将背景或 Logo 标记为“固定模板素材”后，普通配图不会替换它；只有匹配标识的任务映射会改变来源，尺寸、位置、透明度和层级沿用模板。未开启“每页重复”时按最终页码放置，开启后覆盖该模板的所有生成页，包括续页。未知标识、重复标识或缺失固定素材会终止渲染并报错。
+
+模板保存文件引用，不嵌入素材。`/uploads/...` 使用实际渲染方的 `TYPESET_DATA_DIR`；本地插件与编辑器应共享目录。远程调用会传输本次替换的本地文件，但原模板素材需要在服务端存在或使用可访问的 URL。
+
+本功能尚未随 Typeset Studio npm 包发布。本地联调可将 `plugins.imageRenderer` 指向同级仓库的 `src/adapter.ts` 或构建后的 `dist/lib/adapter.js`。仅更新 pipeline CLI 不会更新已安装的 Studio 插件。
