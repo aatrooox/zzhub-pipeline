@@ -7,7 +7,7 @@
       "dependencies": {
         "@akairos/milkdown-article-plugins": "^0.1.3",
         "@akairos/milkdown-article-style": "^0.1.1",
-        "@akairos/typeset-studio": "0.2.2",
+        "@akairos/typeset-studio": "0.2.5",
         "@chenglou/pretext": "0.0.8",
         "image-size": "^2.0.2",
         "pngjs": "^7.0.0",
@@ -34,7 +34,7 @@
 
     "@akairos/milkdown-article-style": ["@akairos/milkdown-article-style@0.1.1", "", {}, "sha512-vjmvOLww2KT8Y4pge4IksZZE8UsWDAGeq0Z7yCY9h5Ta7vCmwf6eOxTmv7qUkOvp6Ll/sUplrKFJTxe53E+/Qg=="],
 
-    "@akairos/typeset-studio": ["@akairos/typeset-studio@0.2.2", "", { "dependencies": { "@chenglou/pretext": "^0.0.8", "@napi-rs/canvas": "^1.0.10", "hono": "^4.7.4", "lucide-react": "^1.16.0", "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-r8Iv4yBIV09bbaUQLy0Szgr7wGhoQ4tpcgyNJsuUuqzGwLgaf6H+FGeyi1/jMN8Qf2MV4L1rarmx6AxNHWXJjQ=="],
+    "@akairos/typeset-studio": ["@akairos/typeset-studio@0.2.5", "", { "dependencies": { "@chenglou/pretext": "^0.0.8", "@napi-rs/canvas": "^1.0.10", "hono": "^4.7.4", "lucide-react": "^1.16.0", "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-qvzU88HHygwT1ycNjQaia1PPYYmyapiAVzbDOJ4gFMO3ZgkTJkE0idx9Ces3dtyCZgBRM9BAG77YKq1gm6wzSQ=="],
 
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.27.1", "", {}, "sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA=="],
 

@@ -138,10 +138,19 @@ const CosConfigSchema = withObjectDefault(
   }),
 );
 
+/** 插件入口兼容旧字符串，专属参数由插件解释。 */
+const RendererPluginConfigSchema = z.union([
+  z.string(),
+  z.object({
+    module: z.string().trim().min(1),
+    options: z.record(z.string(), z.unknown()).default({}),
+  }).strict(),
+]).nullable().default(null);
+
 const PluginsConfigSchema = withObjectDefault(
   z.object({
-    imageRenderer: z.string().nullable().default(null),
-    markdownRenderer: z.string().nullable().default(null),
+    imageRenderer: RendererPluginConfigSchema,
+    markdownRenderer: RendererPluginConfigSchema,
   }),
 );
 

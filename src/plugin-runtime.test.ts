@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { resolveImageRenderer, resolveMarkdownRenderer, runPluginDoctorChecks } from "./adapter-loader";
 import { PluginImageOutputSchema, runExternalPlugin } from "./plugin-runtime";
 import { PipelineConfigSchema } from "./schema/config";
+import { getPipelineConfigPath } from "./config";
 import { defaultState } from "./state";
 
 let directory: string;
@@ -42,6 +43,76 @@ test("external plugins cannot mutate caller state and progress remains observabl
   expect(await plugin.render({ ...request, onProgress: item => { progress.push(item.stage); throw new Error("observer failed"); } })).toEqual({ assets: [], pageCount: 0, pages: [] });
   expect(request.state.mode).not.toBe("done");
   expect(progress).toEqual(["render.plugin"]);
+});
+
+test("Studio uses its shared data directory and local methods without service authentication", async () => {
+  const variables = ["TYPESET_DATA_DIR", "TYPESET_STUDIO_URL", "TYPESET_ADMIN_KEY"] as const;
+  const previous = Object.fromEntries(variables.map(key => [key, process.env[key]]));
+  try {
+    delete process.env.TYPESET_DATA_DIR;
+    process.env.TYPESET_STUDIO_URL = "https://standalone-studio.example.com";
+    process.env.TYPESET_ADMIN_KEY = "standalone-service-key";
+    const pluginPath = join(directory, "studio-env.mjs");
+    await writeFile(pluginPath, `
+      const values = [process.env.TYPESET_DATA_DIR, process.env.TYPESET_STUDIO_URL, process.env.TYPESET_ADMIN_KEY];
+      export default {
+        name: "typeset-studio",
+        async doctor() { return [{name:"studio-env", ok:true, detail:values}]; },
+        async render() { return {assets:[], pageCount:1, pages:[{page:1, imageCount:0, imageSources:values}]}; },
+      };
+    `);
+    const config = PipelineConfigSchema.parse({ plugins: {
+      imageRenderer: { module: pluginPath, options: { dataDir: "studio-data" } },
+    } });
+    const expected = [resolve(dirname(getPipelineConfigPath()), "studio-data"), "", ""];
+    const plugin = await resolveImageRenderer(config);
+    expect((await plugin.doctor!())[0].detail).toEqual(expected);
+    expect((await plugin.render(input())).pages[0].imageSources).toEqual(expected);
+    expect(process.env.TYPESET_DATA_DIR).toBeUndefined();
+    expect(process.env.TYPESET_STUDIO_URL).toBe("https://standalone-studio.example.com");
+    expect(process.env.TYPESET_ADMIN_KEY).toBe("standalone-service-key");
+
+    process.env.TYPESET_DATA_DIR = directory;
+    const overridden = await resolveImageRenderer(config);
+    expect((await overridden.render(input())).pages[0].imageSources).toEqual([directory, "", ""]);
+    await expect(resolveImageRenderer(PipelineConfigSchema.parse({ plugins: {
+      imageRenderer: { module: pluginPath, options: { dataDir: 42 } },
+    } }))).rejects.toThrow("options.dataDir");
+  } finally {
+    for (const key of variables) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
+test("image plugins receive their own options in doctor and render without mutating config", async () => {
+  const pluginPath = await fixture(`
+    const label = arguments[1].rules.label;
+    arguments[1].rules.label = "changed";
+    input.onProgress({stage:"render.options"});
+    return {assets:[], pageCount:1, pages:[{page:1, imageCount:0, imageSources:[label]}]};
+  `, 'async doctor(options){return [{name:"options", ok:true, detail:options}]},');
+  const config = PipelineConfigSchema.parse({ plugins: {
+    imageRenderer: { module: pluginPath, options: { rules: { label: "image-rule" }, enabled: true } },
+  } });
+  const plugin = await resolveImageRenderer(config);
+  const progress: string[] = [];
+  expect((await plugin.doctor!())[0].detail).toEqual({ rules: { label: "image-rule" }, enabled: true });
+  expect((await plugin.render({ ...input(), onProgress: item => progress.push(item.stage) })).pages[0].imageSources).toEqual(["image-rule"]);
+  expect(config.plugins.imageRenderer).toEqual({ module: pluginPath, options: { rules: { label: "image-rule" }, enabled: true } });
+  expect(progress).toEqual(["render.options"]);
+});
+
+test("markdown plugins receive their own options in doctor and render", async () => {
+  const pluginPath = await fixture('return {html:arguments[1].html, htmlPath:input.outPath, account:input.account, previewStyle:"options"}',
+    'async doctor(options){return [{name:"options", ok:true, detail:options}]},');
+  const options = { html: "<p>configured</p>", rules: { numbered: false } };
+  const plugin = await resolveMarkdownRenderer(PipelineConfigSchema.parse({ plugins: {
+    markdownRenderer: { module: pluginPath, options },
+  } }));
+  expect((await plugin.doctor!())[0].detail).toEqual(options);
+  expect((await plugin.render({ markdownPath: join(directory, "post.md"), outPath: join(directory, "post.html"), account: "default" })).html).toBe(options.html);
 });
 
 test("reports thrown errors, process exits, and invalid image results without escaping the parent", async () => {

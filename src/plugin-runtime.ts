@@ -51,6 +51,7 @@ export async function runExternalPlugin<T>(
   action: "describe" | "doctor" | "render",
   schema: z.ZodType<T>,
   input?: Record<string, unknown>,
+  configuration: { options?: Record<string, unknown>; environment?: Record<string, string> } = {},
   onProgress?: (progress: MonitorProgress) => void,
   defaultTimeoutMs = action === "render" ? 120_000 : 10_000,
 ): Promise<T> {
@@ -80,12 +81,12 @@ export async function runExternalPlugin<T>(
       child = Bun.spawn({
         cmd: [resolveBunBinary(), runner], stdin: "ignore", stdout: "ignore", stderr: "pipe",
         detached: process.platform !== "win32",
-        env: { ...process.env, ZZHUB_PIPELINE_MONITOR: "0" },
+        env: { ...process.env, ...configuration.environment, ZZHUB_PIPELINE_MONITOR: "0" },
         ipc(message, processHandle) {
           if (settled || !message || typeof message !== "object") return;
           try {
           if (message.type === "ready") {
-            processHandle.send({ specifier: importSpecifier, action, input });
+            processHandle.send({ specifier: importSpecifier, action, input, options: configuration.options ?? {} });
           } else if (message.type === "progress") {
             const progress = ProgressSchema.safeParse(message.value);
             if (progress.success) notifyProgress(onProgress, progress.data);

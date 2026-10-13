@@ -1,5 +1,5 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { executeCloudJob } from "./pipeline";
 import { cloudJobProgress } from "./progress";
@@ -15,6 +15,9 @@ const store = new JobStore(workerStateFile);
 const accounts = new AccountStore(resolve(process.env.PIPELINE_WORKER_ACCOUNT_STATE_FILE?.trim() || `${dirname(workerStateFile)}/accounts.json`));
 const queue: string[] = [];
 let draining = false;
+// 维护标记持久化，重建容器后验收完成前仍拒绝新任务。
+const maintenanceFile = `${workerStateFile}.maintenance.json`;
+let maintenance = false;
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -133,6 +136,10 @@ async function main(): Promise<void> {
   await mkdir(workspaceRoot, { recursive: true });
   await store.load();
   await accounts.load();
+  maintenance = JSON.parse(await readFile(maintenanceFile, "utf8").catch(error => {
+    if (error.code === "ENOENT") return "false";
+    throw error;
+  })) === true;
   for (const job of store.jobs.values()) {
     if (job.status === "queued") queue.push(job.id);
   }
@@ -146,9 +153,18 @@ async function main(): Promise<void> {
       if (!bearerMatches(request))
         return json({ error: "unauthorized" }, 401);
       if (url.pathname === "/health" && request.method === "GET")
-        return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size });
+        return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size, maintenance });
 
       try {
+        if (url.pathname === "/v1/maintenance" && request.method === "PUT") {
+          const input = await request.json();
+          if (typeof input?.enabled !== "boolean") return json({ error: "enabled must be a boolean" }, 400);
+          const temporary = `${maintenanceFile}.tmp`;
+          await writeFile(temporary, JSON.stringify(input.enabled), { mode: 0o600 });
+          await rename(temporary, maintenanceFile);
+          maintenance = input.enabled;
+          return json({ maintenance, queued: queue.length, running: draining });
+        }
         const accountMatch = url.pathname.match(/^\/v1\/accounts\/([^/]+)$/);
         if (accountMatch && request.method === "PUT") {
           const input = validateAccount(await request.json(), accountMatch[1]);
@@ -169,6 +185,7 @@ async function main(): Promise<void> {
             return json({ error: "idempotency_conflict" }, 409);
           if (existing)
             return json(await publicJob(existing), 200);
+          if (maintenance) return json({ error: "worker_maintenance" }, 503);
           const now = new Date().toISOString();
           const job: StoredCloudJob = {
             id: randomUUID(),

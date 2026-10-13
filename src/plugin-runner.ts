@@ -1,7 +1,7 @@
 import type { MonitorProgress } from "./monitor/types";
 
 /** 子进程只执行一次插件调用，进度与结果通过 IPC 返回。 */
-process.on("message", async (request: { specifier: string; action: "describe" | "doctor" | "render"; input?: Record<string, unknown> }) => {
+process.on("message", async (request: { specifier: string; action: "describe" | "doctor" | "render"; input?: Record<string, unknown>; options?: Record<string, unknown> }) => {
   try {
     const module = await import(request.specifier);
     const plugin = module.default ?? module.plugin ?? module;
@@ -20,8 +20,8 @@ process.on("message", async (request: { specifier: string; action: "describe" | 
     const value = request.action === "describe"
       ? { name: plugin.name, version: plugin.version, hasDoctor: typeof plugin.doctor === "function" }
       : request.action === "doctor"
-        ? await plugin.doctor()
-        : await plugin.render({ ...request.input, onProgress });
+        ? await plugin.doctor(request.options)
+        : await plugin.render({ ...request.input, onProgress }, request.options);
     process.send?.({ type: "result", value });
   } catch (error) {
     process.send?.({ type: "error", message: error instanceof Error ? error.message : String(error) });

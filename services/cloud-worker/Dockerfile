@@ -10,6 +10,8 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .
+# 镜像构建时固定正文导出资源，避免生产首个任务临时构建。
+RUN bun run build:wechat-preview
 
 ENV NODE_ENV=production \
     PIPELINE_WORKER_HOST=127.0.0.1 \

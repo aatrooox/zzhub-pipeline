@@ -7,6 +7,7 @@
  */
 
 import type { PipelineConfig } from "./schema/config";
+import { resolveConfigRelativePath } from "./config";
 import type {
   ImageRenderPlugin,
   MarkdownRenderPlugin,
@@ -26,16 +27,30 @@ import { PluginDoctorSchema, PluginImageOutputSchema, PluginMarkdownOutputSchema
 export async function resolveImageRenderer(
   config: PipelineConfig,
 ): Promise<ImageRenderPlugin> {
-  const specifier = config.plugins.imageRenderer;
+  const entry = config.plugins.imageRenderer;
+  const specifier = typeof entry === "string" ? entry : entry?.module;
 
   if (specifier && specifier.trim()) {
     const pluginPath = specifier.trim();
+    const options = typeof entry === "object" && entry ? entry.options : {};
+    const environment: Record<string, string> = {};
     const metadata = await runExternalPlugin(pluginPath, "describe", PluginMetadataSchema);
+    // 兼容仍从环境变量读取目录的 Studio npm 适配器。
+    if (metadata.name === "typeset-studio") {
+      if (options.dataDir != null && typeof options.dataDir !== "string") {
+        throw new Error("Typeset Studio options.dataDir 必须是目录字符串或 null");
+      }
+      const dataDir = process.env.TYPESET_DATA_DIR?.trim() || resolveConfigRelativePath(options.dataDir as string | null | undefined);
+      if (dataDir) environment.TYPESET_DATA_DIR = dataDir;
+      environment.TYPESET_STUDIO_URL = "";
+      environment.TYPESET_ADMIN_KEY = "";
+    }
+    const configuration = { options, environment };
     return {
       name: metadata.name,
       version: metadata.version,
-      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema) } : {}),
-      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginImageOutputSchema, input, onProgress),
+      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema, undefined, configuration) } : {}),
+      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginImageOutputSchema, input, configuration, onProgress),
     };
   }
 
@@ -50,16 +65,18 @@ export async function resolveImageRenderer(
 export async function resolveMarkdownRenderer(
   config: PipelineConfig,
 ): Promise<MarkdownRenderPlugin> {
-  const specifier = config.plugins.markdownRenderer;
+  const entry = config.plugins.markdownRenderer;
+  const specifier = typeof entry === "string" ? entry : entry?.module;
 
   if (specifier && specifier.trim()) {
     const pluginPath = specifier.trim();
+    const options = typeof entry === "object" && entry ? entry.options : {};
     const metadata = await runExternalPlugin(pluginPath, "describe", PluginMetadataSchema);
     return {
       name: metadata.name,
       version: metadata.version,
-      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema) } : {}),
-      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginMarkdownOutputSchema, input, onProgress,
+      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema, undefined, { options }) } : {}),
+      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginMarkdownOutputSchema, input, { options }, onProgress,
         input.timeoutMs && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0 ? input.timeoutMs + 10_000 : 120_000),
     };
   }

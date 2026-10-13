@@ -164,6 +164,54 @@ Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸并�
 
 图片渲染失败后任务进入失败状态，保留正文与审核结果。修复插件后执行 `zzp reset --state <state_path> --mode render`，再继续任务；也可以将对应的 `plugins.*Renderer` 配置设为 `null` 使用内置渲染器。外部插件通过 `onProgress` 回传进度，不应依赖修改输入对象或跨调用保存内存状态。子进程继承当前环境和文件权限，这一机制负责故障隔离，不是权限沙箱。
 
+### 插件入口与专属配置
+
+`plugins.imageRenderer` 与 `plugins.markdownRenderer` 都支持 `{ "module": "包名或文件路径", "options": {} }`。`module` 指定适配器入口，`options` 保存该插件的详细规则，可包含嵌套对象和数组；pipeline 校验入口结构，将参数传给插件的 `doctor(options)` 和 `render(input, options)`，参数含义与业务校验由插件负责。两个渲染器分别接收自己的参数。
+
+旧的字符串入口继续有效，等同于没有配置专属参数；`null` 使用内置渲染器。`zzp config --import` 中的渲染器条目整体替换原条目，只改一个参数时使用 `--key plugins.imageRenderer.options.<参数名>`。
+
+### Typeset Studio 插件配置
+
+Pipeline 已通过 npm 依赖 `@akairos/typeset-studio`。在本地配置文件启用适配器，并指定与 Studio 编辑器共用的数据目录：
+
+```json
+{
+  "plugins": {
+    "imageRenderer": {
+      "module": "@akairos/typeset-studio/adapter",
+      "options": {
+        "dataDir": "/absolute/path/typeset-studio/data"
+      }
+    }
+  }
+}
+```
+
+保存上述入口后，也可使用 `zzp config --key plugins.imageRenderer.options.dataDir --value /absolute/path/typeset-studio/data` 更新目录。相对目录按 pipeline 配置文件所在目录解析。当前 Studio npm 适配器仍从环境变量读取目录，pipeline 将该参数兼容传为插件子进程的 `TYPESET_DATA_DIR`，已有非空 `TYPESET_DATA_DIR` 优先，不修改主进程环境。
+
+插件在 Bun 子进程内直接导入 npm 适配器并调用内部排版和 Canvas 方法，不请求 Studio HTTP 服务，也不需要管理员密钥。子进程用于超时与故障隔离。pipeline 调用时屏蔽 Studio 适配器的远程地址和密钥环境变量，保证使用本地渲染。只有单独启动 Studio HTTP 服务时需要配置服务鉴权。
+
+Studio 模板与 pipeline 配置分开保存：`data/templates/*.json` 保存模板，`data/default-template.json` 保存全局及账号槽位，`data/uploads/` 保存上传图片。请使用包目录之外的持久化目录，避免重新安装包影响自己的数据。在服务器运行 pipeline 时，同样通过 npm 插件直接渲染，将上述文件同步到服务器，并让 `plugins.imageRenderer.options.dataDir` 指向该目录即可；只传模板 JSON 不会迁移 `/uploads/...` 图片。
+
+固定素材的 `templateAssetKey` 是模板内的替换标识，图片来源仍是 `images[].src`。支持可访问的 HTTP/HTTPS URL、本地文件及 `/uploads/...` 引用。使用 `/uploads/...` 时应连同 `uploads/` 目录原文件名一起同步；绝对路径应改为服务器可用路径，或把素材上传到 COS/CDN 后使用稳定 HTTPS URL。编辑器预览远程图片还需要图片服务允许跨域读取。
+
+**版本边界（2026-10-13）：** 当前固定依赖为 `@akairos/typeset-studio@0.2.5`，已包含固定素材、`studioTemplates`、`templateImageOverrides` 和共享数据目录支持。模板与素材不打进 npm 包，生产环境通过运行时配置包提供。源码适配器路径仅用于本地联调，正式 Worker 使用 npm 入口。
+
+### 生成 Worker 运行时配置包
+
+模板和 Markdown 账号样式可以一起生成一个不含密钥的运行时包：
+
+```bash
+zzp typeset-assets-sync --dry-run
+zzp typeset-assets-sync --output ./pipeline-runtime
+# 云端账号键与本机不同：仅将样式和默认槽位映射到目标账号，不传凭据
+zzp typeset-assets-sync --output ./pipeline-runtime --account-map '{"default":"WORKER_ACCOUNT_KEY"}'
+```
+
+命令扫描模板引用的本地文件和 Base64 图片，使用现有 COS 配置上传；图片 URL 验证成功后，备份并回写模板，再生成带逐文件 SHA-256 的 `manifest.json`、`pipeline.patch.json`、`typeset-studio/` 和 `markdown/`。上传记录按目标和图片内容保存，重复执行复用成功上传；本地原图保留。上传或校验失败保留模板和旧输出包，上传期间的模板修改会触发冲突提示。`--template` 仅限制本次素材迁移范围，输出仍包含全部模板；其他模板存在未迁移素材时拒绝生成不完整包。
+
+配置包只包含插件入口、Studio 容器路径和账号主题/CSS/文章模板路径，不包含微信凭据、COS PAT 或 Worker token。账号的 `customCss`、`articleTheme` 为 null 时会清除服务器旧引用。服务器用 `nezus-infra` 的 `sync pipeline-runtime` 命令校验文件清单、合并排版白名单并备份切换；镜像与 npm 依赖继续固定版本部署。
+
 ### 推进一个发布任务
 
 Pipeline 每次只推进一个动作。创建任务后，反复执行 `status`，按照返回的 `next_action` 继续；不要直接修改 `workflow-state.json`。

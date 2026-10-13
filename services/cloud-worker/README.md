@@ -84,12 +84,15 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 | 方法与路径 | 行为 |
 | --- | --- |
 | `GET /health` | 返回服务状态、排队数、是否正在处理队列及已同步账号数 |
+| `PUT /v1/maintenance` | `{ "enabled": true/false }` 暂停或恢复接收新任务；已有任务继续，重复幂等请求仍返回原任务 |
 | `PUT /v1/accounts/:account` | 创建或替换公众号凭据，返回账号键和 `active` |
 | `DELETE /v1/accounts/:account` | 删除同步的凭据，返回 `deleted`；不删除微信草稿 |
 | `POST /v1/jobs` | 新任务返回 `202`；相同幂等键及内容返回原任务 `200` |
 | `GET /v1/jobs/:id` | 查询任务；不存在返回 `404` |
 
 未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。提交任务时 `Content-Length` 超过 2,500,000 字节会返回 `413`。当前没有任务列表、取消、重试、SSE 或文件上传接口。
+
+维护模式下提交新任务返回 `503 worker_maintenance`，`/health` 增加 `maintenance`。该开关持久化在任务存储旁的维护标记文件，重启后仍保持暂停，必须显式恢复接收。配置同步工具在暂停后等待队列清空，再停止 Worker、切换配置并重建容器，验收健康后恢复。图片插件使用镜像内固定版本的 npm 适配器，不请求独立 Studio 服务，不需要 Studio 管理密钥。模板与账号 Markdown 样式通过独立运行时包同步到 `/data/pipeline-runtime`，业务凭据仍在 `accounts.json`，详见主 README 的运行时配置包说明。
 
 ### 1. 同步账号
 

@@ -29,6 +29,7 @@ import { wxDrafts } from "./commands/wx-drafts";
 import { wxDraftDelete } from "./commands/wx-draft-delete";
 import type { CommandOutcome } from "./command-outcome";
 import { monitor } from "./commands/monitor";
+import { typesetAssetsSync } from "./commands/typeset-assets-sync";
 
 export interface CommandDefinition {
   name: string;
@@ -77,6 +78,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "wechat-export", summary: "Render markdown to WeChat HTML with bundled preview styles", plugin: "ops", handler: wechatExport },
         { name: "wechat-preview", summary: "Local singleton server to preview exported WeChat HTML", plugin: "ops", handler: wechatPreview },
         { name: "cos-upload", summary: "Upload a local image to configured COS CDN", plugin: "ops", handler: cosUpload },
+        { name: "typeset-assets-sync", summary: "Upload Studio template assets and build a runtime config package", plugin: "ops", handler: typesetAssetsSync },
         { name: "config", summary: "Read or update pipeline config", plugin: "ops", handler: configCommand },
         { name: "doctor", summary: "Inspect resolved paths and provider health", plugin: "ops", handler: doctor },
         { name: "hermes-metrics", summary: "Show Hermes execution metrics per task", plugin: "ops", handler: hermesMetrics },

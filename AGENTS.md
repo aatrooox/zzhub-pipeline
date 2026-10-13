@@ -420,6 +420,15 @@ Config override (local file path or npm package):
 }
 ```
 
+Both renderer entries also accept `{ "module": "package-or-path", "options": {} }`.
+The pipeline passes each renderer's own options to `doctor(options)` and
+`render(input, options)`; the plugin defines and validates its options.
+String entries remain supported, and `null` selects the built-in renderer.
+Typeset Studio stores its shared directory in
+`plugins.imageRenderer.options.dataDir`; pipeline bridges this to
+`TYPESET_DATA_DIR` for the current npm adapter and uses local method calls
+without service authentication.
+
 When unset, built-in adapters (`builtin-imgx`, `builtin-wechat-preview`) are used.
 
 Key files:

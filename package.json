@@ -29,7 +29,7 @@
   "dependencies": {
     "@akairos/milkdown-article-plugins": "^0.1.3",
     "@akairos/milkdown-article-style": "^0.1.1",
-    "@akairos/typeset-studio": "0.2.2",
+    "@akairos/typeset-studio": "0.2.5",
     "@chenglou/pretext": "0.0.8",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",

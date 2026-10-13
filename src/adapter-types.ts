@@ -114,10 +114,11 @@ export interface ImageRenderPlugin {
   version?: string;
 
   /** Environment checks (e.g., Chrome availability) */
-  doctor?: () => Promise<PipelinePluginDoctorCheck[]>;
+  doctor?: (options?: Record<string, unknown>) => Promise<PipelinePluginDoctorCheck[]>;
 
   /** Render images from markdown body */
-  render: (input: ImageRenderInput) => Promise<ImageRenderOutput>;
+  /** 专属配置作为第二个参数传入，旧插件可忽略。 */
+  render: (input: ImageRenderInput, options?: Record<string, unknown>) => Promise<ImageRenderOutput>;
 }
 
 // ── Markdown renderer adapter ─────────────────────────────────────
@@ -204,8 +205,9 @@ export interface MarkdownRenderPlugin {
   version?: string;
 
   /** Environment checks */
-  doctor?: () => Promise<PipelinePluginDoctorCheck[]>;
+  doctor?: (options?: Record<string, unknown>) => Promise<PipelinePluginDoctorCheck[]>;
 
   /** Render markdown to WeChat-compatible HTML */
-  render: (input: MarkdownRenderInput) => Promise<MarkdownRenderOutput>;
+  /** 专属配置作为第二个参数传入，旧插件可忽略。 */
+  render: (input: MarkdownRenderInput, options?: Record<string, unknown>) => Promise<MarkdownRenderOutput>;
 }
