@@ -23,6 +23,7 @@ import { loadConfig } from "../config";
 import { resolveRenderBranding } from "../render-branding";
 import { resolveCoverTheme } from "../schema/cover-theme";
 import { resolveImageRenderer } from "../adapter-loader";
+import { validateNewspicRenderResult } from "../adapters/validate-newspic-render";
 import {
   acquireStateOperationLock,
   defaultBodyInputs,
@@ -267,6 +268,15 @@ Options:
     throw new Error(
       `Image renderer '${imageRenderer.name}' returned no assets for ${routePrimary}`,
     );
+  }
+  if (routePrimary === "wechat-newspic" && newspicRenderSpec.pagination_mode === "multi") {
+    const errors = validateNewspicRenderResult(newspicRenderSpec, renderResult);
+    const pageAssets = routeAssets.filter(asset => asset.kind === "page");
+    if (pageAssets.length !== renderResult.pageCount ||
+        renderResult.pages.some(page => !pageAssets.some(asset => asset.index === page.page))) {
+      errors.push("newspic render page assets do not match page summaries");
+    }
+    if (errors.length > 0) throw new Error(`newspic render constraints not satisfied: ${errors.join("; ")}`);
   }
   if (
     routePrimary === "wechat-article" &&

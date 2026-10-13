@@ -25,6 +25,7 @@ import type {
   ImageRenderOutput,
   PipelinePluginDoctorCheck,
 } from "../adapter-types";
+import { validateNewspicRenderResult } from "./validate-newspic-render";
 import { normalizeNewspicRenderSpec } from "../state";
 import type {
   NewspicRenderSpec,
@@ -76,46 +77,6 @@ function buildExplicitPageImageSpec(
     target_fill_ratio: spec.target_fill_ratio,
     page_specs: pageSpecs,
   };
-}
-
-function validateNewspicRenderResult(
-  spec: NewspicRenderSpec,
-  result: { pageCount: number; pages: Array<{ page: number; imageCount: number }> },
-): string[] {
-  const errors: string[] = [];
-
-  if (result.pageCount < spec.min_pages) {
-    errors.push(
-      `newspic render produced ${result.pageCount} page(s), but at least ${spec.min_pages} page(s) were requested`,
-    );
-  }
-
-  if (spec.require_image_every_page) {
-    const missingPages = result.pages
-      .filter((page) => page.imageCount < 1)
-      .map((page) => page.page);
-    if (missingPages.length > 0) {
-      errors.push(`pages without required body images: ${missingPages.join(", ")}`);
-    }
-  }
-
-  for (const pageSpec of spec.page_specs) {
-    if (pageSpec.image_markers.length === 0) continue;
-    const page = result.pages.find((item) => item.page === pageSpec.page);
-    if (!page) {
-      errors.push(
-        `page ${pageSpec.page} was explicitly configured but render only produced ${result.pageCount} page(s)`,
-      );
-      continue;
-    }
-    if (page.imageCount < pageSpec.image_markers.length) {
-      errors.push(
-        `page ${pageSpec.page} expected ${pageSpec.image_markers.length} body image(s), but render placed ${page.imageCount}`,
-      );
-    }
-  }
-
-  return errors;
 }
 
 // ── Render helpers ───────────────────────────────────────────────

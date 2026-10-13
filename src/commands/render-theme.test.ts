@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig, normalizeConfig, saveConfig } from "../config";
-import { defaultState, readState, writeState } from "../state";
+import { defaultState, normalizeNewspicRenderSpec, readState, writeState } from "../state";
 import { resolveFullRoute } from "../routes";
 import { init } from "./init";
 import { ingestHandoff } from "./ingest-handoff";
@@ -111,5 +111,21 @@ describe("cover CLI contract", () => {
     await writeFile(process.env.ZZHUB_PIPELINE_CONFIG!, "invalid json");
     await configCommand(["--schema", "--key", "render.cover"]);
     expect(output.mock.calls.at(-1)?.[0]).toContain('"defaultTheme"');
+  });
+
+  test("rejects plugin pages that violate task constraints before marking render done", async () => {
+    const state = await preparedTask();
+    state.route = resolveFullRoute("发公众号贴图", { account: "default", contentForm: "newspic", targets: ["wechat"] });
+    state.intent.content_form = "newspic";
+    state.intent.newspic_render = normalizeNewspicRenderSpec({ pagination_mode: "multi", min_pages: 3, max_pages: 4 });
+    await writeState(state.state_path, state);
+    const pluginPath = join(workspace, "plugin.mjs");
+    await writeFile(pluginPath, 'import {writeFile} from "node:fs/promises"; import {join} from "node:path"; export default {name:"bad-pagination",async render(input){const path=join(input.state.asset_path,"page.png");await writeFile(path,"stub");return {assets:[{kind:"page",route:input.route,index:1,path}],pageCount:1,pages:[{page:1,imageCount:0,imageSources:[]}]}}};');
+    const config = loadConfig();
+    config.plugins.imageRenderer = pluginPath;
+    saveConfig(config);
+    await expect(render(["--state", state.state_path])).rejects.toThrow("at least 3");
+    expect((await readState(state.state_path)).phase.render.status).not.toBe("done");
+    expect((await readState(state.state_path)).artifacts.render_version).toBe(0);
   });
 });
