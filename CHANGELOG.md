@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.18.0
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.17.0...v0.18.0)
+
+### Features
+
+- **render:** Support Studio templates and task asset overrides ([762c701](https://github.com/aatrooox/zzhub-pipeline/commit/762c701))
+- **worker:** Sync portable Studio and Markdown runtime packages ([c1b9952](https://github.com/aatrooox/zzhub-pipeline/commit/c1b9952))
+
+### Fixes
+
+- **wechat:** Calculate cover crops from uploaded image bytes ([027db3c](https://github.com/aatrooox/zzhub-pipeline/commit/027db3c))
+- **wechat-preview:** Persist styles and align preview with export ([ea488fe](https://github.com/aatrooox/zzhub-pipeline/commit/ea488fe))
+- **render:** Enforce task constraints on renderer output ([e632129](https://github.com/aatrooox/zzhub-pipeline/commit/e632129))
+- **plugins:** Isolate execution and stop failed render tasks ([1975497](https://github.com/aatrooox/zzhub-pipeline/commit/1975497))
+- **wechat:** Export fragment links as styled text ([1c2b9b0](https://github.com/aatrooox/zzhub-pipeline/commit/1c2b9b0))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.16.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.15.0...v0.16.0)
