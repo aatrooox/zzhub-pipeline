@@ -113,6 +113,7 @@ interface UploadResult {
   coverMediaId: string;
   totalUploaded: number;
   photos: string[];
+  coverCrop?: ReturnType<typeof calculatePicCrop>;
 }
 
 interface WxRuntimeConfig {
@@ -551,6 +552,7 @@ async function uploadPhotos(
 ): Promise<UploadResult> {
   const uploadedMedia: UploadedMedia[] = [];
   const imageUrlMap: Record<string, string> = {};
+  let coverCrop: UploadResult["coverCrop"];
 
   for (let index = 0; index < photos.length; index += 1) {
     const photoUrl = photos[index];
@@ -560,6 +562,15 @@ async function uploadPhotos(
 
     reportProgress({ stage: "publish.upload", message: "正在上传微信图片", current: index, total: photos.length, unit: "files" });
     const payload = await resolvePhotoPayload(photoUrl, index);
+    if (index === 0) {
+      try {
+        // 直接读取待上传的封面字节，远程、Data URL 与本地图片共用。
+        const { width, height } = imageSize(new Uint8Array(await payload.blob.arrayBuffer()));
+        if (width && height) coverCrop = calculatePicCrop(width, height);
+      } catch {
+        // 部分微信支持的格式无法检测尺寸，沿用微信默认裁剪。
+      }
+    }
     const formData = new FormData();
     formData.append("access_token", accessToken);
     formData.append("type", "image");
@@ -602,12 +613,13 @@ async function uploadPhotos(
     coverMediaId: uploadedMedia[0]?.mediaId || "",
     totalUploaded: uploadedMedia.length,
     photos: photos.map((url) => imageUrlMap[url] || url),
+    coverCrop,
   };
 }
 
+/** 仅识别内置 3.35:1 拼图，普通封面按目标比例居中裁切。 */
 export function calculatePicCrop(width: number, height: number): { pic_crop_235_1: string; pic_crop_1_1: string } {
-  const ratio = width / height;
-  if (ratio >= 3.0) {
+  if (Math.abs(width - height * 3.35) <= 1) {
     // 微信头图 split 双比例：左侧 2.35:1，右侧 1:1
     const splitX = Math.min(1, (height * 2.35) / width);
     return {
@@ -615,13 +627,16 @@ export function calculatePicCrop(width: number, height: number): { pic_crop_235_
       pic_crop_1_1: `${splitX.toFixed(4)}_0_1_1`,
     };
   }
-  // 单图 2.35:1 或其他宽高比封面：全宽 2.35:1，居中 1:1 裁切
-  const crop11Width = Math.min(1, height / width);
-  const x1 = Math.max(0, (1 - crop11Width) / 2);
-  const x2 = Math.min(1, x1 + crop11Width);
+  const centeredCrop = (targetRatio: number): string => {
+    const cropWidth = Math.min(1, height * targetRatio / width);
+    const cropHeight = Math.min(1, width / targetRatio / height);
+    const x = (1 - cropWidth) / 2;
+    const y = (1 - cropHeight) / 2;
+    return [x, y, x + cropWidth, y + cropHeight].map(value => value.toFixed(4)).join("_");
+  };
   return {
-    pic_crop_235_1: "0_0_1_1",
-    pic_crop_1_1: `${x1.toFixed(4)}_0_${x2.toFixed(4)}_1`,
+    pic_crop_235_1: centeredCrop(2.35),
+    pic_crop_1_1: centeredCrop(1),
   };
 }
 
@@ -641,18 +656,7 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
   const uploadResult = await uploadPhotos(runtime, accessToken, finalPhotos, uploadTimeout);
   const replacedHtml = replaceImageUrls(input.html, uploadResult.imageUrlMap);
 
-  let cropParams: { pic_crop_235_1?: string; pic_crop_1_1?: string } = {};
-  try {
-    const coverPath = finalPhotos[0];
-    if (coverPath && existsSync(coverPath)) {
-      const dims = imageSize(readFileSync(coverPath));
-      if (dims.width && dims.height) {
-        cropParams = calculatePicCrop(dims.width, dims.height);
-      }
-    }
-  } catch {
-    // 允许尺寸检测失败时平滑回退
-  }
+  const cropParams = uploadResult.coverCrop ?? {};
 
   const isUpdate = !!input.existingDraftMediaId;
   const draftPath = isUpdate ? DRAFT_UPDATE_PATH : DRAFT_ADD_PATH;
@@ -666,8 +670,7 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
           title: input.title,
           content: replacedHtml,
           thumb_media_id: uploadResult.coverMediaId,
-          ...(cropParams.pic_crop_235_1 ? { pic_crop_235_1: cropParams.pic_crop_235_1 } : {}),
-          ...(cropParams.pic_crop_1_1 ? { pic_crop_1_1: cropParams.pic_crop_1_1 } : {}),
+          ...cropParams,
         },
       }
     : {
@@ -678,8 +681,7 @@ export async function createWechatDraft(input: WechatDraftInput): Promise<Record
             title: input.title,
             content: replacedHtml,
             thumb_media_id: uploadResult.coverMediaId,
-            ...(cropParams.pic_crop_235_1 ? { pic_crop_235_1: cropParams.pic_crop_235_1 } : {}),
-            ...(cropParams.pic_crop_1_1 ? { pic_crop_1_1: cropParams.pic_crop_1_1 } : {}),
+            ...cropParams,
           },
         ],
       };

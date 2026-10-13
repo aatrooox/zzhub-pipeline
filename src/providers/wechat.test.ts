@@ -11,7 +11,61 @@ import {
   resolveDraftMediaId,
   readResponseBodyWithLimit,
   createWechatNewspic,
+  calculatePicCrop,
+  createWechatDraft,
 } from "./wechat";
+import { PNG } from "pngjs";
+import { PipelineConfigSchema } from "../schema/config";
+
+describe("cover crop", () => {
+  test("keeps the built-in split cover regions", () => {
+    expect(calculatePicCrop(1340, 400)).toEqual({ pic_crop_235_1: "0_0_0.7015_1", pic_crop_1_1: "0.7015_0_1_1" });
+  });
+  test("centers ordinary panoramic and portrait images at the target ratios", () => {
+    for (const [width, height] of [[400, 100], [100, 200], [235, 100]]) {
+      const crops = calculatePicCrop(width, height);
+      for (const [crop, ratio] of [[crops.pic_crop_235_1, 2.35], [crops.pic_crop_1_1, 1]] as const) {
+        const [x1, y1, x2, y2] = crop.split("_").map(Number);
+        expect((x2! - x1!) * width / ((y2! - y1!) * height)).toBeCloseTo(ratio, 2);
+        expect(x1! + x2!).toBeCloseTo(1);
+        expect(y1! + y2!).toBeCloseTo(1);
+      }
+    }
+  });
+
+  test("draft add and update reuse crop dimensions from remote and Data URL uploads", async () => {
+    const png = new PNG({ width: 235, height: 100 });
+    png.data.fill(255);
+    const image = PNG.sync.write(png);
+    const drafts: any[] = [];
+    let downloads = 0;
+    const relay = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
+      const path = new URL(request.url).pathname;
+      if (path === "/cover.png") { downloads += 1; return new Response(new Uint8Array(image), { headers: { "content-type": "image/png" } }); }
+      if (path.endsWith("/token")) return Response.json({ accessToken: "test-token" });
+      if (path.includes("material")) return Response.json({ media_id: "cover-id", url: "https://mmbiz.example/cover.png" });
+      drafts.push(await request.json());
+      return Response.json({ media_id: "draft-id" });
+    } });
+    const overrides = { ZZHUB_WX_BASE_URL: `http://127.0.0.1:${relay.port}`, ZZCLUB_PAT: "test-pat", WX_APPID: "test-app", WX_APPSECRET: "test-secret" };
+    const previous = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+    Object.assign(process.env, overrides);
+    try {
+      const config = PipelineConfigSchema.parse({});
+      await createWechatDraft({ config, title: "test", html: "<p>body</p>", photos: [`${overrides.ZZHUB_WX_BASE_URL}/cover.png`] });
+      await createWechatDraft({ config, title: "test", html: "<p>body</p>", photos: [`data:image/png;base64,${image.toString("base64")}`], existingDraftMediaId: "existing-id" });
+      expect(downloads).toBe(1);
+      expect(drafts[0].articles[0]).toMatchObject(calculatePicCrop(235, 100));
+      expect(drafts[1].articles).toMatchObject(calculatePicCrop(235, 100));
+    } finally {
+      relay.stop(true);
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+});
 
 test("贴图配文按 UTF-8 长度校验，上传前拒绝超限内容", async () => {
   await expect(createWechatNewspic({ content: "😀".repeat(512) + "a" } as any)).rejects.toThrow("贴图配文过长");
