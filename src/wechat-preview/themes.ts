@@ -14,6 +14,9 @@ export interface WechatExportTheme {
   blockquoteBorderColor: string;
   bodyLineHeight: string;
   bodyLetterSpacing: string;
+  /** 正文字号与段落间距；未设置时沿用共享样式。 */
+  bodyFontSize?: string;
+  bodyParagraphSpacing?: string;
 }
 
 export interface WechatPreviewTheme {

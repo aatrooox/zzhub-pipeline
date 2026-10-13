@@ -622,9 +622,14 @@ export function buildWechatThemeCss(
 .milkdown .editor {
   ${themeVariableDeclarations(editorVars, theme)}
   ${theme.containerStyle};
+  ${theme.bodyFontSize ? `font-size: ${theme.bodyFontSize};` : ""}
 }
 .milkdown .editor [data-wechat-node="footer"] {
   ${theme.footerStyle};
+}
+.milkdown .editor p {
+  ${theme.bodyFontSize ? `font-size: ${theme.bodyFontSize};` : ""}
+  ${theme.bodyParagraphSpacing ? `margin-bottom: ${theme.bodyParagraphSpacing};` : ""}
 }
 `;
 }

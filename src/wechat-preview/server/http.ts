@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
+import { z } from "zod";
 import {
   previewBaseUrl,
   resolvePreviewHost,
@@ -25,12 +26,23 @@ import {
   rewriteHtmlLocalAssets,
 } from "./local-file";
 import { renderDashboardHtml, renderFailedEntryHtml } from "./ui";
-import { buildWechatPreviewShell } from "../index";
+import { buildWechatPreviewShell, resolveWechatArticleTheme } from "../index";
 import { getPluginDocs } from "@akairos/milkdown-article-plugins";
-import { getWechatPreviewTheme } from "../themes";
+import { readArticleTheme } from "../../article-theme";
+import { PipelineConfigSchema, WechatExportThemeOverridesSchema, WechatStructureOverridesSchema } from "../../schema/config";
 import { loadConfig, saveConfig, getPipelineConfigPath, resolveConfigRelativePath } from "../../config";
 import { DIST_DIR, WECHAT_PREVIEW_DIR } from "../../runtime-paths";
 import type { PreviewRegisterInput } from "./types";
+
+/** 保存入口先校验完整请求，避免写入 CLI 无法加载的配置。 */
+const StudioSaveSchema = z.object({
+  account: z.string().trim().regex(/^[a-zA-Z0-9._-]+$/).optional(),
+  editorVars: z.record(z.string(), z.string()).optional(),
+  exportTheme: WechatExportThemeOverridesSchema.strict().optional(),
+  syntaxPresets: z.record(z.string(), z.string()).optional(),
+  structure: WechatStructureOverridesSchema.strict().optional(),
+  customCss: z.string().optional(),
+}).strict();
 
 export interface StartPreviewServerOptions {
   host?: string;
@@ -101,6 +113,12 @@ export async function startPreviewServer(
       const url = new URL(req.url);
       const { pathname } = url;
       const baseUrl = previewBaseUrl(host, server?.port ?? port);
+
+      // 拒绝其他网页跨站修改本地配置或预览记录。
+      if (!["GET", "HEAD", "OPTIONS"].includes(req.method) &&
+          req.headers.has("origin") && req.headers.get("origin") !== url.origin) {
+        return json({ error: "cross-origin writes are not allowed" }, 403);
+      }
 
       if (pathname === "/api/health") {
         return json({ ok: true, service: "wechat-preview", url: baseUrl, pid: process.pid });
@@ -195,27 +213,30 @@ export async function startPreviewServer(
           let customCssContent = "";
           if (account.customCss) {
             const resolved = resolveConfigRelativePath(account.customCss, configPath);
-            if (resolved && existsSync(resolved)) {
+            if (resolved) {
               try {
                 customCssContent = readFileSync(resolved, "utf-8");
-              } catch {
-                // ignore
+              } catch (error) {
+                return json({ error: `Failed to read custom CSS for ${key}: ${String(error)}` }, 500);
               }
             }
           }
 
-          const defaultTheme = getWechatPreviewTheme(key);
+          const articleThemePath = resolveConfigRelativePath(account.articleTheme, configPath);
+          const articleTheme = articleThemePath ? await readArticleTheme(articleThemePath) : null;
+          const { theme, structure } = resolveWechatArticleTheme(key, account.theme, articleTheme);
 
           accountsData[key] = {
             name: account.name || key,
             customCssPath: account.customCss,
             customCssContent,
             theme: {
-              editorVars: { ...defaultTheme.editorVars, ...account.theme?.editorVars },
-              exportTheme: { ...defaultTheme.exportTheme, ...account.theme?.exportTheme },
+              editorVars: theme.editorVars,
+              exportTheme: theme.exportTheme,
               syntaxPresets: account.theme?.syntaxPresets || {},
-              structure: account.theme?.structure || {},
+              structure: structure || {},
             },
+            articleThemeCss: articleTheme?.css || "",
             articleTheme: account.articleTheme ?? null,
           };
         }
@@ -239,41 +260,31 @@ export async function startPreviewServer(
       }
 
       if (pathname === "/api/studio/save-config" && req.method === "POST") {
-        let body: any;
+        let rawBody: unknown;
         try {
-          body = await req.json();
+          rawBody = await req.json();
         } catch {
           return json({ error: "invalid JSON body" }, 400);
         }
+        const parsed = StudioSaveSchema.safeParse(rawBody);
+        if (!parsed.success) return json({ error: parsed.error.message }, 400);
+        const body = parsed.data;
 
         const config = loadConfig();
-        const accountKey = String(body.account || config.wx.defaultAccount || "default");
-        if (!config.wx.accounts[accountKey]) {
-          config.wx.accounts[accountKey] = {
-            name: accountKey,
-            pat: "",
-            appId: "",
-            appSecret: "",
-            customCss: null,
-            theme: {
-              editorVars: {},
-              exportTheme: {},
-              syntaxPresets: {},
-            },
-          };
-        }
+        const accountKey = body.account ?? config.wx.defaultAccount;
+        if (!Object.hasOwn(config.wx.accounts, accountKey)) return json({ error: "account not found" }, 404);
 
         const account = config.wx.accounts[accountKey];
-        if (body.editorVars && typeof body.editorVars === "object") {
+        if (body.editorVars) {
           account.theme.editorVars = { ...account.theme.editorVars, ...body.editorVars };
         }
-        if (body.exportTheme && typeof body.exportTheme === "object") {
+        if (body.exportTheme) {
           account.theme.exportTheme = { ...account.theme.exportTheme, ...body.exportTheme };
         }
-        if (body.syntaxPresets && typeof body.syntaxPresets === "object") {
-          account.theme.syntaxPresets = { ...account.theme.syntaxPresets, ...body.syntaxPresets };
+        if (body.syntaxPresets) {
+          account.theme.syntaxPresets = body.syntaxPresets;
         }
-        if (body.structure && typeof body.structure === "object") {
+        if (body.structure) {
           account.theme.structure = { ...account.theme.structure, ...body.structure };
         }
 
@@ -289,6 +300,7 @@ export async function startPreviewServer(
           }
 
           try {
+            mkdirSync(dirname(cssPath), { recursive: true });
             writeFileSync(cssPath, body.customCss, "utf-8");
           } catch (err) {
             return json({ error: `Failed to write custom CSS: ${String(err)}` }, 500);
@@ -296,7 +308,7 @@ export async function startPreviewServer(
         }
 
         try {
-          saveConfig(config);
+          saveConfig(PipelineConfigSchema.parse(config));
           return json({ ok: true, account: accountKey, message: "Configuration saved successfully" });
         } catch (err) {
           return json({ error: `Failed to save config: ${String(err)}` }, 500);

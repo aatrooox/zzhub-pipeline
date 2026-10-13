@@ -2,13 +2,15 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { PNG } from "pngjs";
 import { findChrome } from "../imgx/runtime";
 import { dumpReadyHtml } from "../imgx/chrome-render";
-import { TEMPLATE_PATH } from "../runtime-paths";
+import { DIST_DIR, TEMPLATE_PATH } from "../runtime-paths";
 import { replaceImageUrls } from "../providers/wechat";
 import { exportMarkdownToWechatHtml, extractRenderResult } from "./index";
+import { PipelineConfigSchema } from "../schema/config";
+import { getWechatPreviewTheme } from "./themes";
 
 const fixturePath = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -22,6 +24,79 @@ describe("semantic WeChat HTML export", () => {
   afterEach(async () => {
     if (tempDir) await rm(tempDir, { recursive: true, force: true });
   });
+
+  test.skipIf(findChrome() === null)("exports persisted Studio typography, syntax presets and structure", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "zzhub-studio-export-"));
+    const markdownPath = join(tempDir, "post.md");
+    await writeFile(markdownPath, "---\ntitle: title\n---\n# Article title\n\n## Section\n\nBody text.\n\n> Quote.\n\n> [!TIP]\n> Tip body.");
+    const config = PipelineConfigSchema.parse({ wx: { accounts: { default: { theme: {
+      exportTheme: { bodyFontSize: "18px", bodyParagraphSpacing: "1.6em" },
+      syntaxPresets: { h2: "contrast-green" },
+      structure: { numberedHeadings: true, headingLabel: "Chapter", quoteLabel: "Citation", calloutPresets: { tip: { title: "Advice" } } },
+    } } } } });
+    const { html } = await exportMarkdownToWechatHtml({
+      markdownPath, outPath: join(tempDir, "post.html"), account: "default",
+      themeOverrides: config.wx.accounts.default.theme,
+    });
+    expect(html).not.toContain("Article title");
+    expect(html).toMatch(/<p[^>]+font-size: 18px[^>]*>Body text\.<\/p>/);
+    expect(html).toContain("margin-bottom: 1.6em");
+    expect(html).toContain("Chapter</span>");
+    expect(html).toContain("01</span>");
+    expect(html).toContain("Citation</p>");
+    expect(html).toContain("Advice</strong>");
+    expect(html).toMatch(/background-color: (?:#1f7a4d|rgb\(31, 122, 77\))/);
+  }, 30_000);
+
+  test.skipIf(findChrome() === null)("Studio saves and resets the same style and ignores stale renders", async () => {
+    const studio = await readFile(join(DIST_DIR, "src/wechat-preview/browser/studio/studio.html"), "utf8");
+    const theme = getWechatPreviewTheme("default");
+    const html = studio.replace('src="/studio.js"', `src="${pathToFileURL(join(DIST_DIR, "studio.js")).href}"`)
+      .replace("<head>", `<head><script>
+window.fetch = async (url, options) => {
+  if (String(url).includes('save-config')) {
+    window.saved = JSON.parse(options.body);
+    return new Response(JSON.stringify({ok:true}));
+  }
+  return new Response(JSON.stringify(${JSON.stringify({ defaultAccount: "default", accounts: { default: { name: "default", theme, customCssContent: "" } }, plugins: [], sampleMarkdown: "# Title\n\nInitial body." })}));
+};
+window.__zzhubRenderReady = (async () => {
+  const waitFor = async predicate => { while (!predicate()) await new Promise(resolve => setTimeout(resolve, 20)); };
+  const edit = (id, value) => { const input = document.getElementById(id); input.value = value; input.dispatchEvent(new Event('input')); };
+  const source = () => document.getElementById('html-source-code')?.value || '';
+  await waitFor(() => source().includes('Initial body.'));
+  edit('input-font-size', '18'); edit('input-para-spacing', '1.44');
+  edit('input-heading-label', 'Chapter'); edit('input-custom-css', 'p { color: #123456; }');
+  await waitFor(() => source().includes('font-size: 18px') && source().includes('margin-bottom: 1.44em'));
+  document.getElementById('btn-save').click();
+  await waitFor(() => window.saved);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  edit('input-font-size', '14'); edit('input-custom-css', '');
+  document.getElementById('btn-reset').click();
+  await waitFor(() => source().includes('font-size: 18px'));
+  const resetOk = document.getElementById('input-font-size').value === '18' && document.getElementById('input-custom-css').value.includes('#123456');
+  const originalDecode = Image.prototype.decode;
+  Image.prototype.decode = async function() { await new Promise(resolve => setTimeout(resolve, 250)); return originalDecode.call(this); };
+  edit('editor-markdown', '![0.50](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7)');
+  await new Promise(resolve => setTimeout(resolve, 100));
+  edit('editor-markdown', 'Latest body.');
+  await waitFor(() => source().includes('Latest body.'));
+  const result = document.createElement('script'); result.id = 'zzhub-wechat-export-result'; result.type = 'application/json';
+  result.textContent = JSON.stringify({status:'success',html:JSON.stringify({saved:window.saved,resetOk,html:source()})});
+  document.body.appendChild(result);
+})();
+</script>`);
+    const result = extractRenderResult(await dumpReadyHtml({ chromePath: findChrome()!, html, timeoutMs: 15000 }));
+    expect(result.status).toBe("success");
+    if (!("html" in result)) throw new Error("Studio did not produce HTML");
+    const checked = JSON.parse(result.html);
+    expect(checked.saved.exportTheme.bodyFontSize).toBe("18px");
+    expect(checked.saved.exportTheme.bodyParagraphSpacing).toBe("1.44em");
+    expect(checked.saved.structure.headingLabel).toBe("Chapter");
+    expect(checked.resetOk).toBe(true);
+    expect(checked.html).toContain("Latest body.");
+    expect(checked.html).not.toContain("<img");
+  }, 20_000);
 
   test.skipIf(findChrome() === null)("renders all nodes, cascades CSS, and emits a safe exact preview", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "zzhub-wechat-renderer-"));

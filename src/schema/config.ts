@@ -47,6 +47,19 @@ const WechatExportThemeOverridesSchema = z.object({
   blockquoteBorderColor: z.string().optional(),
   bodyLineHeight: z.string().optional(),
   bodyLetterSpacing: z.string().optional(),
+  bodyFontSize: z.string().optional(),
+  bodyParagraphSpacing: z.string().optional(),
+});
+
+/** 账号可保存的正文结构选项。 */
+const WechatStructureOverridesSchema = z.object({
+  numberedHeadings: z.boolean().optional(),
+  headingLabel: z.string().optional(),
+  quoteLabel: z.string().optional(),
+  calloutPresets: z.record(z.string(), z.object({
+    title: z.string().optional(),
+    icon: z.string().optional(),
+  })).optional(),
 });
 
 const WechatThemeOverridesSchema = withObjectDefault(
@@ -54,15 +67,7 @@ const WechatThemeOverridesSchema = withObjectDefault(
     editorVars: z.record(z.string(), z.string()).default({}),
     exportTheme: withObjectDefault(WechatExportThemeOverridesSchema),
     syntaxPresets: z.record(z.string(), z.string()).optional(),
-    structure: z.object({
-      numberedHeadings: z.boolean().optional(),
-      headingLabel: z.string().optional(),
-      quoteLabel: z.string().optional(),
-      calloutPresets: z.record(z.string(), z.object({
-        title: z.string().optional(),
-        icon: z.string().optional(),
-      })).optional(),
-    }).optional(),
+    structure: WechatStructureOverridesSchema.optional(),
   }),
 );
 
@@ -189,4 +194,4 @@ export type WechatThemeOverrides = z.infer<typeof WechatThemeOverridesSchema>;
 
 // ── Schema instances for reuse ────────────────────────────────────
 
-export { WxAccountConfigSchema, WxConfigSchema, PipelinePathConfigSchema };
+export { WxAccountConfigSchema, WxConfigSchema, PipelinePathConfigSchema, WechatExportThemeOverridesSchema, WechatStructureOverridesSchema };

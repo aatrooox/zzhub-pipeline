@@ -1,8 +1,8 @@
-import { existsSync, statSync } from "fs";
+import { existsSync, readdirSync, statSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { createRequire } from "module";
 import { dirname, isAbsolute, join, resolve } from "path";
-import { pathToFileURL } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import {
   ensureParentDir,
   escapeHtml,
@@ -20,7 +20,8 @@ import {
   WECHAT_PREVIEW_DIR,
 } from "../runtime-paths";
 import { extractFrontmatter } from "./frontmatter-handler";
-import { readArticleTheme } from "../article-theme";
+import { readArticleTheme, type ArticleThemePackage } from "../article-theme";
+import type { WechatThemeOverrides } from "../schema/config";
 import { getWechatPreviewStyleName, getWechatPreviewTheme } from "./themes";
 import { stripLeadingH1 } from "../text";
 import { buildCombinedPresetsCss } from "./browser/studio/syntax-presets";
@@ -93,17 +94,7 @@ export interface ExportMarkdownToWechatHtmlInput {
   previewShellOutPath?: string;
   customCss?: string | null;
   articleThemePath?: string | null;
-  themeOverrides?: {
-    editorVars?: Record<string, string>;
-    exportTheme?: Record<string, string>;
-    syntaxPresets?: Record<string, string>;
-    structure?: {
-      numberedHeadings?: boolean;
-      headingLabel?: string;
-      quoteLabel?: string;
-      calloutPresets?: Record<string, { title?: string; icon?: string }>;
-    };
-  };
+  themeOverrides?: Partial<WechatThemeOverrides>;
   /** 浏览器真实等待上限，默认 15000 毫秒。 */
   timeoutMs?: number;
   /** Write intermediate artifacts for debugging. */
@@ -127,27 +118,46 @@ const requireFromHere = createRequire(import.meta.url);
 
 /** Absolute path to shared article.css (@akairos/milkdown-article-style). */
 export function resolveMilkdownArticleStylePath(): string {
-  try {
-    return requireFromHere.resolve("@akairos/milkdown-article-style/article.css");
-  } catch {
-    // Bun / Node may need package root + relative when exports are CSS-only.
-    const pkgRoot = dirname(requireFromHere.resolve("@akairos/milkdown-article-style/package.json"));
-    return join(pkgRoot, "article.css");
-  }
+  return requireFromHere.resolve("@akairos/milkdown-article-style/article.css");
 }
 
 /** Source files that feed the browser Vite bundle. */
 export function getWechatPreviewBundleSources(): string[] {
+  const pluginDirectory = dirname(fileURLToPath(import.meta.resolve("@akairos/milkdown-article-plugins")));
   return [
     join(WECHAT_PREVIEW_DIR, "browser/editor-export.ts"),
-    join(WECHAT_PREVIEW_DIR, "browser/highlight.ts"),
     join(WECHAT_PREVIEW_DIR, "browser/studio/studio.ts"),
     join(WECHAT_PREVIEW_DIR, "browser/studio/studio.html"),
     join(WECHAT_PREVIEW_DIR, "browser/studio/studio.css"),
-    join(WECHAT_PREVIEW_DIR, "plugins/registry.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/syntax-presets.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/color-palettes.ts"),
+    join(WECHAT_PREVIEW_DIR, "themes.ts"),
+    join(WECHAT_PREVIEW_DIR, "frontmatter-handler.ts"),
+    join(PACKAGE_ROOT, "src/text.ts"),
+    ...readdirSync(pluginDirectory).filter(name => name.endsWith(".js")).map(name => join(pluginDirectory, name)),
     resolveMilkdownArticleStylePath(),
     join(WECHAT_PREVIEW_DIR, "wechat-renderer.ts"),
   ];
+}
+
+/** Studio 与 CLI 共用模板、账号覆盖和页首素材的解析顺序。 */
+export function resolveWechatArticleTheme(
+  account: string,
+  overrides?: Partial<WechatThemeOverrides>,
+  articleTheme?: ArticleThemePackage | null,
+) {
+  const { headerImage, ...templateStructure } = articleTheme?.manifest.structure ?? {};
+  const theme = getWechatPreviewTheme(account, articleTheme ? {
+    editorVars: { ...articleTheme.manifest.editorVars, ...overrides?.editorVars },
+    exportTheme: { footerText: "", ...articleTheme.manifest.exportTheme, ...overrides?.exportTheme },
+  } : overrides);
+  const structure = articleTheme ? {
+    ...templateStructure,
+    ...overrides?.structure,
+    headerImageUrl: headerImage
+      ? `data:image/${headerImage.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")};base64,${Buffer.from(articleTheme.files.get(headerImage)!).toString("base64")}` : null,
+  } : overrides?.structure;
+  return { theme, structure };
 }
 
 export function isWechatPreviewBundleStale(
@@ -394,20 +404,11 @@ export async function exportMarkdownToWechatHtml(
     const bodyMarkdown = stripLeadingH1(stripped).trimStart();
     const markdown = bodyMarkdown;
     const articleTheme = input.articleThemePath ? await readArticleTheme(input.articleThemePath) : null;
-    const theme = getWechatPreviewTheme(input.account, articleTheme ? {
-      editorVars: { ...articleTheme.manifest.editorVars, ...input.themeOverrides?.editorVars },
-      exportTheme: { footerText: "", ...articleTheme.manifest.exportTheme, ...input.themeOverrides?.exportTheme },
-    } : input.themeOverrides);
+    const { theme, structure } = resolveWechatArticleTheme(input.account, input.themeOverrides, articleTheme);
     const presetsCss = input.themeOverrides?.syntaxPresets
       ? buildCombinedPresetsCss(input.themeOverrides.syntaxPresets)
       : "";
     const customCss = [presetsCss, articleTheme?.css, input.customCss ? await readFile(input.customCss, "utf-8") : ""].filter(Boolean).join("\n\n");
-    const structure = articleTheme ? {
-      ...articleTheme.manifest.structure,
-      ...input.themeOverrides?.structure,
-      headerImageUrl: articleTheme.manifest.structure.headerImage
-        ? `data:image/${articleTheme.manifest.structure.headerImage.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")};base64,${Buffer.from(articleTheme.files.get(articleTheme.manifest.structure.headerImage)!).toString("base64")}` : null,
-    } : (input.themeOverrides?.structure ? { ...input.themeOverrides.structure } : undefined);
     const shell = readUtf8(TEMPLATE_PATH);
     const payloadJson = escapeInlineJson(
       JSON.stringify({

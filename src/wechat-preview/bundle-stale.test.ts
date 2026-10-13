@@ -2,9 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { isWechatPreviewBundleStale } from "./index";
+import { getWechatPreviewBundleSources, isWechatPreviewBundleStale } from "./index";
 
 describe("isWechatPreviewBundleStale", () => {
+  test("tracks presets, palettes and all imported shared plugin files", () => {
+    const sources = getWechatPreviewBundleSources();
+    expect(sources.some(path => path.endsWith("syntax-presets.ts"))).toBe(true);
+    expect(sources.some(path => path.endsWith("color-palettes.ts"))).toBe(true);
+    expect(sources.some(path => path.endsWith("builtin-callout.js"))).toBe(true);
+  });
   test("returns true when manifest is missing", () => {
     const dir = mkdtempSync(join(tmpdir(), "zzhub-bundle-stale-"));
     try {

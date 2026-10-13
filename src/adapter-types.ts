@@ -11,6 +11,7 @@
 import type { RenderAsset, RoutePrimary, WorkflowState } from "./state";
 import type { MonitorProgress } from "./monitor/types";
 import type { ResolvedCoverTheme } from "./schema/cover-theme";
+import type { WechatThemeOverrides } from "./schema/config";
 
 // ── Doctor check ──────────────────────────────────────────────────
 
@@ -150,10 +151,7 @@ export interface MarkdownRenderInput {
   state?: WorkflowState;
 
   /** Per-account theme overrides from config. Deep-merged onto hardcoded defaults. */
-  themeOverrides?: {
-    editorVars?: Record<string, string>;
-    exportTheme?: Record<string, string>;
-  };
+  themeOverrides?: Partial<WechatThemeOverrides>;
 
   /** Chrome virtual-time-budget in ms */
   timeoutMs?: number;

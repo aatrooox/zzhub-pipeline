@@ -9,6 +9,8 @@ import type { ArticleStructure } from "../../wechat-renderer";
 import type { WechatExportTheme } from "../../themes";
 import { SYNTAX_CATEGORIES, buildCombinedPresetsCss } from "./syntax-presets";
 import { COLOR_PALETTES } from "./color-palettes";
+import { extractFrontmatter } from "../../frontmatter-handler";
+import { stripLeadingH1 } from "../../../text";
 
 interface AccountData {
   name: string;
@@ -18,13 +20,9 @@ interface AccountData {
     editorVars: Record<string, string>;
     exportTheme: Partial<WechatExportTheme>;
     syntaxPresets?: Record<string, string>;
-    structure?: {
-      numberedHeadings?: boolean;
-      headingLabel?: string;
-      quoteLabel?: string;
-      calloutPresets?: Record<string, { title?: string; icon?: string }>;
-    };
+    structure?: ArticleStructure;
   };
+  articleThemeCss?: string;
   articleTheme?: string | null;
 }
 
@@ -42,6 +40,9 @@ let latestWechatHtml = "";
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let showingHtmlSource = false;
 let currentSyntaxPresets: Record<string, string> = {};
+// 串行渲染，旧结果不能覆盖最新编辑或账号。
+let renderRevision = 0;
+let rendering = false;
 
 // DOM Elements
 const accountSelect = document.getElementById("account-select") as HTMLSelectElement;
@@ -116,12 +117,51 @@ function updateStats() {
   editorStats.textContent = `字数: ${chars.toLocaleString()} 字 | 预计阅读: ${minutes} 分钟`;
 }
 
+/** 预览与保存共用同一份样式参数。 */
+function readStyleControls() {
+  const account = accounts[currentAccount];
+  const exportTheme: WechatExportTheme = {
+    ...account.theme.exportTheme as WechatExportTheme,
+    bodyFontSize: `${inputFontSize.value}px`,
+    bodyParagraphSpacing: `${inputParaSpacing.value}em`,
+    bodyColor: hexTextColor.value,
+    h2Color: hexH2Color.value,
+    h3Color: hexH3Color.value,
+    primaryColor: hexBrandColor.value,
+    dividerColor: hexDividerColor.value,
+    blockquoteBorderColor: hexQuoteColor.value,
+    bodyLineHeight: inputLineHeight.value,
+    bodyLetterSpacing: `${inputLetterSpacing.value}em`,
+  };
+  const editorVars = {
+    ...account.theme.editorVars,
+    "--brand": hexBrandColor.value,
+    "--text": hexTextColor.value,
+    "--divider": hexDividerColor.value,
+  };
+  const structure: ArticleStructure = {
+    ...account.theme.structure,
+    numberedHeadings: switchNumberedHeadings.checked,
+    headingLabel: inputHeadingLabel.value.trim(),
+    quoteLabel: inputQuoteLabel.value.trim(),
+  };
+  return { editorVars, exportTheme, structure };
+}
+
 async function doRender() {
-  const markdown = editorMarkdown.value;
+  if (rendering || !accounts[currentAccount]) return;
+  rendering = true;
+  const revision = renderRevision;
+  const markdown = stripLeadingH1(extractFrontmatter(editorMarkdown.value).content).trimStart();
+  const style = readStyleControls();
+  const customCss = [
+    buildCombinedPresetsCss(currentSyntaxPresets),
+    accounts[currentAccount].articleThemeCss,
+    inputCustomCss.value,
+  ].filter(Boolean).join("\n\n");
   updateStats();
 
   try {
-    // 1. Run Milkdown in hidden host to obtain semantic HTML
     hiddenHost.innerHTML = "";
     const editor = Editor.make()
       .config((ctx) => {
@@ -132,109 +172,43 @@ async function doRender() {
       .use(gfm)
       .use(getCombinedMilkdownPlugins());
 
-    await editor.create();
-    const rawSemanticHtml = editor.action(getHTML());
-    await editor.destroy();
-
-    // 2. Build parameters from controls
-    const fontSize = Number(inputFontSize.value) || 16;
-    const lineHeight = inputLineHeight.value || "1.84";
-    const letterSpacing = `${inputLetterSpacing.value}em`;
-    const paraSpacing = `${inputParaSpacing.value}em`;
-
-    const brandColor = hexBrandColor.value || "#ca6093";
-    const textColor = hexTextColor.value || "#292526";
-    const h2Color = hexH2Color.value || "#1f1b1c";
-    const h3Color = hexH3Color.value || "#5c5658";
-    const quoteColor = hexQuoteColor.value || "#ca6093";
-    const dividerColor = hexDividerColor.value || "#dadce0";
-
-    const baseExportTheme = accounts[currentAccount]?.theme?.exportTheme || {};
-    const baseEditorVars = accounts[currentAccount]?.theme?.editorVars || {};
-
-    const containerStyle = [
-      "max-width: 100%",
-      "margin: 0",
-      "padding: 10px 4px 30px",
-      "background: #ffffff",
-      "box-sizing: border-box",
-      "font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
-      `font-size: ${fontSize}px`,
-      `color: ${textColor}`,
-      "overflow-wrap: break-word",
-      "word-break: break-word",
-      `line-height: ${lineHeight}`,
-      `letter-spacing: ${letterSpacing}`,
-      "-webkit-text-size-adjust: 100%",
-    ].join("; ");
-
-    const exportTheme: WechatExportTheme = {
-      ...baseExportTheme,
-      containerStyle,
-      footerText: baseExportTheme.footerText ?? "",
-      footerStyle: baseExportTheme.footerStyle ?? "margin-top: 32px; text-align: center; font-size: 12px; color: #6f696b;",
-      fontFamily: baseExportTheme.fontFamily || "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
-      bodyColor: textColor,
-      mutedColor: baseExportTheme.mutedColor || "#5f6368",
-      h2Color,
-      h3Color,
-      primaryColor: brandColor,
-      dividerColor,
-      blockquoteBorderColor: quoteColor,
-      bodyLineHeight: lineHeight,
-      bodyLetterSpacing: letterSpacing,
-    };
-
-    const editorVars: Record<string, string> = {
-      ...baseEditorVars,
-      "--primary": brandColor,
-      "--brand": brandColor,
-      "--brand-soft": baseEditorVars["--brand-soft"] || brandColor,
-      "--brand-bg": baseEditorVars["--brand-bg"] || "rgba(202, 96, 147, 0.08)",
-      "--text": textColor,
-      "--divider": dividerColor,
-    };
-
-    const structure: ArticleStructure = {
-      numberedHeadings: switchNumberedHeadings.checked,
-      headingLabel: inputHeadingLabel.value.trim() || undefined,
-      quoteLabel: inputQuoteLabel.value.trim() || undefined,
-      calloutPresets: accounts[currentAccount]?.theme?.structure?.calloutPresets,
-    };
-
-    const combinedPresetsCss = buildCombinedPresetsCss(currentSyntaxPresets);
-
-    const customCssWithPara = [
-      combinedPresetsCss,
-      inputCustomCss.value,
-      `.milkdown .editor p { margin: 0 0 ${paraSpacing}; }`,
-    ].filter(Boolean).join("\n\n");
-
-    // 3. Render inlined WeChat HTML
+    let semanticHtml: string;
+    try {
+      await editor.create();
+      semanticHtml = editor.action(getHTML());
+    } finally {
+      await editor.destroy();
+    }
     const inlinedHtml = await renderWechatHtml({
-      semanticHtml: rawSemanticHtml,
+      semanticHtml,
       baseCss: articleCss,
-      customCss: customCssWithPara,
-      structure,
-      editorVars,
-      theme: exportTheme,
+      customCss,
+      structure: style.structure,
+      editorVars: style.editorVars,
+      theme: style.exportTheme,
     });
-
+    if (revision !== renderRevision) return;
     latestWechatHtml = inlinedHtml;
     previewScreen.innerHTML = inlinedHtml;
     htmlSourceCode.value = inlinedHtml;
   } catch (error) {
+    if (revision !== renderRevision) return;
     console.error("Studio render error:", error);
-    (window as any).__LAST_STUDIO_ERROR__ = {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    };
-    const msg = error instanceof Error ? error.message : String(error);
-    previewScreen.innerHTML = `<div style="color:#b91c1c;padding:16px;background:#fef2f2;border-radius:8px;">渲染错误: ${msg}</div>`;
+    const message = error instanceof Error ? error.message : String(error);
+    previewScreen.textContent = `渲染错误: ${message}`;
+    htmlSourceCode.value = "";
+  } finally {
+    rendering = false;
+    if (revision !== renderRevision) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      void doRender();
+    }
   }
 }
 
 function scheduleRender(delay = 60) {
+  renderRevision += 1;
+  latestWechatHtml = "";
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     void doRender();
@@ -390,29 +364,18 @@ function applyAccountConfig(accountKey: string) {
   const exportTheme = account.theme?.exportTheme || {};
   const editorVars = account.theme?.editorVars || {};
 
-  // 1. Font size
-  if (exportTheme.containerStyle) {
-    const match = exportTheme.containerStyle.match(/font-size:\s*(\d+)px/);
-    if (match) {
-      inputFontSize.value = match[1];
-      valFontSize.textContent = `${match[1]}px`;
-    }
-  }
-
-  // 2. Line height
-  if (exportTheme.bodyLineHeight) {
-    inputLineHeight.value = exportTheme.bodyLineHeight;
-    valLineHeight.textContent = exportTheme.bodyLineHeight;
-  }
-
-  // 3. Letter spacing (e.g. "0.03em")
-  if (exportTheme.bodyLetterSpacing) {
-    const spacingNum = parseFloat(exportTheme.bodyLetterSpacing);
-    if (!isNaN(spacingNum)) {
-      inputLetterSpacing.value = String(spacingNum);
-      valLetterSpacing.textContent = `${spacingNum}em`;
-    }
-  }
+  // 账号切换与重置必须恢复全部排版控件。
+  inputFontSize.value = exportTheme.bodyFontSize?.replace(/px$/, "")
+    || exportTheme.containerStyle?.match(/font-size:\s*(\d+(?:\.\d+)?)px/)?.[1] || "16";
+  valFontSize.textContent = `${inputFontSize.value}px`;
+  inputLineHeight.value = exportTheme.bodyLineHeight || "1.84";
+  valLineHeight.textContent = inputLineHeight.value;
+  inputLetterSpacing.value = String(parseFloat(exportTheme.bodyLetterSpacing || "0.012em"));
+  valLetterSpacing.textContent = `${inputLetterSpacing.value}em`;
+  inputParaSpacing.value = String(parseFloat(exportTheme.bodyParagraphSpacing || "1.18em"));
+  valParaSpacing.textContent = `${inputParaSpacing.value}em`;
+  paletteSelect.value = "";
+  paletteDesc.textContent = "";
 
   // 4. Colors
   const brand = editorVars["--brand"] || exportTheme.primaryColor;
@@ -623,49 +586,17 @@ document.getElementById("btn-reset")?.addEventListener("click", () => {
 
 // Save to config.json
 document.getElementById("btn-save")?.addEventListener("click", async () => {
-  const fontSize = Number(inputFontSize.value) || 16;
-  const lineHeight = inputLineHeight.value || "1.84";
-  const letterSpacing = `${inputLetterSpacing.value}em`;
-
-  const brandColor = hexBrandColor.value;
-  const textColor = hexTextColor.value;
-  const h2Color = hexH2Color.value;
-  const h3Color = hexH3Color.value;
-  const quoteColor = hexQuoteColor.value;
-  const dividerColor = hexDividerColor.value;
-
-  const baseEditorVars = accounts[currentAccount]?.theme?.editorVars || {};
-  const baseExportTheme = accounts[currentAccount]?.theme?.exportTheme || {};
-
+  const account = accounts[currentAccount];
+  if (!account) return;
+  const { structure, ...theme } = readStyleControls();
+  // 页首素材由正文模板提供，不写入账号结构配置。
+  const { headerImageUrl: _headerImageUrl, ...savedStructure } = structure;
   const payload = {
     account: currentAccount,
-    editorVars: {
-      ...baseEditorVars,
-      "--primary": brandColor,
-      "--brand": brandColor,
-      "--text": textColor,
-      "--divider": dividerColor,
-    },
-    exportTheme: {
-      ...baseExportTheme,
-      fontSize: `${fontSize}px`,
-      bodyColor: textColor,
-      h2Color,
-      h3Color,
-      primaryColor: brandColor,
-      dividerColor,
-      blockquoteBorderColor: quoteColor,
-      bodyLineHeight: lineHeight,
-      bodyLetterSpacing: letterSpacing,
-    },
-    syntaxPresets: currentSyntaxPresets,
+    ...theme,
+    syntaxPresets: { ...currentSyntaxPresets },
     customCss: inputCustomCss.value,
-    structure: {
-      ...accounts[currentAccount]?.theme?.structure,
-      numberedHeadings: switchNumberedHeadings.checked,
-      headingLabel: inputHeadingLabel.value.trim() || undefined,
-      quoteLabel: inputQuoteLabel.value.trim() || undefined,
-    },
+    structure: savedStructure,
   };
 
   try {
@@ -676,9 +607,8 @@ document.getElementById("btn-save")?.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (res.ok && data.ok) {
-      if (accounts[currentAccount]?.theme) {
-        accounts[currentAccount].theme.syntaxPresets = { ...currentSyntaxPresets };
-      }
+      account.theme = { ...theme, structure, syntaxPresets: payload.syntaxPresets };
+      account.customCssContent = payload.customCss;
       showToast("✅ 配置已成功保存至本地 config.json！", "success");
     } else {
       showToast(`保存失败: ${data.error || "未知错误"}`, "error");
