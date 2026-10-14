@@ -245,7 +245,7 @@ zzp publish --state <state_path>
 
 实际顺序以 `status --view agent` 为准。需要发布贴图时，把 `--content-form` 改为 `newspic`；多页图片可以在渲染前附加 `newspic` 规格。
 
-如果正文由 Agent 生成或审核，可以直接使用仓库里的 [`zzhub-publish` Skill](skills/zzhub-publish/SKILL.md)。Skill 只负责编排 Agent，文章正文仍由调用方提供。
+如果正文由 Agent 生成或审核，可以使用配套的 [kairos-skills](https://github.com/aatrooox/kairos-skills) 仓库中的 [`zzhub-publish` Skill](https://github.com/aatrooox/kairos-skills/tree/main/skills/zzhub-publish/SKILL.md)。Skill 负责编排 Agent 状态机，文章正文仍由调用方提供。
 
 ## 云端 Worker
 
@@ -375,7 +375,7 @@ zzp monitor stop
 - [云端 Worker API、部署与更新](services/cloud-worker/README.md)
 - [封面主题和图片排版](docs/render-themes.md)
 - [离线正文模板](ARTICLE-THEMES.md)
-- [Agent 发布 Skill](skills/zzhub-publish/SKILL.md)
+- [Kairos Agent Skills 仓库](https://github.com/aatrooox/kairos-skills)：配套的 Agent 技能集合（包含 `zzhub-publish` 状态机编排、`milkdown-writing` 写作排版规范、`auto-ai-daily` 自动化发文）
 - [第三方声明](THIRD-PARTY-NOTICES.md)
 
 ## 开发与验证
