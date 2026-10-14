@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.18.1
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.18.0...v0.18.1)
+
+### Fixes
+
+- **wechat:** Right-align square cover crops ([d888d31](https://github.com/aatrooox/zzhub-pipeline/commit/d888d31))
+
+### ❤️ Contributors
+
+- Kairos <gnakzz@qq.com>
+
 ## v0.18.0
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.17.0...v0.18.0)
