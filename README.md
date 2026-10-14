@@ -149,7 +149,7 @@ Pipeline 内置基于 `@akairos/milkdown-article-plugins` 与 `@akairos/milkdown
 标准 Markdown `---` 会自动应用 Studio 中配置的分割线预设（如 `short-center` 居中 36% 呼吸线、`dashed` 极简虚线、`hairline` 细实线），并自动编译为抗样式覆盖的 `<section>` 节点，防止被微信移动端强行拉伸至 100% 通栏。
 
 #### 5. 智能封面裁切比率自动适配
-Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸并计算居中 1:1 与满宽 2.35:1 裁切坐标比率，自动注入 `pic_crop_235_1` 与 `pic_crop_1_1` 微信 API 参数，彻底告别微信官方接口的 `53401`（`WX_CONTENT_REJECTED`）拒收报错。
+Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸，默认裁切最右侧的 1:1 区域（纵向居中），2.35:1 裁切保持原有规则，自动注入 `pic_crop_235_1` 与 `pic_crop_1_1` 微信 API 参数，彻底告别微信官方接口的 `53401`（`WX_CONTENT_REJECTED`）拒收报错。
 
 ### 模块化生态组成
 

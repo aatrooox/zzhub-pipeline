@@ -617,7 +617,7 @@ async function uploadPhotos(
   };
 }
 
-/** 仅识别内置 3.35:1 拼图，普通封面按目标比例居中裁切。 */
+/** 仅识别内置 3.35:1 拼图，普通封面 1:1 靠右、2.35:1 居中裁切。 */
 export function calculatePicCrop(width: number, height: number): { pic_crop_235_1: string; pic_crop_1_1: string } {
   if (Math.abs(width - height * 3.35) <= 1) {
     // 微信头图 split 双比例：左侧 2.35:1，右侧 1:1
@@ -627,16 +627,16 @@ export function calculatePicCrop(width: number, height: number): { pic_crop_235_
       pic_crop_1_1: `${splitX.toFixed(4)}_0_1_1`,
     };
   }
-  const centeredCrop = (targetRatio: number): string => {
+  const cropAtRatio = (targetRatio: number): string => {
     const cropWidth = Math.min(1, height * targetRatio / width);
     const cropHeight = Math.min(1, width / targetRatio / height);
-    const x = (1 - cropWidth) / 2;
+    const x = targetRatio === 1 ? 1 - cropWidth : (1 - cropWidth) / 2;
     const y = (1 - cropHeight) / 2;
     return [x, y, x + cropWidth, y + cropHeight].map(value => value.toFixed(4)).join("_");
   };
   return {
-    pic_crop_235_1: centeredCrop(2.35),
-    pic_crop_1_1: centeredCrop(1),
+    pic_crop_235_1: cropAtRatio(2.35),
+    pic_crop_1_1: cropAtRatio(1),
   };
 }
 

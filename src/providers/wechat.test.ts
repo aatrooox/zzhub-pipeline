@@ -21,13 +21,14 @@ describe("cover crop", () => {
   test("keeps the built-in split cover regions", () => {
     expect(calculatePicCrop(1340, 400)).toEqual({ pic_crop_235_1: "0_0_0.7015_1", pic_crop_1_1: "0.7015_0_1_1" });
   });
-  test("centers ordinary panoramic and portrait images at the target ratios", () => {
-    for (const [width, height] of [[400, 100], [100, 200], [235, 100]]) {
+  test("right-aligns square crops and centers wide crops at the target ratios", () => {
+    for (const [width, height] of [[400, 100], [100, 200], [100, 100], [235, 100]]) {
       const crops = calculatePicCrop(width, height);
       for (const [crop, ratio] of [[crops.pic_crop_235_1, 2.35], [crops.pic_crop_1_1, 1]] as const) {
         const [x1, y1, x2, y2] = crop.split("_").map(Number);
         expect((x2! - x1!) * width / ((y2! - y1!) * height)).toBeCloseTo(ratio, 2);
-        expect(x1! + x2!).toBeCloseTo(1);
+        if (ratio === 1) expect(x2).toBe(1);
+        else expect(x1! + x2!).toBeCloseTo(1);
         expect(y1! + y2!).toBeCloseTo(1);
       }
     }
@@ -55,8 +56,9 @@ describe("cover crop", () => {
       await createWechatDraft({ config, title: "test", html: "<p>body</p>", photos: [`${overrides.ZZHUB_WX_BASE_URL}/cover.png`] });
       await createWechatDraft({ config, title: "test", html: "<p>body</p>", photos: [`data:image/png;base64,${image.toString("base64")}`], existingDraftMediaId: "existing-id" });
       expect(downloads).toBe(1);
-      expect(drafts[0].articles[0]).toMatchObject(calculatePicCrop(235, 100));
-      expect(drafts[1].articles).toMatchObject(calculatePicCrop(235, 100));
+      const expectedCrops = { pic_crop_235_1: "0.0000_0.0000_1.0000_1.0000", pic_crop_1_1: "0.5745_0.0000_1.0000_1.0000" };
+      expect(drafts[0].articles[0]).toMatchObject(expectedCrops);
+      expect(drafts[1].articles).toMatchObject(expectedCrops);
     } finally {
       relay.stop(true);
       for (const [key, value] of Object.entries(previous)) {
