@@ -85,8 +85,8 @@ window.__zzhubRenderReady = (async () => {
   Image.prototype.decode = async function() { await new Promise(resolve => setTimeout(resolve, 250)); return originalDecode.call(this); };
   edit('editor-markdown', '![0.50](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7)');
   await new Promise(resolve => setTimeout(resolve, 100));
-  edit('editor-markdown', 'Latest body.');
-  await waitFor(() => source().includes('Latest body.'));
+  edit('editor-markdown', 'Latest body.\\n\\n![1.00](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7 "Crepe 图注")');
+  await waitFor(() => source().includes('Latest body.') && source().includes('Crepe 图注</p>'));
   const result = document.createElement('script'); result.id = 'zzhub-wechat-export-result'; result.type = 'application/json';
   result.textContent = JSON.stringify({status:'success',html:JSON.stringify({saved:window.saved,exported,exportDidNotSave,downloadName:window.downloadName,resetOk,html:source()})});
   document.body.appendChild(result);
@@ -119,7 +119,7 @@ window.__zzhubRenderReady = (async () => {
     expect(checked.saved.structure.headingLabel).toBe("Chapter");
     expect(checked.resetOk).toBe(true);
     expect(checked.html).toContain("Latest body.");
-    expect(checked.html).not.toContain("<img");
+    expect(checked.html).toContain("Crepe 图注</p>");
   }, 20_000);
 
   test.skipIf(findChrome() === null)("renders all nodes, cascades CSS, and emits a safe exact preview", async () => {

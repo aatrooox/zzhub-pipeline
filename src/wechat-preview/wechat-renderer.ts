@@ -237,7 +237,8 @@ function imageIsOnlyContent(parent: HTMLElement, image: HTMLElement): boolean {
   });
 }
 
-// 图片缩放与图注共用导出流程，分别读取 alt 和 title。
+// 图片缩放与图注共用导出流程：Markdown 往返读两位小数 alt 与 title；
+// Crepe 块级图片 DOM 读 ratio 与 caption 属性。
 const imageRenderer: WechatElementRenderer = {
   kind: "image",
   selector: "img",
@@ -248,13 +249,21 @@ const imageRenderer: WechatElementRenderer = {
     if (src) element.setAttribute("data-src", src);
 
     const parent = element.parentElement;
-    if (!parent || parent.tagName.toLowerCase() !== "p" || !imageIsOnlyContent(parent, element)) {
+    const inOwnParagraph =
+      !!parent && parent.tagName.toLowerCase() === "p" && imageIsOnlyContent(parent, element);
+    // Crepe 块级图片是文章根的顶层裸 <img>，同样视为独立图片。
+    const topLevelBlock = parent === context.root;
+    if (!parent || (!inOwnParagraph && !topLevelBlock)) {
       return;
     }
 
-    // Crepe 仅将独立图片的缩放比例序列化为两位小数。
+    const ratioRaw = element.getAttribute("ratio");
+    const ratioFromAttr = ratioRaw ? Number(ratioRaw) : NaN;
     const alt = element.getAttribute("alt") ?? "";
-    const ratio = /^(?:0|[1-9]\d*)\.\d{2}$/.test(alt) ? Number(alt) : 0;
+    const ratio =
+      Number.isFinite(ratioFromAttr) && ratioFromAttr > 0
+        ? ratioFromAttr
+        : /^(?:0|[1-9]\d*)\.\d{2}$/.test(alt) ? Number(alt) : 0;
     if (ratio > 0 && Number.isFinite(ratio)) {
       // DOMParser 文档不加载图片，用浏览器图片对象读取原始尺寸。
       const sourceImage = new Image();
@@ -290,11 +299,16 @@ const imageRenderer: WechatElementRenderer = {
 
     const figure = context.document.createElement("figure");
     setNodeKind(figure, "image-block");
-    parent.replaceWith(figure);
+    if (inOwnParagraph) {
+      parent.replaceWith(figure);
+    } else {
+      element.replaceWith(figure);
+    }
     figure.appendChild(element);
 
-    const caption = element.getAttribute("title")?.trim();
+    const caption = (element.getAttribute("caption") || element.getAttribute("title") || "").trim();
     element.removeAttribute("title");
+    element.removeAttribute("caption");
     if (caption) {
       const figcaption = context.document.createElement("figcaption");
       setNodeKind(figcaption, "image-caption");
