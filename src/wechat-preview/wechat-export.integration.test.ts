@@ -147,7 +147,7 @@ window.__zzhubRenderReady = (async () => {
 
     expect(result.html).toBe(html);
     expect(html.length).toBeLessThan(65_400);
-    expect(html).toContain("一级标题：克制的中文编辑部");
+    expect(html).toContain("二级标题：清晰但不过度装饰");
     expect(html).toContain("<blockquote");
     expect(html).toContain("重点结论</span>");
     expect(html).not.toContain("==重点结论==");

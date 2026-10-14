@@ -3,45 +3,60 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WeChat Article Visual Studio - 排版可视化工作台</title>
+  <title>myno — 微信公众号排版工作台</title>
   <script type="module" crossorigin src="/studio.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/wechat-renderer-GgNrlSLi.js">
-  <link rel="stylesheet" crossorigin href="/assets/style-C9-YtTIm.css">
+  <link rel="modulepreload" crossorigin href="/assets/wechat-renderer-QYeYX5Up.js">
+  <link rel="stylesheet" crossorigin href="/assets/style-Cif_gYUW.css">
 </head>
 <body>
   <!-- Header -->
   <header class="studio-header">
     <div class="brand-section">
-      <span class="brand-logo">🎨</span>
-      <h1 class="brand-title">WeChat Visual Studio</h1>
-      <span class="brand-badge">实时调优</span>
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+          <path d="M6 6h10M6 10h10M6 14h6"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">myno</span>
+        <span class="brand-subtitle">WeChat Visual Studio</span>
+      </div>
+      <span id="config-mode-badge" class="badge badge-subtle">账号配置</span>
     </div>
 
-    <div class="header-controls">
-      <div class="account-select-wrap">
-        <span>公众号账号:</span>
-        <select id="account-select" class="account-select">
+    <!-- Center Config Selector -->
+    <div class="header-center">
+      <div class="config-selector-group">
+        <label for="account-select" class="selector-label">目标配置:</label>
+        <select id="account-select" class="select-control">
           <option value="default">默认账号 (default)</option>
         </select>
+        <button id="btn-import-config" class="btn btn-ghost btn-sm" title="导入已有 wechat-style.json 排版配置">
+          <span>📥 导入配置</span>
+        </button>
+        <input type="file" id="file-import-config" accept=".json" style="display: none;">
+        <button id="btn-export-config" class="btn btn-ghost btn-sm" title="导出独立 wechat-style.json，可在 CLI 使用 --article-theme 引用">
+          <span>📤 导出配置</span>
+        </button>
       </div>
+    </div>
 
-      <button id="btn-reset" class="btn" title="恢复当前账号默认样式">
+    <!-- Right Actions -->
+    <div class="header-actions">
+      <button id="btn-reset" class="btn btn-secondary btn-sm" title="恢复当前账号默认样式">
         <span>🔄 重置</span>
       </button>
 
-      <button id="btn-save" class="btn btn-primary" title="保存当前调整至本地 config.json 的当前账号">
+      <button id="btn-save" class="btn btn-primary btn-sm" title="保存当前调整至本地 config.json 的当前账号">
         <span>💾 保存至账号</span>
       </button>
 
-      <button id="btn-export-config" class="btn" title="下载独立排版 JSON，CLI 通过 --article-theme 选择，不含账号凭据">
-        <span>📤 导出配置</span>
-      </button>
-
-      <button id="btn-copy" class="btn btn-success" title="复制内联富文本，可直接粘贴到微信公众号后台">
+      <button id="btn-copy" class="btn btn-success btn-sm" title="复制包含内联样式的富文本，可直接粘贴到微信公众平台草稿箱">
         <span>📋 一键复制到公众号</span>
       </button>
 
-      <a href="/" class="btn" title="返回导出历史">
+      <a href="/" class="btn btn-ghost btn-sm" title="查看最近渲染记录">
         <span>📜 历史记录</span>
       </a>
     </div>
@@ -49,228 +64,260 @@
 
   <!-- Body -->
   <main class="studio-body">
-    <!-- Left: Tuning & Plugins -->
+    <!-- Left: Style & Tuning Panel -->
     <aside class="panel left-panel">
       <nav class="tab-nav">
-        <button id="tab-btn-style" class="tab-btn active">🎨 样式调优</button>
-        <button id="tab-btn-syntax" class="tab-btn">🧩 语法与组件</button>
+        <button id="tab-btn-style" class="tab-btn active">🎨 排版风格</button>
+        <button id="tab-btn-syntax" class="tab-btn">🧩 组件库与语法</button>
       </nav>
 
       <!-- Tab 1: Style Tuning -->
       <div id="tab-content-style" class="tab-content">
-        <!-- Typography -->
-        <div class="config-section">
-          <div class="section-label">
-            <span>📐 字号与排版</span>
+        <!-- 1. Curated Style Packs (Visual First for beginners) -->
+        <section class="config-section">
+          <div class="section-title">
+            <span>✨ 精选排版风格 (一键套用)</span>
+          </div>
+          <div id="style-packs-grid" class="style-packs-grid">
+            <!-- Populated dynamically by studio.ts -->
+          </div>
+        </section>
+
+        <!-- 2. Quick Typography Tuning (Segmented controls) -->
+        <section class="config-section">
+          <div class="section-title">
+            <span>📐 快速版心调节</span>
           </div>
 
-          <div class="form-group">
-            <div class="form-label">
+          <!-- Font size segmented control -->
+          <div class="control-group">
+            <div class="control-label">
               <span>正文字号</span>
-              <span id="val-font-size" class="form-val">16px</span>
+              <span id="val-font-size" class="control-val">16px</span>
             </div>
-            <input type="range" id="input-font-size" class="slider-input" min="14" max="18" step="1" value="16">
+            <div id="seg-font-size" class="segmented-control">
+              <button type="button" class="seg-btn" data-val="14">14 较小</button>
+              <button type="button" class="seg-btn" data-val="15">15 适中</button>
+              <button type="button" class="seg-btn active" data-val="16">16 标准</button>
+              <button type="button" class="seg-btn" data-val="17">17 较大</button>
+              <button type="button" class="seg-btn" data-val="18">18 大号</button>
+            </div>
+            <input type="range" id="input-font-size" class="slider-input hidden-slider" min="14" max="18" step="1" value="16">
           </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>行高倍数</span>
-              <span id="val-line-height" class="form-val">1.84</span>
+          <!-- Line height segmented control -->
+          <div class="control-group">
+            <div class="control-label">
+              <span>正文行距</span>
+              <span id="val-line-height" class="control-val">1.84</span>
             </div>
-            <input type="range" id="input-line-height" class="slider-input" min="1.5" max="2.2" step="0.02" value="1.84">
+            <div id="seg-line-height" class="segmented-control">
+              <button type="button" class="seg-btn" data-val="1.65">紧凑 1.65</button>
+              <button type="button" class="seg-btn active" data-val="1.84">标准 1.84</button>
+              <button type="button" class="seg-btn" data-val="2.0">疏朗 2.0</button>
+            </div>
+            <input type="range" id="input-line-height" class="slider-input hidden-slider" min="1.5" max="2.2" step="0.02" value="1.84">
           </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>字间距 (Letter Spacing)</span>
-              <span id="val-letter-spacing" class="form-val">0.012em</span>
+          <!-- Brand color swatches -->
+          <div class="control-group">
+            <div class="control-label">
+              <span>品牌主题色</span>
             </div>
-            <input type="range" id="input-letter-spacing" class="slider-input" min="0" max="0.05" step="0.002" value="0.012">
-          </div>
-
-          <div class="form-group">
-            <div class="form-label">
-              <span>段落间距 (Margin Bottom)</span>
-              <span id="val-para-spacing" class="form-val">1.18em</span>
+            <div id="color-swatches" class="color-swatches-row">
+              <button type="button" class="swatch-btn" style="background:#ca6093;" data-color="#ca6093" title="胭脂粉"></button>
+              <button type="button" class="swatch-btn" style="background:#18181b;" data-color="#18181b" title="纸墨黑"></button>
+              <button type="button" class="swatch-btn" style="background:#2563eb;" data-color="#2563eb" title="科技蓝"></button>
+              <button type="button" class="swatch-btn" style="background:#059669;" data-color="#059669" title="薄荷绿"></button>
+              <button type="button" class="swatch-btn" style="background:#7c3aed;" data-color="#7c3aed" title="极光紫"></button>
+              <button type="button" class="swatch-btn" style="background:#945938;" data-color="#945938" title="焦糖陶土"></button>
+              <button type="button" class="swatch-btn" style="background:#881337;" data-color="#881337" title="丝绒酒红"></button>
+              <button type="button" class="swatch-btn" style="background:#0284c7;" data-color="#0284c7" title="天蓝"></button>
             </div>
-            <input type="range" id="input-para-spacing" class="slider-input" min="0.8" max="2.0" step="0.01" value="1.18">
-          </div>
-        </div>
-
-        <!-- Colors -->
-        <div class="config-section">
-          <div class="section-label">
-            <span>🎨 颜色系统</span>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 16px;">
-            <div class="form-label">
-              <span>🌟 推荐高级配色方案 (杂志 / 服装 / App)</span>
-            </div>
-            <select id="palette-select" class="preset-select">
-              <option value="">-- 选择推荐调色盘 (一键应用) --</option>
-            </select>
-            <div id="palette-desc" class="preset-desc">可一键应用 Kinfolk 森林绿、Loro Piana 燕麦大地、纽约客石板蓝等</div>
-          </div>
-
-          <div class="form-group">
-            <div class="form-label">
-              <span>品牌主色 (Brand)</span>
-            </div>
-            <div class="color-input-row">
+            <div class="color-picker-inline">
               <input type="color" id="picker-brand-color" class="color-picker" value="#ca6093">
               <input type="text" id="hex-brand-color" class="color-hex" value="#ca6093">
             </div>
           </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>正文字色 (Body Text)</span>
+          <!-- H2 visual style pills -->
+          <div class="control-group">
+            <div class="control-label">
+              <span>二级标题 (H2) 风格</span>
             </div>
-            <div class="color-input-row">
-              <input type="color" id="picker-text-color" class="color-picker" value="#292526">
-              <input type="text" id="hex-text-color" class="color-hex" value="#292526">
+            <div id="seg-h2-preset" class="pills-grid">
+              <button type="button" class="pill-btn active" data-preset="pillar">竖条呼吸柱</button>
+              <button type="button" class="pill-btn" data-preset="gradient-pill">渐变胶囊</button>
+              <button type="button" class="pill-btn" data-preset="bottom-line">底部细线</button>
+              <button type="button" class="pill-btn" data-preset="contrast-green">绿底反差</button>
+              <button type="button" class="pill-btn" data-preset="card-tag">上标卡片</button>
+              <button type="button" class="pill-btn" data-preset="plain">极简纯字</button>
             </div>
           </div>
+        </section>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>二级标题颜色 (H2)</span>
+        <!-- 3. Advanced Accordion (Collapsed by default for clarity) -->
+        <details class="accordion-section">
+          <summary class="accordion-summary">
+            <span>⚙️ 进阶颜色与排版微调</span>
+            <span class="accordion-arrow">›</span>
+          </summary>
+          <div class="accordion-body">
+            <!-- Palette Selector -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>预设经典色盘</span>
+              </div>
+              <select id="palette-select" class="select-control full-width">
+                <option value="">-- 选择推荐调色盘 (一键应用) --</option>
+              </select>
+              <div id="palette-desc" class="form-hint"></div>
             </div>
-            <div class="color-input-row">
-              <input type="color" id="picker-h2-color" class="color-picker" value="#1f1b1c">
-              <input type="text" id="hex-h2-color" class="color-hex" value="#1f1b1c">
-            </div>
-          </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>三级标题颜色 (H3)</span>
+            <!-- Fine Colors -->
+            <div class="control-group">
+              <div class="control-label"><span>正文字色 (Body Text)</span></div>
+              <div class="color-picker-inline">
+                <input type="color" id="picker-text-color" class="color-picker" value="#292526">
+                <input type="text" id="hex-text-color" class="color-hex" value="#292526">
+              </div>
             </div>
-            <div class="color-input-row">
-              <input type="color" id="picker-h3-color" class="color-picker" value="#5c5658">
-              <input type="text" id="hex-h3-color" class="color-hex" value="#5c5658">
-            </div>
-          </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>引用边框与重点色</span>
+            <div class="control-group">
+              <div class="control-label"><span>二级标题字色 (H2)</span></div>
+              <div class="color-picker-inline">
+                <input type="color" id="picker-h2-color" class="color-picker" value="#1f1b1c">
+                <input type="text" id="hex-h2-color" class="color-hex" value="#1f1b1c">
+              </div>
             </div>
-            <div class="color-input-row">
-              <input type="color" id="picker-quote-color" class="color-picker" value="#e8c9d7">
-              <input type="text" id="hex-quote-color" class="color-hex" value="#e8c9d7">
+
+            <div class="control-group">
+              <div class="control-label"><span>三级标题字色 (H3)</span></div>
+              <div class="color-picker-inline">
+                <input type="color" id="picker-h3-color" class="color-picker" value="#5c5658">
+                <input type="text" id="hex-h3-color" class="color-hex" value="#5c5658">
+              </div>
             </div>
-          </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>分割线颜色 (Divider)</span>
+            <div class="control-group">
+              <div class="control-label"><span>引用边框与重点色</span></div>
+              <div class="color-picker-inline">
+                <input type="color" id="picker-quote-color" class="color-picker" value="#e8c9d7">
+                <input type="text" id="hex-quote-color" class="color-hex" value="#e8c9d7">
+              </div>
             </div>
-            <div class="color-input-row">
-              <input type="color" id="picker-divider-color" class="color-picker" value="#e2dcdf">
-              <input type="text" id="hex-divider-color" class="color-hex" value="#e2dcdf">
+
+            <div class="control-group">
+              <div class="control-label"><span>分割线颜色 (Divider)</span></div>
+              <div class="color-picker-inline">
+                <input type="color" id="picker-divider-color" class="color-picker" value="#e2dcdf">
+                <input type="text" id="hex-divider-color" class="color-hex" value="#e2dcdf">
+              </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Syntax Presets -->
-        <div class="config-section">
-          <div class="section-label">
-            <span>🧩 语法节点风格预设 (H2 / H3 / 引用 / 分割线)</span>
-          </div>
-          <div id="syntax-preset-container">
-            <!-- Populated dynamically by studio.ts from SYNTAX_CATEGORIES -->
-          </div>
-        </div>
+            <!-- Fine Spacing -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>字间距 (Letter Spacing)</span>
+                <span id="val-letter-spacing" class="control-val">0.012em</span>
+              </div>
+              <input type="range" id="input-letter-spacing" class="slider-input" min="0" max="0.05" step="0.002" value="0.012">
+            </div>
 
-        <!-- Structure -->
-        <div class="config-section">
-          <div class="section-label">
-            <span>🏛️ 装饰与结构</span>
-          </div>
+            <div class="control-group">
+              <div class="control-label">
+                <span>段落间距 (Margin Bottom)</span>
+                <span id="val-para-spacing" class="control-val">1.18em</span>
+              </div>
+              <input type="range" id="input-para-spacing" class="slider-input" min="0.8" max="2.0" step="0.01" value="1.18">
+            </div>
 
-          <div class="form-group">
-            <label class="switch-label">
-              <span>二级标题自动编号 (01, 02)</span>
-              <span class="switch-toggle">
+            <!-- Structure -->
+            <div class="control-group">
+              <label class="switch-row">
+                <span>二级标题自动编号 (01, 02)</span>
                 <input type="checkbox" id="switch-numbered-headings">
-                <span class="slider-round"></span>
-              </span>
-            </label>
-          </div>
-
-          <div class="form-group">
-            <div class="form-label">
-              <span>标题前缀标签 (例: CHAPTER)</span>
+              </label>
             </div>
-            <input type="text" id="input-heading-label" class="color-hex" style="width:100%" placeholder="如：CHAPTER">
-          </div>
 
-          <div class="form-group">
-            <div class="form-label">
-              <span>引言前缀标签 (例: 摘录)</span>
+            <div class="control-group">
+              <div class="control-label"><span>标题前缀标签 (例: CHAPTER)</span></div>
+              <input type="text" id="input-heading-label" class="text-input" placeholder="如：CHAPTER">
             </div>
-            <input type="text" id="input-quote-label" class="color-hex" style="width:100%" placeholder="如：摘录">
-          </div>
-        </div>
 
-        <!-- Custom CSS -->
-        <div class="config-section">
-          <div class="section-label">
-            <span>💻 自定义 CSS 覆盖</span>
+            <div class="control-group">
+              <div class="control-label"><span>引言前缀标签 (例: 摘录)</span></div>
+              <input type="text" id="input-quote-label" class="text-input" placeholder="如：摘录">
+            </div>
+
+            <!-- Syntax Preset Categories -->
+            <div class="control-group">
+              <div class="control-label"><span>各语法节点风格预设</span></div>
+              <div id="syntax-preset-container">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Custom CSS -->
+            <div class="control-group">
+              <div class="control-label"><span>自定义 CSS 覆盖</span></div>
+              <textarea id="input-custom-css" class="code-textarea" placeholder="/* 在此处输入自定义 CSS 规则，实时生效 */&#10;.milkdown .editor p { text-align: justify; }"></textarea>
+            </div>
           </div>
-          <textarea id="input-custom-css" class="css-editor" placeholder="/* 在此处输入自定义 CSS 规则，实时生效 */&#10;h2 { letter-spacing: 0.05em; }&#10;p { text-align: justify; }"></textarea>
-        </div>
+        </details>
       </div>
 
-      <!-- Tab 2: Syntax Cheatsheet -->
+      <!-- Tab 2: Syntax & Components Cheatsheet -->
       <div id="tab-content-syntax" class="tab-content" style="display: none;">
+        <div class="syntax-guide-intro">
+          <span>💡 提示：在中间编辑器中，输入 <code>/</code> 即可快速唤起微信专属组件菜单！</span>
+        </div>
         <div id="syntax-card-list">
           <!-- Populated dynamically by studio.ts -->
         </div>
       </div>
     </aside>
 
-    <!-- Center: Markdown Input -->
+    <!-- Center: Editor Panel -->
     <section class="panel editor-panel">
       <div class="panel-header">
-        <div class="panel-title">
-          <span>📝</span>
-          <span>Markdown 草稿编辑</span>
+        <div class="editor-mode-toggle">
+          <button id="btn-mode-visual" class="mode-btn active" title="Milkdown 所见即所得编辑">✨ 所见即所得</button>
+          <button id="btn-mode-source" class="mode-btn" title="查看并编辑 Markdown 源码">📝 源码模式</button>
         </div>
-        <div class="editor-toolbar">
-          <button id="btn-load-sample" class="btn" title="加载全语法验收用例">📄 官方测试稿</button>
-          <button id="btn-clear-md" class="btn" title="清空编辑器内容">🗑️ 清空</button>
+        <div class="editor-header-actions">
+          <button id="btn-load-sample" class="btn btn-ghost btn-sm" title="加载全语法官方验收稿">📄 官方测试稿</button>
+          <button id="btn-clear-md" class="btn btn-ghost btn-sm" title="清空编辑器内容">🗑️ 清空</button>
         </div>
       </div>
 
-      <textarea id="editor-markdown" class="editor-textarea" spellcheck="false" placeholder="在此粘贴或输入 Markdown 文章内容..."></textarea>
+      <!-- Interactive Crepe Editor Surface -->
+      <div id="editor-workspace" class="editor-workspace">
+        <div id="milkdown-editor-root" class="milkdown-editor-surface"></div>
+        <textarea id="editor-markdown" class="editor-textarea-source" spellcheck="false" placeholder="在此粘贴或输入 Markdown 文章内容..." style="display: none;"></textarea>
+      </div>
 
       <div class="editor-footer">
         <span id="editor-stats">字数: 0 字 | 预计阅读: 1 分钟</span>
-        <span>实时渲染: 50ms 防抖</span>
+        <span class="editor-sync-indicator">⚡ 所见即所得实时排版</span>
       </div>
     </section>
 
-    <!-- Right: Live WeChat Viewport -->
+    <!-- Right: Mobile Device Simulation (430px) -->
     <section class="panel preview-panel">
       <div class="panel-header">
         <div class="panel-title">
-          <span>📱</span>
-          <span>微信手机仿真视口 (430px)</span>
+          <span>📱 手机仿真视口 (430px)</span>
         </div>
-        <div>
-          <button id="btn-toggle-view" class="btn" style="font-size: 11px;">🔍 查看 HTML 源码</button>
-        </div>
+        <button id="btn-toggle-view" class="btn btn-ghost btn-xs">🔍 HTML 源码</button>
       </div>
 
-      <div class="preview-container">
+      <div class="preview-scroll-container">
         <!-- Phone Simulator Frame -->
         <div class="device-frame">
           <div class="device-notch-bar">
             <span>9:41</span>
-            <span>WeChat Article</span>
+            <span class="device-app-title">公众号正文</span>
             <span>100% 🔋</span>
           </div>
           <div id="preview-screen" class="device-screen">
@@ -279,8 +326,8 @@
         </div>
 
         <!-- HTML Code Viewer (Hidden by default) -->
-        <div id="html-source-container" style="display: none; width: 100%; margin-top: 16px;">
-          <textarea id="html-source-code" class="css-editor" style="height: 380px; width: 100%;" readonly></textarea>
+        <div id="html-source-container" class="html-source-box" style="display: none;">
+          <textarea id="html-source-code" class="code-textarea" readonly></textarea>
         </div>
       </div>
     </section>
@@ -289,9 +336,8 @@
   <!-- Toast Notification -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- Hidden Milkdown Engine Mount Host -->
-  <div id="studio-editor-host"></div>
+  <!-- Hidden Milkdown Engine Mount Host (if needed for background AST juice conversion) -->
+  <div id="studio-editor-host" style="display: none;"></div>
 
-  <!-- Studio Script -->
 </body>
 </html>

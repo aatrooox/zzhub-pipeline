@@ -112,4 +112,32 @@ export const COLOR_PALETTES: ColorPalette[] = [
       divider: "#dadce0",
     },
   },
+  {
+    id: "amber-terracotta",
+    name: "🍂 暖柿陶土 (秋日暖柿 / 温暖人文)",
+    category: "温暖人文与生活",
+    description: "秋日暖柿与陶土红调，深焦糖微暖黑正文，温润包容，手机长文夜读极度舒适",
+    colors: {
+      brand: "#c25e2e",
+      text: "#2b2623",
+      h2: "#1f1b18",
+      h3: "#573d2d",
+      quote: "#d9825b",
+      divider: "#ece2d8",
+    },
+  },
+  {
+    id: "iris-indigo",
+    name: "🔮 鸢尾极光 (Linear / 前沿科技)",
+    category: "现代数字与前沿设计",
+    description: "深邃鸢尾靛蓝紫，搭配深紫夜冷黑字色与柔光分割，兼具理性逻辑与前沿审美",
+    colors: {
+      brand: "#6366f1",
+      text: "#1e1b4b",
+      h2: "#0f0e26",
+      h3: "#4338ca",
+      quote: "#a5b4fc",
+      divider: "#e0e7ff",
+    },
+  },
 ];

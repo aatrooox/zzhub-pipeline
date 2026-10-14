@@ -1,12 +1,3 @@
----
-title: 微信排版语义节点验收
-slug: wechat-renderer-all-nodes
----
-
-# 微信排版语义节点验收
-
-# 一级标题：克制的中文编辑部
-
 > [!INTRO] 导读
 > **文 / Aatrox** · 预计阅读 5 分钟
 >
@@ -29,7 +20,7 @@ slug: wechat-renderer-all-nodes
 >
 > 引用可以有第二段，并保留 **重点信息**。
 
-![排版示例图](../../imgx/assets/icons/logo.png "图片说明：克制、清晰、适合移动端阅读")
+![排版示例图](https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800 "图片说明：克制、清晰、适合移动端阅读")
 
 - 无序列表第一项
   - 嵌套列表包含 `nested-code`
@@ -106,7 +97,7 @@ Setext 标题
 
 ![引用式图片][reference-image]
 
-[reference-image]: ../../imgx/assets/icons/logo.png "引用式图注"
+[reference-image]: https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800 "引用式图注"
 
 ```markdown
 ![代码示例](./missing-example.png)

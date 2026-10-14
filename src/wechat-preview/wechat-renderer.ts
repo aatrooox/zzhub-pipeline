@@ -29,6 +29,7 @@ export interface WechatRenderContext {
   theme: WechatExportTheme;
   references: WechatLinkReference[];
   structure?: ArticleStructure;
+  strictImageDecode?: boolean;
 }
 
 /** 模板仅声明有限的结构变化，不注入脚本或任意 HTML。 */
@@ -61,6 +62,7 @@ export interface RenderWechatHtmlInput {
   editorVars?: Record<string, string>;
   theme: WechatExportTheme;
   renderers?: WechatRendererOverrides;
+  strictImageDecode?: boolean;
 }
 
 const ALLOWED_TAGS = new Set([
@@ -131,6 +133,7 @@ const ALLOWED_STYLE_PROPERTIES = new Set([
   "text-decoration-style",
   "text-indent",
   "background",
+  "background-image",
   "background-color",
   "border",
   "border-top",
@@ -255,16 +258,34 @@ const imageRenderer: WechatElementRenderer = {
     if (ratio > 0 && Number.isFinite(ratio)) {
       // DOMParser 文档不加载图片，用浏览器图片对象读取原始尺寸。
       const sourceImage = new Image();
-      sourceImage.src = src ?? "";
+      let imageSrc = src ?? "";
+      if (
+        typeof window !== "undefined" &&
+        window.location &&
+        window.location.origin &&
+        window.location.origin.startsWith("http") &&
+        imageSrc &&
+        !/^(?:https?:|data:|blob:|\/\/)/i.test(imageSrc)
+      ) {
+        if (imageSrc.startsWith("/") && !imageSrc.startsWith("/local-file")) {
+          imageSrc = `/local-file?path=${encodeURIComponent(imageSrc)}`;
+        }
+      }
+      sourceImage.src = imageSrc;
       try {
         await sourceImage.decode();
         if (!sourceImage.naturalWidth) throw new Error("图片原始宽度为空");
+        element.style.width = `${Math.min(ratio, 1) * 100}%`;
+        element.style.maxWidth = `${sourceImage.naturalWidth * ratio}px`;
+        element.style.height = "auto";
       } catch (error) {
-        throw new Error(`无法读取缩放图片的原始尺寸：${element.getAttribute("title") || "无图注"}`, { cause: error });
+        if (context.strictImageDecode ?? true) {
+          throw new Error(`无法读取缩放图片的原始尺寸：${element.getAttribute("title") || "无图注"}`, { cause: error });
+        }
+        // 非严格模式（如 Studio 可视化编辑预览）降级处理，保证编辑器正常渲染
+        element.style.width = `${Math.min(ratio, 1) * 100}%`;
+        element.style.height = "auto";
       }
-      element.style.width = `${Math.min(ratio, 1) * 100}%`;
-      element.style.maxWidth = `${sourceImage.naturalWidth * ratio}px`;
-      element.style.height = "auto";
     }
 
     const figure = context.document.createElement("figure");
@@ -631,6 +652,33 @@ export function buildWechatThemeCss(
 .milkdown .editor p {
   ${theme.bodyFontSize ? `font-size: ${theme.bodyFontSize};` : ""}
   ${theme.bodyParagraphSpacing ? `margin-bottom: ${theme.bodyParagraphSpacing};` : ""}
+  ${theme.bodyLineHeight ? `line-height: ${theme.bodyLineHeight};` : ""}
+  ${theme.bodyLetterSpacing ? `letter-spacing: ${theme.bodyLetterSpacing};` : ""}
+  ${theme.bodyColor ? `color: ${theme.bodyColor};` : ""}
+}
+`;
+}
+
+/**
+ * 结构装饰（编号 / 章节标签 / 引用标签）在导出时是真实节点，编辑器里是 ::before。
+ * 此处样式与 studio 编辑器的 ::before 视觉对齐，否则预览中退化为普通正文。
+ */
+function buildStructureDecorationCss(structure?: ArticleStructure): string {
+  if (!structure?.numberedHeadings && !structure?.headingLabel && !structure?.quoteLabel) return "";
+  return `
+.milkdown .editor [data-wechat-node="heading-number"],
+.milkdown .editor [data-wechat-node="heading-label"] {
+  margin-right: 0.3em;
+  opacity: 0.7;
+  font-weight: 600;
+}
+.milkdown .editor [data-wechat-node="quote-label"] {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--wx-brand-ink, var(--wx-brand-accent, #ca6093));
+  text-transform: uppercase;
 }
 `;
 }
@@ -753,11 +801,13 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
     theme: input.theme,
     references,
     structure: input.structure,
+    strictImageDecode: input.strictImageDecode ?? true,
   });
 
   const css = [
     input.baseCss,
     buildWechatThemeCss(input.editorVars ?? {}, input.theme),
+    buildStructureDecorationCss(input.structure),
     pluginCss,
     input.customCss ?? "",
   ].filter(Boolean).join("\n");
@@ -788,6 +838,7 @@ export async function renderWechatHtml(input: RenderWechatHtmlInput): Promise<st
     theme: input.theme,
     references,
     structure: input.structure,
+    strictImageDecode: input.strictImageDecode ?? true,
   });
   sanitizeTree(finalRoot);
   return finalRoot.outerHTML;

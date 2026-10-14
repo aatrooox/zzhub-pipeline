@@ -6,6 +6,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export default defineConfig({
+  resolve: {
+    dedupe: [
+      "@milkdown/kit",
+      "@milkdown/core",
+      "@milkdown/ctx",
+      "@milkdown/prose",
+      "@milkdown/utils",
+      "@milkdown/transformer",
+    ],
+  },
   build: {
     outDir: resolve(__dirname, "src/wechat-preview/assets/browser-dist"),
     emptyOutDir: true,

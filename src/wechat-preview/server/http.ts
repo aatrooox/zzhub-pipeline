@@ -26,7 +26,7 @@ import {
   rewriteHtmlLocalAssets,
 } from "./local-file";
 import { renderDashboardHtml, renderFailedEntryHtml } from "./ui";
-import { buildWechatPreviewShell, resolveWechatArticleTheme } from "../index";
+import { buildWechatPreviewShell, resolveWechatArticleTheme, rewriteRelativeImagePaths } from "../index";
 import { getPluginDocs } from "@akairos/milkdown-article-plugins";
 import { readArticleTheme } from "../../article-theme";
 import { PipelineConfigSchema, WechatExportThemeOverridesSchema, WechatStructureOverridesSchema } from "../../schema/config";
@@ -246,7 +246,7 @@ export async function startPreviewServer(
         const fixturePath = join(WECHAT_PREVIEW_DIR, "fixtures/all-nodes.md");
         if (existsSync(fixturePath)) {
           try {
-            sampleMarkdown = readFileSync(fixturePath, "utf-8");
+            sampleMarkdown = rewriteRelativeImagePaths(readFileSync(fixturePath, "utf-8"), dirname(fixturePath));
           } catch {
             // ignore
           }

@@ -132,6 +132,10 @@ export function getWechatPreviewBundleSources(): string[] {
     join(WECHAT_PREVIEW_DIR, "browser/studio/studio.css"),
     join(WECHAT_PREVIEW_DIR, "browser/studio/syntax-presets.ts"),
     join(WECHAT_PREVIEW_DIR, "browser/studio/color-palettes.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/style-packs.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/milkdown-article-menu.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/myno-editor.ts"),
+    join(WECHAT_PREVIEW_DIR, "browser/studio/config-manager.ts"),
     join(WECHAT_PREVIEW_DIR, "themes.ts"),
     join(WECHAT_PREVIEW_DIR, "frontmatter-handler.ts"),
     join(PACKAGE_ROOT, "src/text.ts"),
@@ -267,6 +271,14 @@ export function rewriteRelativeImagePaths(markdown: string, baseDir: string): st
         return `![${alt}](${wrap ? "<" : ""}${src}${wrap ? ">" : ""}${titleStr})`;
       }
       return `![${alt}](${needsBrackets ? "<" : ""}${resolved}${needsBrackets ? ">" : ""}${titleStr})`;
+    })
+    .replace(/^([ \t]*\[[^\]]+\]:\s*)(\S+)(.*)$/gm, (match, prefix, rawUrl, suffix) => {
+      if (isExternalUrl(rawUrl)) return match;
+      const cleanUrl = rawUrl.replace(/^<([^>]+)>$/, "$1");
+      const hadAngle = rawUrl.startsWith("<") && rawUrl.endsWith(">");
+      const resolved = resolveMarkdownAsset(cleanUrl, baseDir);
+      const needsBrackets = resolved ? resolved.includes(" ") : hadAngle;
+      return `${prefix}${needsBrackets ? "<" : ""}${resolved}${needsBrackets ? ">" : ""}${suffix}`;
     })
     .replace(/(<img\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi, (_match, prefix, src, suffix) => {
       const resolved = resolveMarkdownAsset(String(src ?? ""), baseDir);
