@@ -150,12 +150,14 @@ describe("init", () => {
       "--content-form", "article",
       "--targets", "wechat@ancientone",
       "--content-origin", "user",
+      "--article-theme", "./styles/standalone.json",
     ]));
     const state = await readState(output.state_path);
     expect(state.publish_targets).toEqual([
       { route: "wechat-article", account: "ancientone" },
     ]);
     expect(state.route.primary).toBe("wechat-article");
+    expect(state.intent.article_theme).toBe(join(process.cwd(), "styles/standalone.json"));
   });
 
   test("normalizes underscore flags and resolves route/account from intent text", async () => {

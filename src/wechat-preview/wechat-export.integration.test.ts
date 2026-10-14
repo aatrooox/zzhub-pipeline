@@ -60,14 +60,20 @@ window.fetch = async (url, options) => {
   }
   return new Response(JSON.stringify(${JSON.stringify({ defaultAccount: "default", accounts: { default: { name: "default", theme, customCssContent: "" } }, plugins: [], sampleMarkdown: "# Title\n\nInitial body." })}));
 };
+const originalCreateObjectURL = URL.createObjectURL;
+URL.createObjectURL = blob => { window.exportedBlob = blob; return originalCreateObjectURL.call(URL, blob); };
+HTMLAnchorElement.prototype.click = function() { window.downloadName = this.download; };
 window.__zzhubRenderReady = (async () => {
   const waitFor = async predicate => { while (!predicate()) await new Promise(resolve => setTimeout(resolve, 20)); };
   const edit = (id, value) => { const input = document.getElementById(id); input.value = value; input.dispatchEvent(new Event('input')); };
   const source = () => document.getElementById('html-source-code')?.value || '';
   await waitFor(() => source().includes('Initial body.'));
   edit('input-font-size', '18'); edit('input-para-spacing', '1.44');
-  edit('input-heading-label', 'Chapter'); edit('input-custom-css', 'p { color: #123456; }');
+  edit('input-heading-label', 'Chapter'); edit('input-custom-css', '.milkdown .editor p { color: #123456; }');
   await waitFor(() => source().includes('font-size: 18px') && source().includes('margin-bottom: 1.44em'));
+  document.getElementById('btn-export-config').click();
+  const exported = JSON.parse(await window.exportedBlob.text());
+  const exportDidNotSave = !window.saved;
   document.getElementById('btn-save').click();
   await waitFor(() => window.saved);
   await new Promise(resolve => setTimeout(resolve, 20));
@@ -82,7 +88,7 @@ window.__zzhubRenderReady = (async () => {
   edit('editor-markdown', 'Latest body.');
   await waitFor(() => source().includes('Latest body.'));
   const result = document.createElement('script'); result.id = 'zzhub-wechat-export-result'; result.type = 'application/json';
-  result.textContent = JSON.stringify({status:'success',html:JSON.stringify({saved:window.saved,resetOk,html:source()})});
+  result.textContent = JSON.stringify({status:'success',html:JSON.stringify({saved:window.saved,exported,exportDidNotSave,downloadName:window.downloadName,resetOk,html:source()})});
   document.body.appendChild(result);
 })();
 </script>`);
@@ -90,6 +96,24 @@ window.__zzhubRenderReady = (async () => {
     expect(result.status).toBe("success");
     if (!("html" in result)) throw new Error("Studio did not produce HTML");
     const checked = JSON.parse(result.html);
+    expect(checked.exported.account).toBeUndefined();
+    expect(checked.exported.exportTheme.bodyFontSize).toBe("18px");
+    expect(checked.exported.structure.headingLabel).toBe("Chapter");
+    expect(checked.exported.css).toContain("#123456");
+    expect(checked.exportDidNotSave).toBe(true);
+    expect(checked.downloadName).toBe("wechat-style.json");
+    tempDir = await mkdtemp(join(tmpdir(), "zzhub-standalone-export-"));
+    const profilePath = join(tempDir, "wechat-style.json");
+    const markdownPath = join(tempDir, "post.md");
+    await writeFile(profilePath, JSON.stringify(checked.exported));
+    await writeFile(markdownPath, "## Section\n\nPortable body.");
+    const portable = await exportMarkdownToWechatHtml({
+      markdownPath, outPath: join(tempDir, "post.html"), account: "ancientone", articleThemePath: profilePath,
+      themeOverrides: { exportTheme: { bodyFontSize: "14px" } },
+    });
+    expect(portable.html).toMatch(/<p[^>]+font-size: 18px[^>]*>Portable body\.<\/p>/);
+    expect(portable.html).toContain("Chapter</span>");
+    expect(portable.html).toMatch(/color: (?:#123456|rgb\(18, 52, 86\))/);
     expect(checked.saved.exportTheme.bodyFontSize).toBe("18px");
     expect(checked.saved.exportTheme.bodyParagraphSpacing).toBe("1.44em");
     expect(checked.saved.structure.headingLabel).toBe("Chapter");

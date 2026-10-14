@@ -69,13 +69,14 @@ export async function prepareMarkdownRuntime(config: PipelineConfig, accountMap:
     if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(account) || [".", "..", "__proto__", "constructor", "prototype"].includes(account)) throw new Error(`无效的样式账号标识：${account}`);
     if (Object.hasOwn(accounts, account)) throw new Error(`账号映射重复：${account}`);
     const next: Record<string, unknown> = { theme: value.theme, customCss: null, articleTheme: null };
-    if (value.customCss) {
+    const theme = value.articleTheme ? await readArticleTheme(resolveConfigRelativePath(value.articleTheme)!) : null;
+    // 独立配置已内嵌 CSS，部署时不依赖被替代的账号样式文件。
+    if (value.customCss && theme?.manifest.css === undefined) {
       const name = `markdown/custom-css-${account}.css`;
       files.set(name, await readRuntimeSource(resolveConfigRelativePath(value.customCss)!));
       next.customCss = `${RUNTIME_ROOT}/${name}`;
     }
-    if (value.articleTheme) {
-      const theme = await readArticleTheme(resolveConfigRelativePath(value.articleTheme)!);
+    if (theme) {
       const prefix = `markdown/article-themes/${account}`;
       for (const [name, bytes] of theme.files) files.set(`${prefix}/${name}`, bytes);
       files.set(`${prefix}/manifest.json`, Buffer.from(JSON.stringify(theme.manifest, null, 2)));

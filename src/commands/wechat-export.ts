@@ -8,6 +8,7 @@ import { loadConfig, resolveConfigRelativePath } from "../config";
 import { resolveMarkdownRenderer } from "../adapter-loader";
 import { WechatExportError } from "../wechat-preview";
 import { registerPreviewEntry } from "../wechat-preview/server";
+import { readArticleTheme } from "../article-theme";
 
 const CSS_DEMO = `
 Custom CSS is cascaded after the built-in theme and converted to conservative
@@ -69,7 +70,7 @@ Options:
   --account            Account/theme key (optional; default: default)
   --title              Page title for the render shell (optional)
   --preview-shell-out  Path to exact final-HTML preview (optional)
-  --article-theme      Local article theme package (optional)
+  --article-theme      Standalone Studio JSON or local article theme package (optional)
   --summary-only       Omit HTML from stdout; still write the complete output file
   --custom-css         CSS override path; replaces account customCss (optional)
   --timeout-ms         Real browser wait limit in ms (default: 15000)
@@ -108,9 +109,13 @@ ${CSS_DEMO}
 
   const config = loadConfig();
   const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
+  const articleThemeArg = optionalArg(parsed, "article-theme");
+  const articleThemePath = articleThemeArg ? resolve(articleThemeArg) : resolveConfigRelativePath(wxAccount?.articleTheme);
+  // 独立配置替代账号样式；显式 CSS 参数仍可覆盖本次导出。
+  const standalone = articleThemePath ? (await readArticleTheme(articleThemePath)).manifest.css !== undefined : false;
   const customCss = resolveWechatExportCustomCss(
     cliCustomCss,
-    wxAccount?.customCss,
+    standalone ? null : wxAccount?.customCss,
   );
   const markdownRenderer = await resolveMarkdownRenderer(config);
 
@@ -125,8 +130,8 @@ ${CSS_DEMO}
       title,
       previewShellOutPath,
       customCss,
-      articleThemePath: optionalArg(parsed, "article-theme") ? resolve(optionalArg(parsed, "article-theme")!) : resolveConfigRelativePath(wxAccount?.articleTheme),
-      themeOverrides: wxAccount?.theme,
+      articleThemePath,
+      themeOverrides: standalone ? undefined : wxAccount?.theme,
       timeoutMs: timeoutMs !== undefined && Number.isFinite(timeoutMs) ? timeoutMs : undefined,
       debugDir: debugDir ? resolve(process.cwd(), debugDir) : undefined,
     });

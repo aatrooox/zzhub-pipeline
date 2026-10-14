@@ -210,8 +210,10 @@ export async function startPreviewServer(
         const accountsData: Record<string, unknown> = {};
 
         for (const [key, account] of Object.entries(config.wx.accounts)) {
+          const articleThemePath = resolveConfigRelativePath(account.articleTheme, configPath);
+          const articleTheme = articleThemePath ? await readArticleTheme(articleThemePath) : null;
           let customCssContent = "";
-          if (account.customCss) {
+          if (account.customCss && articleTheme?.manifest.css === undefined) {
             const resolved = resolveConfigRelativePath(account.customCss, configPath);
             if (resolved) {
               try {
@@ -222,9 +224,7 @@ export async function startPreviewServer(
             }
           }
 
-          const articleThemePath = resolveConfigRelativePath(account.articleTheme, configPath);
-          const articleTheme = articleThemePath ? await readArticleTheme(articleThemePath) : null;
-          const { theme, structure } = resolveWechatArticleTheme(key, account.theme, articleTheme);
+          const { theme, structure, syntaxPresets } = resolveWechatArticleTheme(key, account.theme, articleTheme);
 
           accountsData[key] = {
             name: account.name || key,
@@ -233,11 +233,12 @@ export async function startPreviewServer(
             theme: {
               editorVars: theme.editorVars,
               exportTheme: theme.exportTheme,
-              syntaxPresets: account.theme?.syntaxPresets || {},
+              syntaxPresets: syntaxPresets || {},
               structure: structure || {},
             },
             articleThemeCss: articleTheme?.css || "",
             articleTheme: account.articleTheme ?? null,
+            articleThemeStandalone: articleTheme?.manifest.css !== undefined,
           };
         }
 

@@ -212,6 +212,8 @@ zzp typeset-assets-sync --output ./pipeline-runtime --account-map '{"default":"W
 
 配置包只包含插件入口、Studio 容器路径和账号主题/CSS/文章模板路径，不包含微信凭据、COS PAT 或 Worker token。账号的 `customCss`、`articleTheme` 为 null 时会清除服务器旧引用。服务器用 `nezus-infra` 的 `sync pipeline-runtime` 命令校验文件清单、合并排版白名单并备份切换；镜像与 npm 依赖继续固定版本部署。
 
+WeChat Visual Studio 可通过「导出配置」下载不绑定账号的独立排版 JSON。CLI 用 `--article-theme ./wechat-style.json` 选择；在默认配置的账号 `articleTheme` 中引用后，也会由上述运行时包收集部署。文件内嵌 CSS 与页首图片，无需附带模板目录。详见 [Studio 独立配置与部署](docs/visual-studio-and-config-sync.md)。
+
 ### 推进一个发布任务
 
 Pipeline 每次只推进一个动作。创建任务后，反复执行 `status`，按照返回的 `next_action` 继续；不要直接修改 `workflow-state.json`。

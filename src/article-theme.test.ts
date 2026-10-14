@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readArticleTheme, snapshotArticleTheme } from "./article-theme";
 import { filterIdempotent } from "./providers/publish-core";
+import { resolveWechatArticleTheme } from "./wechat-preview";
+import { prepareMarkdownRuntime, RUNTIME_ROOT } from "./runtime-package";
+import { PipelineConfigSchema } from "./schema/config";
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -50,6 +53,58 @@ test("越界、符号链接、网络样式与不兼容版本不能导入", async
   for (const css of ["@import 'https://example.com/css';", String.raw`p { background: u\72l(file:///secret); }`, "p { background: url/**/(file:///secret); }"]) {
     await writeFile(join(root, "article.css"), css);
     await expect(readArticleTheme(root)).rejects.toThrow("外部资源");
+  }
+});
+
+test("Studio 单文件配置可跨账号复用、冻结及沿用运行时配置包部署", async () => {
+  const root = await mkdtemp(join(tmpdir(), "zzp-studio-config-"));
+  roots.push(root);
+  const path = join(root, "my-style.json");
+  const profile = {
+    schemaVersion: 1, engineVersion: 1, id: "wechat-style", name: "独立排版", version: "1.0.0",
+    editorVars: { "--brand": "#123456" },
+    exportTheme: { bodyFontSize: "18px", footerText: "", primaryColor: "#123456" },
+    syntaxPresets: { h2: "contrast-green" },
+    structure: { numberedHeadings: true, headingLabel: "章节", calloutPresets: { tip: { title: "建议" } }, headerImageUrl: "data:image/png;base64,aW1hZ2U=" },
+    css: "p { color: #123456; }",
+  };
+  await writeFile(path, JSON.stringify(profile));
+  const theme = await readArticleTheme(path);
+  expect(theme.files.size).toBe(1);
+  expect(theme.css).toBe(profile.css);
+  const accountOverrides = { editorVars: { "--brand": "#ff0000" }, exportTheme: { bodyFontSize: "14px" }, syntaxPresets: { h2: "pillar" } };
+  const first = resolveWechatArticleTheme("default", accountOverrides, theme);
+  const other = resolveWechatArticleTheme("ancientone", accountOverrides, theme);
+  expect(first).toEqual(other);
+  expect(first.theme.exportTheme.bodyFontSize).toBe("18px");
+  expect(first.syntaxPresets).toEqual(profile.syntaxPresets);
+  expect(first.structure?.headerImageUrl).toBe(profile.structure.headerImageUrl);
+  expect(first.structure?.calloutPresets).toEqual(profile.structure.calloutPresets);
+  const frozen = await snapshotArticleTheme(theme, join(root, "frozen"));
+  expect((await readArticleTheme(frozen.path)).hash).toBe(theme.hash);
+
+  const config = PipelineConfigSchema.parse({ wx: { accounts: { default: { articleTheme: path, customCss: join(root, "missing.css"), pat: "secret" } } } });
+  const deployed = await prepareMarkdownRuntime(config);
+  const manifest = "markdown/article-themes/default/manifest.json";
+  expect(deployed.accounts.default).toMatchObject({ articleTheme: `${RUNTIME_ROOT}/${manifest}`, customCss: null });
+  expect(JSON.stringify(deployed.accounts)).not.toContain("secret");
+  expect(JSON.parse(new TextDecoder().decode(deployed.files.get(manifest))).css).toBe(profile.css);
+  await writeFile(path, JSON.stringify({ ...profile, css: "p { color: blue; }" }));
+  expect((await readArticleTheme(path)).hash).not.toBe(theme.hash);
+});
+
+test("独立配置拒绝凭据、外部素材与不安全 CSS", async () => {
+  const root = await mkdtemp(join(tmpdir(), "zzp-studio-invalid-"));
+  roots.push(root);
+  const path = join(root, "style.json");
+  const profile = { schemaVersion: 1, engineVersion: 1, id: "style", name: "Style", version: "1.0.0", css: "" };
+  for (const patch of [
+    { account: "default" }, { pat: "secret" }, { assets: ["asset.png"] },
+    { css: "p { background: url(file:///secret); }" },
+    { structure: { headerImageUrl: "file:///secret" } },
+  ]) {
+    await writeFile(path, JSON.stringify({ ...profile, ...patch }));
+    await expect(readArticleTheme(path)).rejects.toThrow();
   }
 });
 

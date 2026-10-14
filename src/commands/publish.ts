@@ -47,7 +47,7 @@ Usage: zzhub-pipeline publish [options]
 Options:
   --state      Path to state JSON (required)
   --route      Only publish this route (optional; default: all targets)
-  --article-theme    Local article theme package (optional)
+  --article-theme    Standalone Studio JSON or local article theme package (optional)
   --dry-run    Print commands without executing (optional)
 `.trim());
     return;

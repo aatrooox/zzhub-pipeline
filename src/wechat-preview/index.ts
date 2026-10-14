@@ -25,6 +25,7 @@ import type { WechatThemeOverrides } from "../schema/config";
 import { getWechatPreviewStyleName, getWechatPreviewTheme } from "./themes";
 import { stripLeadingH1 } from "../text";
 import { buildCombinedPresetsCss } from "./browser/studio/syntax-presets";
+import type { ArticleStructure } from "./wechat-renderer";
 
 interface ViteManifestEntry {
   file: string;
@@ -140,24 +141,27 @@ export function getWechatPreviewBundleSources(): string[] {
   ];
 }
 
-/** Studio 与 CLI 共用模板、账号覆盖和页首素材的解析顺序。 */
+/** 独立配置跨账号复用；目录模板仍沿用账号覆盖顺序。 */
 export function resolveWechatArticleTheme(
   account: string,
   overrides?: Partial<WechatThemeOverrides>,
   articleTheme?: ArticleThemePackage | null,
 ) {
+  const standalone = articleTheme?.manifest.css !== undefined;
+  const accountOverrides = standalone ? undefined : overrides;
   const { headerImage, ...templateStructure } = articleTheme?.manifest.structure ?? {};
-  const theme = getWechatPreviewTheme(account, articleTheme ? {
-    editorVars: { ...articleTheme.manifest.editorVars, ...overrides?.editorVars },
-    exportTheme: { footerText: "", ...articleTheme.manifest.exportTheme, ...overrides?.exportTheme },
-  } : overrides);
-  const structure = articleTheme ? {
+  const theme = getWechatPreviewTheme(standalone ? "default" : account, articleTheme ? {
+    editorVars: { ...articleTheme.manifest.editorVars, ...accountOverrides?.editorVars },
+    exportTheme: { footerText: "", ...articleTheme.manifest.exportTheme, ...accountOverrides?.exportTheme },
+  } : accountOverrides);
+  const structure: ArticleStructure | undefined = articleTheme ? {
     ...templateStructure,
-    ...overrides?.structure,
+    ...accountOverrides?.structure,
     headerImageUrl: headerImage
-      ? `data:image/${headerImage.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")};base64,${Buffer.from(articleTheme.files.get(headerImage)!).toString("base64")}` : null,
-  } : overrides?.structure;
-  return { theme, structure };
+      ? `data:image/${headerImage.split(".").pop()!.toLowerCase().replace("jpg", "jpeg")};base64,${Buffer.from(articleTheme.files.get(headerImage)!).toString("base64")}` : articleTheme.manifest.structure.headerImageUrl ?? null,
+  } : accountOverrides?.structure;
+  const syntaxPresets = accountOverrides?.syntaxPresets ?? articleTheme?.manifest.syntaxPresets;
+  return { theme, structure, syntaxPresets };
 }
 
 export function isWechatPreviewBundleStale(
@@ -404,9 +408,9 @@ export async function exportMarkdownToWechatHtml(
     const bodyMarkdown = stripLeadingH1(stripped).trimStart();
     const markdown = bodyMarkdown;
     const articleTheme = input.articleThemePath ? await readArticleTheme(input.articleThemePath) : null;
-    const { theme, structure } = resolveWechatArticleTheme(input.account, input.themeOverrides, articleTheme);
-    const presetsCss = input.themeOverrides?.syntaxPresets
-      ? buildCombinedPresetsCss(input.themeOverrides.syntaxPresets)
+    const { theme, structure, syntaxPresets } = resolveWechatArticleTheme(input.account, input.themeOverrides, articleTheme);
+    const presetsCss = syntaxPresets
+      ? buildCombinedPresetsCss(syntaxPresets)
       : "";
     const customCss = [presetsCss, articleTheme?.css, input.customCss ? await readFile(input.customCss, "utf-8") : ""].filter(Boolean).join("\n\n");
     const shell = readUtf8(TEMPLATE_PATH);

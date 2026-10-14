@@ -40,7 +40,7 @@ zzhub-pipeline wechat-preview studio
 
 ## 二、 Studio 生成与保存的配置结构
 
-当您在 Visual Studio 点击 **「💾 保存配置」** 时，服务端接口会把当前账号的排版参数持久化写入本机的 `config.json`（macOS 位于 `~/Library/Application Support/zzhub-pipeline/config.json`，Linux 位于 `~/.config/zzhub-pipeline/config.json`）。
+当您在 Visual Studio 点击 **「💾 保存至账号」** 时，服务端接口会把当前账号的排版参数持久化写入本机的 `config.json`（macOS 位于 `~/Library/Application Support/zzhub-pipeline/config.json`，Linux 位于 `~/.config/zzhub-pipeline/config.json`）。
 
 保存后的配置主要影响 `wx.accounts.<account>` 下的 `theme` 和 `customCss` 字段：
 
@@ -99,6 +99,65 @@ zzhub-pipeline wechat-preview studio
   }
 }
 ```
+
+---
+
+### 独立排版配置导出与选择
+
+点击 **「📤 导出配置」** 会下载 `wechat-style.json`，不写入账号配置。文件包含当前字号、颜色、语法预设、结构设置、自定义 CSS，以及当前正文模板的 CSS 和内嵌页首图片；不含账号标识、PAT、App ID 或 App Secret。可以重命名并保存多份配置。
+
+独立 JSON 复用现有的 `--article-theme` 参数：
+
+```bash
+# 校验导出的单文件
+zzp article-theme --path ./styles/wechat-style.json
+
+# 单次 HTML 排版选择，与发布账号分开
+zzp wechat-export --markdown ./article.md --out ./article.html \
+  --account ancientone --article-theme ./styles/wechat-style.json --no-preview
+
+# 初始化任务时保存选择，或发布已有任务时切换
+zzp init --workspace ./workspace --task-kind publish --content-origin user \
+  --content-form article --targets wechat --article-theme ./styles/wechat-style.json
+zzp publish --state ./workflow-state.json --article-theme ./styles/another-style.json
+```
+
+独立配置使用自身样式，不叠加目标账号的 `theme` 或 `customCss`；`wechat-export --custom-css` 仍可显式添加本次覆盖。原有目录模板继续沿用账号覆盖规则。正文配置不改变封面模板与固定素材。
+
+账号默认引用独立 JSON 后，Studio 加载该文件的样式供调试；「保存至账号」会禁用并提示使用「导出配置」保存调整，再替换原文件，避免把不会生效的覆盖写入账号。
+
+独立文件沿用正文模板校验规则：文件最多 5 MiB，CSS 最多 256k 字符，不支持 `url()`、`@import`、CSS 转义或可执行表达式。页首图片支持内嵌 PNG、JPEG、GIF、WebP。使用自定义 Markdown 渲染插件时，插件需支持现有 `articleThemePath` 参数。
+
+### 复用统一部署流程
+
+独立 JSON 与默认配置、封面模板和 Typeset Studio 固定素材一样属于运行时配置资产，无需加入 npm 包或镜像。只需复制或挂载文件，并用部署环境中的路径引用。
+
+默认配置可通过 `wx.accounts.<account>.articleTheme` 引用它，相对路径基于默认配置文件所在目录；多个账号可引用同一个文件：
+
+```json
+{
+  "wx": {
+    "accounts": {
+      "default": { "articleTheme": "styles/wechat-style.json" },
+      "ancientone": { "articleTheme": "styles/wechat-style.json" }
+    }
+  }
+}
+```
+
+这里仅展示配置字段，应合并到已有配置并保留凭据。`ZZHUB_PIPELINE_CONFIG` 选择整份 Pipeline 默认配置，`--article-theme` 选择正文样式文件，二者职责不同。
+
+沿用现有 **`typeset-assets-sync` → `nezus-infra sync pipeline-runtime`** 流程时，先在本地默认配置中引用独立 JSON，再执行：
+
+```bash
+zzp typeset-assets-sync --output ./pipeline-runtime
+# Worker 账号键与本地不同则沿用 --account-map
+zzp typeset-assets-sync --output ./pipeline-runtime --account-map '{"default":"WORKER_ACCOUNT_KEY"}'
+```
+
+该命令将账号引用的独立 JSON 与 Markdown 样式、Typeset Studio 模板及默认槽位一起收集到运行时包，改写为容器路径并生成文件哈希清单。固定封面素材继续按原流程上传 COS、改写为 HTTPS URL。服务器同步命令继续校验清单、合并配置白名单、备份并切换，不需要新增部署入口。详见 [README 运行时配置包](../README.md) 与 [封面模板和固定素材](render-themes.md)。
+
+直接挂载时，同时挂载默认配置与其引用的 `styles/` 目录；Cloud Worker 使用 `PIPELINE_CONFIG_FILE` 指定默认配置。当前 Worker 任务 API 未提供单次正文配置选择字段，云端任务通过服务器默认配置引用。未被账号引用的备用 JSON 需要自行复制或挂载，`typeset-assets-sync` 不会扫描任意样式目录。
 
 ---
 

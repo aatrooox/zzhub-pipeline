@@ -64,6 +64,7 @@ Options:
   --newspic-render-spec-file  JSON file for newspic pagination / page-image intent (optional)
   --style-hint       e.g. fact_report (optional)
   --cover-theme      Cover theme ID (optional)
+  --article-theme    Standalone Studio JSON or local article theme package (optional)
   --requires-research  Flag
   --requires-style     Flag
   --requires-render    Flag
@@ -140,6 +141,7 @@ Options:
     explicit_constraints: [],
     style_hint: styleHint,
     cover_theme: coverTheme,
+    article_theme: optionalArg(parsed, "article-theme") ? resolve(optionalArg(parsed, "article-theme")!) : null,
     newspic_render: newspicRender,
     ...(newspicFile ? { newspic_file: resolve(newspicFile) } : {}),
     requires: {

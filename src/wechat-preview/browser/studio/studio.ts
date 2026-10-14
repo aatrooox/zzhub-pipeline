@@ -24,6 +24,7 @@ interface AccountData {
   };
   articleThemeCss?: string;
   articleTheme?: string | null;
+  articleThemeStandalone?: boolean;
 }
 
 interface StudioConfigResponse {
@@ -117,7 +118,7 @@ function updateStats() {
   editorStats.textContent = `字数: ${chars.toLocaleString()} 字 | 预计阅读: ${minutes} 分钟`;
 }
 
-/** 预览与保存共用同一份样式参数。 */
+/** 预览、保存与独立导出共用同一份样式参数。 */
 function readStyleControls() {
   const account = accounts[currentAccount];
   const exportTheme: WechatExportTheme = {
@@ -360,6 +361,13 @@ function renderSyntaxPresetControls() {
 function applyAccountConfig(accountKey: string) {
   const account = accounts[accountKey];
   if (!account) return;
+
+  // 独立文件不读取账号覆盖，避免保存成功却不生效。
+  const saveButton = document.getElementById("btn-save") as HTMLButtonElement;
+  saveButton.disabled = Boolean(account.articleThemeStandalone);
+  saveButton.title = account.articleThemeStandalone
+    ? "当前账号引用独立配置，请通过导出配置保存调整后替换原文件"
+    : "保存当前调整至本地 config.json 的当前账号";
 
   const exportTheme = account.theme?.exportTheme || {};
   const editorVars = account.theme?.editorVars || {};
@@ -616,6 +624,29 @@ document.getElementById("btn-save")?.addEventListener("click", async () => {
   } catch (err) {
     showToast(`网络请求失败: ${String(err)}`, "error");
   }
+});
+
+/** 内嵌模板 CSS 与页首图片，部署时只需复制这一份 JSON。 */
+document.getElementById("btn-export-config")?.addEventListener("click", () => {
+  const account = accounts[currentAccount];
+  if (!account) return;
+  const config = {
+    schemaVersion: 1,
+    engineVersion: 1,
+    id: "wechat-style",
+    name: "WeChat Studio 排版配置",
+    version: "1.0.0",
+    ...readStyleControls(),
+    syntaxPresets: { ...currentSyntaxPresets },
+    css: [account.articleThemeCss, inputCustomCss.value].filter(Boolean).join("\n\n"),
+  };
+  const url = URL.createObjectURL(new Blob([`${JSON.stringify(config, null, 2)}\n`], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "wechat-style.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast("已导出独立配置，CLI 使用 --article-theme 选择该文件", "success");
 });
 
 // Copy to WeChat

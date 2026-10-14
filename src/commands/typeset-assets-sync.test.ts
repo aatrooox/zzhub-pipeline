@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { PNG } from "pngjs";
 import { createTypesetAssetsSyncCommand } from "./typeset-assets-sync";
 import type { uploadFileToCos } from "../providers/cos";
+import { readArticleTheme } from "../article-theme";
 
 let root: string;
 let previousConfig: string | undefined;
@@ -60,6 +61,12 @@ test("dry-run reads only referenced images and never uploads, verifies URLs, or 
 
 test("deduplicates shared images, rewrites only sources, and exports styles without credentials", async () => {
   await writeFile(join(root, "templates/shared.json"), JSON.stringify({ ...template, id: "shared" }));
+  const style = { schemaVersion: 1, engineVersion: 1, id: "style", name: "Style", version: "1.0.0", css: "p { color: #123456; }", exportTheme: { bodyFontSize: "18px" } };
+  await writeFile(join(root, "style.json"), JSON.stringify(style));
+  const configPath = join(root, "config.json");
+  const config = await result(configPath);
+  config.wx.accounts.default.articleTheme = "style.json";
+  await writeFile(configPath, JSON.stringify(config));
   let uploads = 0;
   const command = createTypesetAssetsSyncCommand({ upload: uploader(async () => { uploads++; }), verifyUrl });
   const destination = join(root, "runtime");
@@ -67,7 +74,8 @@ test("deduplicates shared images, rewrites only sources, and exports styles with
   expect(uploads).toBe(1);
   expect((await result(join(root, "templates/jinx.json"))).images[0]).toEqual({ ...template.images[0], src: "https://cdn.example/jinx.png" });
   const patch = await result(join(destination, "pipeline.patch.json"));
-  expect(patch.wx.accounts.default).toMatchObject({ customCss: "/data/pipeline-runtime/markdown/custom-css-default.css", articleTheme: null });
+  expect(patch.wx.accounts.default).toMatchObject({ customCss: null, articleTheme: "/data/pipeline-runtime/markdown/article-themes/default/manifest.json" });
+  expect((await readArticleTheme(join(destination, "markdown/article-themes/default/manifest.json"))).css).toBe(style.css);
   for (const secret of ["secret-cos-token", "private-secret", "private-app-id", "private-pat"]) expect(JSON.stringify(patch)).not.toContain(secret);
   expect((await result(join(destination, "manifest.json"))).typesetTemplates).toBe(2);
   expect((await readFile(join(root, "uploads/jinx.png"))).equals(image)).toBe(true);

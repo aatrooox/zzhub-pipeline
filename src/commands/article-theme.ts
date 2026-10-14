@@ -6,7 +6,7 @@ import { printResult } from "../output";
 export async function articleTheme(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
   if (parsed.help) {
-    console.log("Usage: zzp article-theme --path <模板目录或 manifest.json> [--install <本地模板库>]\n只校验或复制模板，不联网、不发布。");
+    console.log("Usage: zzp article-theme --path <Studio 独立 JSON、模板目录或 manifest.json> [--install <本地模板库>]\n只校验或复制模板，不联网、不发布。");
     return;
   }
   let theme = await readArticleTheme(requireArg(parsed, "path", "template path"));

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { z } from "zod";
+import { WechatStructureOverridesSchema } from "./schema/config";
 
 /** 模板只包含声明、CSS 与素材，不执行客户包中的脚本。 */
 export const ArticleThemeSchema = z.object({
@@ -18,11 +19,16 @@ export const ArticleThemeSchema = z.object({
   assets: z.array(z.string()).max(100).default([]),
   editorVars: z.record(z.string(), z.string()).default({}),
   exportTheme: z.record(z.string(), z.string()).default({}),
+  /** Studio 独立配置内嵌 CSS，无需附带模板目录。 */
+  css: z.string().max(256_000).optional(),
+  syntaxPresets: z.record(z.string(), z.string()).optional(),
   structure: z.object({
     numberedHeadings: z.boolean().default(false),
     headingLabel: z.string().max(30).default(""),
     quoteLabel: z.string().max(30).default(""),
     headerImage: z.string().nullable().default(null),
+    headerImageUrl: z.string().regex(/^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/).nullable().optional(),
+    calloutPresets: WechatStructureOverridesSchema.shape.calloutPresets,
   }).default({ numberedHeadings: false, headingLabel: "", quoteLabel: "", headerImage: null }),
 }).strict();
 
@@ -64,10 +70,12 @@ export async function readArticleTheme(inputPath: string): Promise<ArticleThemeP
   }
   const manifestName = basename(manifestPath);
   const manifest = ArticleThemeSchema.parse(JSON.parse(new TextDecoder().decode(await read(manifestName))));
-  const paths = [manifest.stylesheet, manifest.sample, manifest.preview, manifest.license, ...manifest.assets];
+  const standalone = manifest.css !== undefined;
+  if (standalone && (manifest.assets.length || manifest.structure.headerImage)) throw new Error("独立排版配置必须内嵌素材，不能引用模板目录文件");
+  const paths = standalone ? [] : [manifest.stylesheet, manifest.sample, manifest.preview, manifest.license, ...manifest.assets];
   if (manifest.structure.headerImage) paths.push(manifest.structure.headerImage);
   for (const name of new Set(paths)) await read(name);
-  const css = new TextDecoder().decode(files.get(manifest.stylesheet));
+  const css = manifest.css ?? new TextDecoder().decode(files.get(manifest.stylesheet));
   // 模板无需 CSS 转义；拒绝用转义或注释隐藏的网络/文件资源。
   const unsafeCss = (value: string) => /\\|@import\b|url\s*\(|expression\s*\(/i.test(value.replace(/\/\*[\s\S]*?\*\//g, ""));
   if (Object.keys(manifest.editorVars).some(key => !/^--[a-zA-Z0-9_-]+$/.test(key))) throw new Error("模板变量名无效");

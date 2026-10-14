@@ -84,15 +84,17 @@ async function publishWechatArticleRoute({
   try {
     const markdownRenderer = await resolveMarkdownRenderer(config);
     const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
+    // 独立正文配置与发布账号的凭据、默认 CSS 分离。
+    const standalone = articleTheme?.manifest.css !== undefined;
     const rendered = await markdownRenderer.render({
       onProgress: reportProgress,
       markdownPath: exportPostPath,
       outPath: workspacePaths.zotepadExportHtml,
       account,
       title: state.metadata.title,
-      customCss: resolveConfigRelativePath(wxAccount?.customCss),
+      customCss: standalone ? null : resolveConfigRelativePath(wxAccount?.customCss),
       articleThemePath: articleTheme?.path,
-      themeOverrides: wxAccount?.theme,
+      themeOverrides: standalone ? undefined : wxAccount?.theme,
     });
     const { html } = rendered;
 

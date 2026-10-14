@@ -160,11 +160,36 @@ describe("wechat-preview studio server APIs", () => {
     }
   });
 
+  test("loads standalone defaults without depending on account CSS or styles", async () => {
+    const path = join(testDir, "config", "studio-style.json");
+    writeFileSync(path, JSON.stringify({ schemaVersion: 1, engineVersion: 1, id: "style", name: "Style", version: "1.0.0",
+      css: "p { color: #123456; }", exportTheme: { bodyFontSize: "18px" }, syntaxPresets: { h2: "contrast-green" } }));
+    const config = loadConfig();
+    const original = { ...config.wx.accounts.default };
+    config.wx.accounts.default.articleTheme = "studio-style.json";
+    config.wx.accounts.default.customCss = "missing.css";
+    saveConfig(config);
+    try {
+      const response = await fetch(`${server.url}/api/studio/config`);
+      expect(response.status).toBe(200);
+      const data = await response.json() as any;
+      expect(data.accounts.default.theme.exportTheme.bodyFontSize).toBe("18px");
+      expect(data.accounts.default.theme.syntaxPresets.h2).toBe("contrast-green");
+      expect(data.accounts.default.articleThemeCss).toContain("#123456");
+      expect(data.accounts.default.customCssContent).toBe("");
+      expect(data.accounts.default.articleThemeStandalone).toBe(true);
+    } finally {
+      config.wx.accounts.default = original;
+      saveConfig(config);
+    }
+  });
+
   test("GET /studio serves the Studio HTML dashboard", async () => {
     const res = await fetch(`${server.url}/studio`);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("WeChat Visual Studio");
     expect(html).toContain("studio.js");
+    expect(html).toContain('id="btn-export-config"');
   });
 });
