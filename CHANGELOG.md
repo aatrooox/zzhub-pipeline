@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.2
+
+### Fixes
+
+- Pin myno 0.3.2 so Markdown images without titles survive article parsing and WeChat export on Milkdown 7.21 consumers.
+
 ## v0.20.1
 
 ### Fixes

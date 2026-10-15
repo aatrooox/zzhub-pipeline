@@ -6,7 +6,7 @@
       "name": "zzhub-pipeline",
       "dependencies": {
         "@akairos/milkdown-article-plugins": "^0.1.6",
-        "@akairos/myno": "0.3.1",
+        "@akairos/myno": "0.3.2",
         "@akairos/typeset-studio": "0.2.7",
         "@chenglou/pretext": "0.0.8",
         "image-size": "^2.0.2",
@@ -33,7 +33,7 @@
   "packages": {
     "@akairos/milkdown-article-plugins": ["@akairos/milkdown-article-plugins@0.1.6", "", { "dependencies": { "remark-highlight-mark": "^1.4.0" }, "peerDependencies": { "@milkdown/kit": "^7.0.0" } }, "sha512-NKUYTKVqEOz13epUXXmkXo5jWnNolIy7ManUIYf8ee43EfvnyMOp5UXpxfWMbZz30hMK9J9uzBF3cd1HfUDMDw=="],
 
-    "@akairos/myno": ["@akairos/myno@0.3.1", "", { "dependencies": { "@akairos/milkdown-article-plugins": "^0.1.3", "juice": "^12.2.0" }, "peerDependencies": { "@milkdown/crepe": "^7.21.2", "@milkdown/kit": "^7.21.2" } }, "sha512-cQZRLvIBBbJ7An9Ph4kCkcvxhQqc+CISHDpVHNyGUOIX6JgZ2DcejWQZL/XkHOa9oS4bEIYiZHwpnkKyTx6V4w=="],
+    "@akairos/myno": ["@akairos/myno@0.3.2", "", { "dependencies": { "@akairos/milkdown-article-plugins": "^0.1.3", "juice": "^12.2.0" }, "peerDependencies": { "@milkdown/crepe": "^7.21.2", "@milkdown/kit": "^7.21.2" } }, "sha512-0Ry0NumaoKdJNPy/TazXsCDDWQGXeukx0XRu47tXfWCkkkK1rOl5zz0wiCGgN9DhawzpmSBXOBnqPgyPwWXtIQ=="],
 
     "@akairos/typeset-studio": ["@akairos/typeset-studio@0.2.7", "", { "dependencies": { "@chenglou/pretext": "^0.0.8", "@napi-rs/canvas": "^1.0.10", "hono": "^4.7.4", "lucide-react": "^1.16.0", "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-API9d46CakQ1FAg62TeppiLA4HCrupIPobe2PaRDgjolz2G9itV/Rg18zGKBzumSvPqYpFB5I553hPg4C20lUw=="],
 

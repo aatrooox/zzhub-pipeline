@@ -1,6 +1,6 @@
 {
   "name": "@akairos/pipeline",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -29,12 +29,12 @@
   },
   "dependencies": {
     "@akairos/milkdown-article-plugins": "^0.1.6",
+    "@akairos/myno": "0.3.2",
     "@akairos/typeset-studio": "0.2.7",
     "@chenglou/pretext": "0.0.8",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",
-    "zod": "^4.4.2",
-    "@akairos/myno": "0.3.1"
+    "zod": "^4.4.2"
   },
   "optionalDependencies": {
     "@napi-rs/canvas": "^0.1.97",
