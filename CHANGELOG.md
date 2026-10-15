@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.19.2
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.19.1...v0.19.2)
+
+### Fixes
+
+- **cover:** Update Typeset Studio to 0.2.7 ([624268b](https://github.com/aatrooox/zzhub-pipeline/commit/624268b))
+
+### ❤️ Contributors
+
+- Kairos ([@k7airos](https://github.com/k7airos))
+
 ## v0.19.1
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.19.0...v0.19.1)
