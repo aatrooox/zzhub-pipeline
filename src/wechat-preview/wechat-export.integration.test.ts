@@ -44,6 +44,9 @@ describe("semantic WeChat HTML export", () => {
     expect(html).toContain("Chapter</span>");
     expect(html).toContain("01</span>");
     expect(html).toContain("Citation</p>");
+    // 公众号编辑器解析不了 currentcolor/多值 border 简写，导出必须展开为可见边单值属性
+    expect(html).not.toContain("currentcolor");
+    expect(html).toMatch(/<blockquote[^>]+border-left: 3px solid/);
     expect(html).toContain("Advice</strong>");
     expect(html).toMatch(/background-color: (?:#1f7a4d|rgb\(31, 122, 77\))/);
   }, 30_000);

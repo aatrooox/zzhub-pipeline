@@ -701,6 +701,59 @@ function parseHtml(html: string): Document {
   return new DOMParser().parseFromString(`<!doctype html><html><body>${html}</body></html>`, "text/html");
 }
 
+const BORDER_SIDES = ["top", "right", "bottom", "left"] as const;
+
+/**
+ * 浏览器把 `border: none; border-left: X` 或 `border-left: none` 序列化成多值简写或
+ * none 边的长属性，其中 border-color 是 currentcolor——公众号编辑器解析不了，整条
+ * 声明作废后边框退回正文灰色。展开为可见边的单值属性，丢弃 none/hidden 边。
+ */
+function normalizeBorderShorthands(element: HTMLElement): void {
+  const style = element.style;
+  const sides = BORDER_SIDES.map((side) => ({
+    side,
+    width: style.getPropertyValue(`border-${side}-width`),
+    style: style.getPropertyValue(`border-${side}-style`),
+    color: style.getPropertyValue(`border-${side}-color`),
+  }));
+
+  const invisible = (entry: (typeof sides)[number]) => entry.style === "none" || entry.style === "hidden";
+  const hasShorthand =
+    !!style.getPropertyValue("border-style") ||
+    !!style.getPropertyValue("border-width") ||
+    !!style.getPropertyValue("border-color");
+  if (!hasShorthand && !sides.some(invisible)) return;
+
+  if (!hasShorthand) {
+    // 单边 none/hidden 长属性：只删除，其余保持原样
+    for (const { side, style: borderStyle } of sides) {
+      if (borderStyle !== "none" && borderStyle !== "hidden") continue;
+      style.removeProperty(`border-${side}`);
+      style.removeProperty(`border-${side}-width`);
+      style.removeProperty(`border-${side}-style`);
+      style.removeProperty(`border-${side}-color`);
+    }
+    return;
+  }
+
+  const removable = ["border", "border-width", "border-style", "border-color"];
+  for (const { side } of sides) {
+    removable.push(`border-${side}`, `border-${side}-width`, `border-${side}-style`, `border-${side}-color`);
+  }
+  for (const property of removable) style.removeProperty(property);
+
+  for (const entry of sides) {
+    if (!entry.style || invisible(entry)) continue;
+    if (entry.width && entry.color) {
+      style.setProperty(`border-${entry.side}`, `${entry.width} ${entry.style} ${entry.color}`);
+    } else {
+      if (entry.width) style.setProperty(`border-${entry.side}-width`, entry.width);
+      style.setProperty(`border-${entry.side}-style`, entry.style);
+      if (entry.color) style.setProperty(`border-${entry.side}-color`, entry.color);
+    }
+  }
+}
+
 function sanitizeStyle(element: HTMLElement): void {
   const propertyNames: string[] = [];
   for (let index = 0; index < element.style.length; index += 1) {
@@ -773,6 +826,7 @@ function sanitizeTree(root: HTMLElement): void {
       sanitizeImageUrl(element, "data-src");
     }
     sanitizeStyle(element);
+    normalizeBorderShorthands(element);
   }
 }
 
