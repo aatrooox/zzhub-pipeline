@@ -78,6 +78,7 @@ test("deduplicates shared images, rewrites only sources, and exports styles with
   expect((await readArticleTheme(join(destination, "markdown/article-themes/default/manifest.json"))).css).toBe(style.css);
   for (const secret of ["secret-cos-token", "private-secret", "private-app-id", "private-pat"]) expect(JSON.stringify(patch)).not.toContain(secret);
   expect((await result(join(destination, "manifest.json"))).typesetTemplates).toBe(2);
+  expect(await readFile(join(destination, "typeset-studio/templates/.canvas-presets-v1"), "utf8")).toBe("1");
   expect((await readFile(join(root, "uploads/jinx.png"))).equals(image)).toBe(true);
   await command(["--output", destination]);
   expect(uploads).toBe(1);

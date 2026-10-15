@@ -101,6 +101,7 @@ export async function writeRuntimePackage(destination: string, templates: Map<st
   files.set("typeset-studio/default-template.json", Buffer.from(defaults));
   // 防止渲染时重新播种内置模板，使部署目录与文件清单保持一致。
   files.set("typeset-studio/templates/.initialized", Buffer.from("1"));
+  files.set("typeset-studio/templates/.canvas-presets-v1", Buffer.from("1"));
   const patch = {
     plugins: { imageRenderer: { module: "@akairos/typeset-studio/adapter", options: { dataDir: `${RUNTIME_ROOT}/typeset-studio` } }, markdownRenderer: null },
     wx: { accounts: markdown.accounts },
