@@ -1,6 +1,6 @@
 # 离线正文模板
 
-> 本文描述当前源码的 `article-theme` 与 `--article-theme` 能力，npm `0.14.0` 尚不包含。请使用包含该实现的源码 revision 或后续发布版本；以 `zzp --help` 和 `zzp wechat-export --help` 核对已安装命令。
+> 本文以 Pipeline `0.19.0` 为基线；`article-theme`、独立 JSON 和 myno 插件均已随 npm 版本提供。升级旧版本后，可用 `zzp --help` 和 `zzp wechat-export --help` 核对命令。
 
 Pipeline 保持 MIT 开源。正文排版、本地模板包、customCss 和渲染插件不要求登录或会员。付费模板由各作者单独交付、单独授权，不包含在此仓库或 npm 包中。
 
@@ -26,7 +26,7 @@ zzp publish --state ./workflow-state.json --article-theme ./my-template
 
 WeChat Visual Studio 的「导出配置」下载独立 `wechat-style.json`，同样通过 `--article-theme` 选择。文件含内嵌 `css`、`editorVars`、`exportTheme`、`syntaxPresets` 和 `structure`；页首图片以内嵌 Data URL 保存。不含账号凭据，不需要附带目录包文件。独立 JSON 使用自身样式，不叠加账号 `theme/customCss`，显式 `wechat-export --custom-css` 仍可覆盖。可用 `article-theme --path` 校验或安装；默认配置引用后由现有 `typeset-assets-sync` 收集部署，详见 [Studio 配置指南](docs/visual-studio-and-config-sync.md)。
 
-模板样式叠加在现有基础样式上，既有账号 `theme` 覆盖和 `customCss` 最后生效。新版正文模板默认不附带内置账号署名，用户自己配置的 footerText 仍保留。旧 Markdown 插件接收可选 `articleThemePath`，可以继续忽略该字段；要支持付费模板预览，应使用内置渲染器或实现该可选参数。桌面端预览同样调用当前已配置的渲染插件。
+目录模板叠加在基础样式上，账号 `theme` 和 `customCss` 仍可覆盖；独立 JSON 使用自身样式。正文模板默认不附带内置账号署名，用户配置的 `footerText` 仍保留。内置渲染器和 myno 的浏览器型插件均由 Pipeline 解析、校验模板；其他 `render()` 型插件需自行支持可选 `articleThemePath`。桌面端预览调用当前已配置的渲染插件。
 
 发布前冻结模板版本、CSS 和资源到工作区 `.zzhub-media/article-themes`；渲染结果记录 `article_theme_hash`。同一篇文章更改模板、版本或声明素材后会重新导出。旧状态不含该字段时仍可使用。
 

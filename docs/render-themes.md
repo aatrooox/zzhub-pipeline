@@ -156,4 +156,4 @@ zzp render --state /absolute/path/workflow-state.json \
 
 模板保存文件引用，不嵌入素材。`/uploads/...` 使用实际渲染方的 `TYPESET_DATA_DIR`；本地插件与编辑器应共享目录。远程调用会传输本次替换的本地文件，但原模板素材需要在服务端存在或使用可访问的 URL。
 
-固定素材功能已随 Typeset Studio npm 包发布，当前 Pipeline 固定依赖 `0.2.5`。正式环境通过 `plugins.imageRenderer.module` 使用 `@akairos/typeset-studio/adapter`，运行时模板和槽位与 Markdown 样式一起打包同步；素材先由 `typeset-assets-sync` 上传 COS 并替换为 HTTPS URL。源码入口仅用于联调未发布改动。
+固定素材功能已随 Typeset Studio npm 包发布，Pipeline 0.19.0 固定依赖 `0.2.6`。正式环境通过 `plugins.imageRenderer.module` 使用 `@akairos/typeset-studio/adapter`，运行时模板和槽位与 Markdown 样式一起打包同步；素材先由 `typeset-assets-sync` 上传 COS 并替换为 HTTPS URL。正文 HTML 可另选 [myno 插件](https://github.com/k7airos/myno)，与图片模板独立。源码入口仅用于联调。

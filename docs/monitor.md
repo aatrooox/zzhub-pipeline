@@ -2,7 +2,7 @@
 
 CLI 独立执行并记录事件；Monitor 汇总执行历史和工作流状态，通过 HTTP/SSE 提供给 GUI。服务不调度任务，也不执行发布、重试或取消。
 
-本文件描述本机 Monitor，不是 [Cloud Worker](../services/cloud-worker/README.md) 的任务接口。Worker 通过 `GET /v1/jobs/:id` 返回 `status`、`step` 与结果；当前不提供云端 SSE、逐文件进度或原始日志。业务前端不能仅接入 Worker 就假定已经获得本机监控流。
+本文件描述本机 Monitor，不是 [Cloud Worker](../services/cloud-worker/README.md) 的任务接口。Worker 通过 `GET /v1/jobs/:id` 返回 `status`、`step`、结果和可选的当前动作 `progress`，没有云端 SSE 或原始日志。业务前端不能把轮询投影当作本机监控流。
 
 ## 启动与发现
 

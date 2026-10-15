@@ -17,6 +17,7 @@
 | --- | --- | --- |
 | 工作流 | `src/task-manager.ts`、`src/state.ts`、`src/commands/` | `workflow-state.json` 是业务真相源，按 `next_action` 推进 |
 | 渲染插件 | `src/adapter-types.ts`、`src/adapter-loader.ts` | 内置 imgx / Markdown renderer，可用本地或 npm 模块替换 |
+| myno 接入 | `@akairos/myno/adapter` | 可选依赖，提供 `browser()` / `studio()` 资源；Chrome 生命周期与配置校验由 Pipeline 管理 |
 | 公众号 provider | `src/providers/wechat.ts` | 调用兼容 `/api/v1/wx/*` 中转服务；文章和贴图都进入草稿箱 |
 | 博客 provider | `src/providers/blog.ts` | 固定目录 `content/nezus/YYYY/MM/slug.md`，执行配置的发布命令 |
 | 本机 Monitor | `src/monitor/` | HTTP/SSE 观测，不执行任务；业务失败退出 1 |
@@ -25,7 +26,9 @@
 
 Cloud Worker 已实现并可从 `services/cloud-worker/` 独立部署。当前源码的账号来自 `accounts.json`，通过账号 API 同步；任务状态不返回凭据，服务令牌与用户 PAT 是两种凭据。`v0.14.0` tag 是初版 Worker，固定旧 tag 时要按该 tag 的账号配置契约运行；npm 包不包含 Worker。
 
-Cloud Worker 关闭子进程 Monitor 和预览登记；目前只返回 `step` 与结果，没有云端 SSE 或逐图片进度。Worker 视正文为已审核，遇到额外补图或修订需求会失败。中断任务保留原 run，核对草稿箱后再决定重试。
+Cloud Worker 关闭预览登记，为每个任务隔离 CLI Monitor 事件，并在轮询结果中投影当前动作的可用 `progress`；不提供云端 SSE 或原始日志。Worker 视正文为已审核，遇到额外补图或修订需求会失败。中断任务保留原 run，核对草稿箱后再决定重试。
+
+2026-10-15 发布基线：Pipeline 0.19.0、可选 myno 0.3.0、Typeset Studio 0.2.6。myno npm 入口已完成真实微信草稿创建和回读验收；这是有日期的发布证据，不替代后续版本测试。公开生态入口见 [README](README.md#生态与使用者)。
 
 ## 文档与验证
 

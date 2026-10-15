@@ -12,13 +12,30 @@ Pipeline 可以独立使用，也可以作为 Web、App、桌面客户端背后�
 
 > Cloud Worker 已在本仓库实现，可从源码构建 Docker 镜像部署。它不包含在 npm CLI 包中；npm 只分发 CLI 和渲染资源。`v0.14.0` tag 包含初版 Worker，账号同步和正文模板等接口以实际部署的 revision 为准，生产环境请固定 commit/tag。
 
+## 生态与使用者
+
+本仓库是发布执行层，供本机用户、Agent 和应用后端调用。以下都是可独立使用的公开仓库；npm 包统一使用 `@akairos` scope，GitHub 仓库位于 `k7airos`。
+
+| 项目 | 与 Pipeline 的关系 | 什么时候使用 |
+| --- | --- | --- |
+| [myno](https://github.com/k7airos/myno) · [`@akairos/myno`](https://www.npmjs.com/package/@akairos/myno) | 可选的正文编辑、排版与 Studio 插件，配置 `plugins.markdownRenderer` | 交互调样式、导出独立配置、复制富文本；也能脱离 Pipeline 独立运行 |
+| [Typeset Studio](https://github.com/k7airos/typeset-studio) · [`@akairos/typeset-studio`](https://www.npmjs.com/package/@akairos/typeset-studio) | 图片渲染插件，配置 `plugins.imageRenderer` | 设计与渲染文章封面、贴图封面和多页内容图 |
+| [Milkdown Article Plugins](https://github.com/k7airos/milkdown-article-plugins) | Pipeline 与 myno 共用的语法、序列化和微信组件渲染 | 给自己的 Milkdown 宿主接入高亮、提示卡、徽章和快捷键 |
+| [Milkdown Article Style](https://github.com/k7airos/milkdown-article-style) | Pipeline 与 myno 共用的纯 CSS 排版和主题变量 | 复用正文样式或调整品牌配色 |
+| [Obsidian 微信发布插件](https://github.com/k7airos/obsidian-wechat-publish) | 通过本机 `zzp` 调用 Pipeline 的桌面客户端 | 在 Obsidian 内提交笔记到公众号草稿箱 |
+| [Kairos Skills](https://github.com/k7airos/kairos-skills) | 外部 Agent 的写作规范、审核与状态机编排说明 | 让 Agent 按 `status → next_action` 写稿和推进任务 |
+| [blog.zzao.club](https://github.com/k7airos/blog.zzao.club) | 博客路由的公开消费方和目录约定示例 | 将文章同步到 Nuxt Content，再执行自定义发布命令 |
+| [Bun 微信中转服务](https://github.com/k7airos/bun-wx-server) | 可参考的自托管认证、COS 与基础微信代理实现 | 研究中转 API；当前只覆盖部分微信端点，接入限制见该仓库 README |
+
+Nezus 也是现有消费方：桌面端调用本机 CLI，云端通过业务后端调用 Worker。它是独立应用，不是安装 Pipeline 的前提。Pipeline 不依赖任何私有仓库才能启动或本地排版。
+
 ## 能做什么
 
 | 能力 | 说明 |
 | --- | --- |
 | 公众号文章 | Markdown 转微信兼容 HTML，生成自适应头图，上传图片，创建或更新文章草稿 |
-| 全语法与扩展组件 | 支持 GFM Callout（含自定义标题/Emoji）、导读卡 (Intro/CTA)、行内徽章 (Badge)、按键 (Kbd)、荧光笔与防拉伸短分割线 |
-| 智能封面裁切 | 自动计算 2.35:1 与 1:1 双视图坐标比率，彻底规避微信 53401 拒收报错 |
+| Markdown 与扩展组件 | 支持 CommonMark/GFM、Callout、导读/互动卡、徽章、按键和高亮；微信导出范围见正文模板文档 |
+| 封面裁切 | 按真实图片尺寸计算 2.35:1 与右对齐 1:1 裁切参数；仍需符合微信素材要求 |
 | 公众号贴图 | 渲染单页卡片或多页 PNG 图集，创建 `newspic` 草稿 |
 | 博客同步 | 把 Markdown 和图片同步到配置的博客项目，并执行发布命令 |
 | 可恢复工作流 | 保存任务状态、素材、审核决定、渲染版本和发布结果，失败后可以继续或重置 |
@@ -26,7 +43,7 @@ Pipeline 可以独立使用，也可以作为 Web、App、桌面客户端背后�
 | 排版扩展 | 封面主题、正文模板、品牌配置和可替换渲染插件 |
 | 排版工作台 | `zzp wechat-preview studio` 提供所见即所得排版调优、配色选型、语法预设与配置持久化 |
 | 本机监控 | `zzp monitor` 提供任务快照、日志和 SSE 事件流 |
-| 云端执行 | 私有 HTTP Worker 提供账号同步、串行队列、持久化任务和状态轮询 |
+| 云端执行 | 私有 HTTP Worker 提供账号同步、串行队列、持久化任务和状态轮询，运行中可附带当前动作进度 |
 
 Pipeline 不内置 LLM、用户登录、计费或配额服务。调用方需要自己提供正文和审核决定；云端 Worker 接收已经确认的完整正文，并只推进支持的 CLI 动作。
 
@@ -94,19 +111,19 @@ zzp wechat-export \
 
 ### 视觉排版工作台 (WeChat Visual Studio)
 
-Pipeline 提供了开箱即用的所见即所得排版工作台：
+启用 [myno 排版插件](#myno-排版插件) 后，下面的命令加载 myno 随 npm 包提供的工作台；未配置插件时使用 Pipeline 内置工作台：
 
 ```bash
 zzp wechat-preview studio
 ```
 
-终端启动后会自动唤起浏览器打开 `http://127.0.0.1:18765/studio`。你可以在界面中直观调整主题配色、二级标题与表格语法预设、提示卡片（Callout）自定义 Emoji，并一键复制到微信后台或保存为全局配置。
+终端启动后会自动唤起浏览器打开 `http://127.0.0.1:18765/studio`。可调整主题配色、字号行距、标题/引用/分割线等预设和自定义 CSS；提示卡片的标题与 Emoji 写在 Markdown 中。调整后可复制富文本、导出独立 JSON，或保存到当前账号配置。
 
 > **云端使用者注意**：本地 Studio 保存的样式会写入本地 `config.json`。若使用私有云端 Worker，需将调整后的配置同步至服务器，详见 [Visual Studio 排版调优与云端配置同步指南](docs/visual-studio-and-config-sync.md)。
 
 ### 公众号全语法与扩展组件
 
-Pipeline 内置基于 `@akairos/milkdown-article-plugins` 与 `@akairos/milkdown-article-style` 的现代排版扩展，所有语法在导出与发布时均会自动编译为微信内联样式：
+Pipeline 与 myno 基于 `@akairos/milkdown-article-plugins` 和 `@akairos/milkdown-article-style` 支持以下扩展，导出时转换为微信兼容的内联样式：
 
 #### 1. 语义提示卡片 (Callout Alerts)
 支持 GFM 标准的 5 种语义卡片，并支持行内自定义标题与 Emoji：
@@ -141,15 +158,15 @@ Pipeline 内置基于 `@akairos/milkdown-article-plugins` 与 `@akairos/milkdown
 ```
 
 #### 3. 行内组件 (Badge / Kbd / Highlight)
-- **状态徽章**：`[badge:primary|活力橙红]`、`[badge:success|运行正常]`、`[badge:warning|重点监测]`、`[badge:purple|专业模式]`
+- **状态徽章**：`[badge:brand|推荐]`、`[badge:success|运行正常]`、`[badge:warning|待确认]`、`[badge:danger|异常]`、`[badge:info|说明]`
 - **键盘按键**：按 `[[kbd:Cmd]] + [[kbd:K]]` 快速调起指令，按 `[[kbd:Shift]] + [[kbd:Enter]]` 换行
 - **荧光笔高亮**：使用 `==荧光笔标记核心概念与重点论述==`
 
 #### 4. 智能居中防拉伸分割线 (Divider)
-标准 Markdown `---` 会自动应用 Studio 中配置的分割线预设（如 `short-center` 居中 36% 呼吸线、`dashed` 极简虚线、`hairline` 细实线），并自动编译为抗样式覆盖的 `<section>` 节点，防止被微信移动端强行拉伸至 100% 通栏。
+标准 Markdown `---` 可应用 Studio 中配置的分割线预设（如 `short-center`、`dashed`、`hairline`），导出为微信可用的结构和内联样式。
 
 #### 5. 智能封面裁切比率自动适配
-Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸，默认裁切最右侧的 1:1 区域（纵向居中），2.35:1 裁切保持原有规则，自动注入 `pic_crop_235_1` 与 `pic_crop_1_1` 微信 API 参数，彻底告别微信官方接口的 `53401`（`WX_CONTENT_REJECTED`）拒收报错。
+Pipeline 在创建和更新草稿时读取封面图真实尺寸，默认裁切最右侧的 1:1 区域（纵向居中），并生成 `pic_crop_235_1` 与 `pic_crop_1_1` 参数。此处解决裁切几何问题，不能保证绕过微信的其他内容或素材校验。
 
 ### 模块化生态组成
 
@@ -157,7 +174,8 @@ Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸，�
 | --- | --- |
 | **`@akairos/pipeline`** | 核心可恢复状态机、CLI 工具链与多端发布器 |
 | **`@akairos/milkdown-article-style`** | Kairos 原创微信排版 CSS 样式规范与设计令牌 |
-| **`@akairos/milkdown-article-plugins`** | Remark / Milkdown 全语法自定义解析与渲染插件 |
+| **`@akairos/milkdown-article-plugins`** | Remark / Milkdown 文章扩展语法与渲染插件 |
+| **`@akairos/myno`** | 可独立运行的正文编辑器、样式工作台与可选 Markdown 渲染插件 |
 | **`@akairos/typeset-studio`** | 微信大图头图、多比例排版与卡片视觉合成引擎 |
 
 配置在 `plugins.imageRenderer` / `plugins.markdownRenderer` 的外部插件在独立 Bun 子进程中加载，插件的 `render`、`doctor`、`browser` 和 `studio` 方法也在子进程调用。加载、资源入口查询与 doctor 默认上限为 10 秒，`render` 为 120 秒；Markdown 渲染显式传入 `timeoutMs` 时，子进程上限额外预留 10 秒。可通过 `ZZHUB_PIPELINE_PLUGIN_TIMEOUT_MS` 覆盖子进程调用上限。同步死循环、超时和异常退出会终止插件进程，非法返回值会给出 `PLUGIN_*` 错误，命令不会自动重试或静默切换模板。浏览器型插件返回入口后，由 pipeline 现有 Chrome 运行时加载页面，并按渲染 `timeoutMs` 管理浏览器生命周期。
@@ -216,7 +234,7 @@ Studio 模板与 pipeline 配置分开保存：`data/templates/*.json` 保存模
 
 固定素材的 `templateAssetKey` 是模板内的替换标识，图片来源仍是 `images[].src`。支持可访问的 HTTP/HTTPS URL、本地文件及 `/uploads/...` 引用。使用 `/uploads/...` 时应连同 `uploads/` 目录原文件名一起同步；绝对路径应改为服务器可用路径，或把素材上传到 COS/CDN 后使用稳定 HTTPS URL。编辑器预览远程图片还需要图片服务允许跨域读取。
 
-**版本边界（2026-10-13）：** 当前固定依赖为 `@akairos/typeset-studio@0.2.5`，已包含固定素材、`studioTemplates`、`templateImageOverrides` 和共享数据目录支持。模板与素材不打进 npm 包，生产环境通过运行时配置包提供。源码适配器路径仅用于本地联调，正式 Worker 使用 npm 入口。
+**版本基线（2026-10-15）：** Pipeline `0.19.0` 固定 Typeset Studio `0.2.6`，可选依赖 myno `0.3.0`；插件仍需显式配置。模板与素材不打进 npm 包，服务器通过运行时配置包提供。源码适配器路径仅用于本地联调，Worker 使用 npm 入口。
 
 ### 生成 Worker 运行时配置包
 
@@ -231,7 +249,7 @@ zzp typeset-assets-sync --output ./pipeline-runtime --account-map '{"default":"W
 
 命令扫描模板引用的本地文件和 Base64 图片，使用现有 COS 配置上传；图片 URL 验证成功后，备份并回写模板，再生成带逐文件 SHA-256 的 `manifest.json`、`pipeline.patch.json`、`typeset-studio/` 和 `markdown/`。上传记录按目标和图片内容保存，重复执行复用成功上传；本地原图保留。上传或校验失败保留模板和旧输出包，上传期间的模板修改会触发冲突提示。`--template` 仅限制本次素材迁移范围，输出仍包含全部模板；其他模板存在未迁移素材时拒绝生成不完整包。
 
-配置包只包含插件入口、Studio 容器路径和账号主题/CSS/文章模板路径，不包含微信凭据、COS PAT 或 Worker token。账号的 `customCss`、`articleTheme` 为 null 时会清除服务器旧引用。服务器用 `nezus-infra` 的 `sync pipeline-runtime` 命令校验文件清单、合并排版白名单并备份切换；镜像与 npm 依赖继续固定版本部署。
+配置包只包含插件入口、Studio 容器路径和账号主题/CSS/文章模板路径，不包含微信凭据、COS PAT 或 Worker token。账号的 `customCss`、`articleTheme` 为 null 时会清除服务器旧引用。Markdown 插件只导出 `null` 或 `@akairos/myno/adapter` npm 入口和空 `options`，不导出本机模块路径。自托管时按文件哈希校验、备份和样式白名单合并后切换；项目自己的部署工具可消费此包，镜像与 npm 依赖仍需固定版本。
 
 WeChat Visual Studio 可通过「导出配置」下载不绑定账号的独立排版 JSON。CLI 用 `--article-theme ./wechat-style.json` 选择；在默认配置的账号 `articleTheme` 中引用后，也会由上述运行时包收集部署。文件内嵌 CSS 与页首图片，无需附带模板目录。详见 [Studio 独立配置与部署](docs/visual-studio-and-config-sync.md)。
 
@@ -293,7 +311,7 @@ Worker 已经可以部署，但应作为**内部服务**使用：
 - `PIPELINE_WORKER_TOKEN` 是服务令牌，不是用户登录 token，也不是微信中转 PAT；不要下发给客户端。
 - 当前是单进程串行队列，使用 JSON 文件保存任务、正文和账号；数据目录必须挂载持久卷，不支持多个副本共享同一目录。
 - 任务状态为 `queued`、`running`、`succeeded`、`failed` 或 `interrupted`，`step` 表示当前 Pipeline 动作。
-- 当前 Worker 只提供步骤和结果轮询，不提供云端 SSE、逐文件进度或原始日志。本机 `zzp monitor` 是另一套观测接口。
+- Worker 轮询返回步骤、结果和可选当前动作进度，不提供云端 SSE 或原始日志。本机 `zzp monitor` 是另一套观测接口。
 
 最短 Docker 启动示例：
 
@@ -320,6 +338,7 @@ docker run -d --name pipeline-worker --restart unless-stopped \
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | `GET` | `/health` | 查看 Worker 是否存活、排队数和账号数 |
+| `PUT` | `/v1/maintenance` | 暂停或恢复接收新任务，供维护更新使用 |
 | `PUT` | `/v1/accounts/:account` | 写入或替换公众号凭据 |
 | `DELETE` | `/v1/accounts/:account` | 删除 Worker 中的公众号凭据 |
 | `POST` | `/v1/jobs` | 提交完整正文，返回 job ID |

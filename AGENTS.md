@@ -384,7 +384,7 @@ WeChat publishing requires a compatible `/api/v1/wx/*` relay at `wx.baseUrl` (or
 - All worker endpoints, including `/health`, require the deployment-injected `PIPELINE_WORKER_TOKEN`. User authentication, ownership, and quotas belong in the calling backend.
 - Current source registers credentials through `PUT /v1/accounts/:account` and stores them in `accounts.json`. This API is newer than the basic worker in v0.14.0.
 - Jobs support `article` / `newspic`, run serially, and expose `status`, `step`, and results by polling. Submitted content is treated as approved; unsupported handoff/revision actions fail without an LLM call.
-- The worker disables CLI Monitor recording. Do not promise cloud SSE or granular upload/render progress. Local `zzp monitor` separately provides read-only HTTP/SSE observation.
+- The worker records CLI Monitor events in an isolated directory per job and exposes optional current-action `progress` by polling. Do not promise cloud SSE, raw logs, or progress for every action. Local `zzp monitor` separately provides read-only HTTP/SSE observation.
 - On restart, queued jobs resume and running jobs become `interrupted`. Inspect the original run and draft box before retrying; changing an idempotency key may create a duplicate draft.
 
 Current contracts: [worker](services/cloud-worker/README.md), [monitor](docs/monitor.md), and [README](README.md). The old serve draft is not a current public API.
@@ -398,16 +398,17 @@ Rendering requires headless Chrome. `findChrome()` in `src/imgx/runtime.ts` prob
 3. `google-chrome` from PATH
 4. `chromium` from PATH
 
-Chrome must be installed for `render` and `wechat-export`. Checked by the builtin markdown renderer adapter's `doctor()` method.
+The built-in image renderer and built-in/myno HTML export require Chrome. The Typeset Studio image renderer uses native Canvas without Chrome. The built-in markdown renderer and Pipeline's browser-plugin host check Chrome through `doctor()`.
 
 Viewport inset quirk: Chrome CLI `--window-size=900,1200` does not guarantee `innerHeight=1200`. The runtime measures the real inset, over-captures, then crops. If a footer looks clipped, check this layer first, not the template CSS.
 
 ## Plugin system
 
-Rendering is pluggable via `config.plugins`. Two adapter interfaces exist:
+Rendering is pluggable via `config.plugins`. Image and Markdown renderers use these interfaces:
 
 - `ImageRenderPlugin` — replaces imgx for image rendering (poster, longform, cover)
-- `MarkdownRenderPlugin` — replaces wechat-preview for WeChat HTML export
+- `MarkdownRenderPlugin` — provides `render()` for WeChat HTML export
+- `BrowserMarkdownRenderPlugin` — provides `browser()` assets; Pipeline owns Chrome execution and output handling. Optional `studio()` supplies static Studio assets.
 
 Config override (local file path or npm package):
 
@@ -424,6 +425,10 @@ Both renderer entries also accept `{ "module": "package-or-path", "options": {} 
 The pipeline passes each renderer's own options to `doctor(options)` and
 `render(input, options)`; the plugin defines and validates its options.
 String entries remain supported, and `null` selects the built-in renderer.
+Pipeline 0.19.0 optionally installs `@akairos/myno@0.3.0`; enable
+`plugins.markdownRenderer.module="@akairos/myno/adapter"` with empty options.
+The browser entry and Studio assets stay in the myno package, without a
+browser automation dependency or separate service authentication.
 Typeset Studio stores its shared directory in
 `plugins.imageRenderer.options.dataDir`; pipeline bridges this to
 `TYPESET_DATA_DIR` for the current npm adapter and uses local method calls
@@ -471,7 +476,7 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 - Themes: `paper-sage` (default account), `linen-news` (`ancientone` account)
 - Geometry auto-derived from header, footer, padding; can be overridden via CLI flags
 - Pagination done in-process via `@chenglou/pretext`, no Chrome dump needed
-- Both `render` and `wechat-export` require Chrome
+- Built-in `render` and built-in/myno `wechat-export` require Chrome; a Typeset Studio image-only render does not
 
 ## wechat-preview subsystem
 
@@ -489,12 +494,15 @@ Typography and syntax plugins are modularized under `@akairos`:
 - **`@akairos/milkdown-article-style`** on npm (`article.css` + `tokens-default.css`): Shared typography specification.
 - **`@akairos/milkdown-article-plugins`** on npm: Callouts, Badges, Kbd, and Article Cards Remark/Milkdown plugins.
 - **`@akairos/typeset-studio`** on npm: Header and banner image composition.
+- **`@akairos/myno`** on npm: Editor, standalone typography Studio, and optional browser rendering resources.
 
 Edit CSS only in that package; do not fork rules into this repo.
 
 ```json
-"@akairos/milkdown-article-style": "^0.1.1",
-"@akairos/milkdown-article-plugins": "^0.1.3"
+{
+  "@akairos/milkdown-article-style": "^0.1.2",
+  "@akairos/milkdown-article-plugins": "^0.1.6"
+}
 ```
 
 ### Style modification requires rebuild
@@ -510,7 +518,7 @@ The export entry imports `@akairos/milkdown-article-style/article.css` and
 bun run build:wechat-preview
 ```
 
-This also applies when `ensureBundle()` auto-builds on first export (if `manifest.json` is missing) or when sources are newer than dist. Prefer explicit rebuild after CSS changes.
+This also applies when `ensureBundle()` auto-builds on first export (if `manifest.json` is missing) or when sources are newer than dist. Prefer explicit rebuild after CSS changes. When myno is configured, rebuild/update the myno package instead; rebuilding Pipeline's built-in bundle does not update plugin resources.
 
 ## Publish providers
 

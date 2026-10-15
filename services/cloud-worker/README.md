@@ -10,6 +10,20 @@ Worker 接收完整正文，串行调用本仓库的 CLI，按 `status → next_
 Web / App / 桌面端 → 业务后端 → 私有 Worker → Pipeline CLI → 微信中转 API → 微信草稿箱
 ```
 
+Worker 是 [Pipeline](../../README.md) 仓库中的部署组件，不是独立 npm 包。现有应用消费方包括 Nezus 后端；其他后端可按本文 HTTP 契约接入，无需依赖该应用。正文可通过 [myno](https://github.com/k7airos/myno) 排版，封面与贴图可通过 [Typeset Studio](https://github.com/k7airos/typeset-studio) 渲染，均由 Pipeline 配置选择。
+
+Pipeline 0.19.0 的 myno 配置示例：
+
+```json
+{
+  "plugins": {
+    "markdownRenderer": { "module": "@akairos/myno/adapter", "options": {} }
+  }
+}
+```
+
+镜像需要包含可解析的插件包；myno 提供排版资源，Chrome、超时清理和输出由 Pipeline 管理。Worker 本身不托管 Studio 页面。
+
 业务后端负责用户鉴权、账号与任务归属、配额、请求内容校验和幂等键隔离。Worker 的服务令牌允许访问所有任务及账号，不能下发到客户端，也不能仅检查登录后就透传客户端提供的账号键或任务 ID。
 
 ## 本机启动
@@ -92,7 +106,7 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 
 未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。提交任务时 `Content-Length` 超过 2,500,000 字节会返回 `413`。当前没有任务列表、取消、重试、SSE 或文件上传接口。
 
-维护模式下提交新任务返回 `503 worker_maintenance`，`/health` 增加 `maintenance`。该开关持久化在任务存储旁的维护标记文件，重启后仍保持暂停，必须显式恢复接收。配置同步工具在暂停后等待队列清空，再停止 Worker、切换配置并重建容器，验收健康后恢复。图片插件使用镜像内固定版本的 npm 适配器，不请求独立 Studio 服务，不需要 Studio 管理密钥。模板与账号 Markdown 样式通过独立运行时包同步到 `/data/pipeline-runtime`，业务凭据仍在 `accounts.json`，详见主 README 的运行时配置包说明。
+维护模式下提交新任务返回 `503 worker_maintenance`，`/health` 增加 `maintenance`。该开关持久化在任务存储旁，重启后仍保持暂停，必须显式恢复。更新时暂停并等待队列清空，再备份、停止 Worker、切换配置并重建容器，验收后恢复。图片插件和 myno 都使用镜像内的 npm 入口，不要求独立 Studio 服务或管理员密钥。运行时资产可同步到 `/data/pipeline-runtime`，业务凭据仍在 `accounts.json`，详见[运行时配置指南](../../docs/visual-studio-and-config-sync.md)。
 
 ### 1. 同步账号
 
@@ -166,8 +180,9 @@ curl http://127.0.0.1:18887/v1/jobs/JOB_ID \
 - `runId`、`statePath`：原 Pipeline run 及服务端状态路径。
 - `result.publishResults`：发布结果，成功目标含 `external_id`（微信草稿 `media_id`）。
 - `error`：失败或中断说明；发布失败时 `result` 也可能保留已有业务结果。
+- `progress`：运行中的当前 CLI 动作若已记录进度，附带 `stage`、可选 `message/current/total/unit`；轮询获取，不是 SSE，也不保证每个动作都有进度。
 
-Nezus 首次保存账号时，会通过同一个内网令牌调用 `PUT /v1/accounts/:account` 同步公众号凭据；凭据只写入 worker 的持久卷 `accounts.json`，不进入任务请求或任务状态响应。删除账号使用 `DELETE /v1/accounts/:account`。
+调用后端保存账号时可使用 `PUT /v1/accounts/:account` 同步公众号凭据；Nezus 已采用此路径。凭据只写入 Worker 的持久卷 `accounts.json`，不进入任务请求或任务状态响应。删除账号使用 `DELETE /v1/accounts/:account`。
 
 `job.json` 至少包含 `idempotencyKey`、`title`、`body`、`contentForm`（`article` 或 `newspic`）和 `account`。用 `GET /v1/jobs/:id` 轮询状态；`succeeded` 表示 Pipeline 已完成目标发布，`failed` 的原因在 `error`。同一个 `idempotencyKey` 会返回原任务，不会重复入队。
 
@@ -175,7 +190,7 @@ Nezus 首次保存账号时，会通过同一个内网令牌调用 `PUT /v1/acco
 
 状态为 `queued → running → succeeded / failed`；服务重启时发现原来在运行的任务，会标记 `interrupted`。成功要求 Pipeline 已完成，并有该账号成功的草稿 `media_id`，不代表文章已经公开发布。
 
-`step` 可能为 `queued`、`starting`、`attach-body`、`prepare`、`review-content`、`prepare-finalize`、`render`、`publish`、`done`。当前 Worker 只返回步骤、状态和结果，不提供云端 SSE、逐文件进度或原始日志；部署时以实际 commit 的接口为准。[本机 Monitor](../../docs/monitor.md) 的 SSE 是另一套接口。
+`step` 可能为 `queued`、`starting`、`attach-body`、`prepare`、`review-content`、`prepare-finalize`、`render`、`publish`、`done`。Worker 为每个任务隔离 CLI 事件记录，只投影当前动作的可用进度，不返回原始日志或提供云端 SSE。[本机 Monitor](../../docs/monitor.md) 的 HTTP/SSE 是另一套接口。
 
 查询响应包含服务端路径等内部信息。业务后端应生成面向用户的响应，保留自己的账号绑定和 job 归属，不直接公开 Worker 原始接口。
 
