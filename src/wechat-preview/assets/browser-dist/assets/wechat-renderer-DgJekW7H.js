@@ -375,12 +375,13 @@ var Hf=e=>{throw TypeError(e)};var Uf=(e,t,n)=>t.has(e)||Hf("Cannot "+n);var re=
 }
 
 .milkdown .editor table {
-  display: table;
+  display: block;
   width: 100%;
   max-width: 100%;
   margin: 1.5em 0;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
+  overflow-x: auto;
   box-sizing: border-box;
   color: var(--wx-body-color);
   font-size: 14px;
@@ -414,6 +415,14 @@ var Hf=e=>{throw TypeError(e)};var Uf=(e,t,n)=>t.has(e)||Hf("Cannot "+n);var re=
 
 .milkdown .editor th p {
   color: var(--wx-brand-ink);
+}
+
+/* 表头保持单行，超宽表格通过自身横向滚动。 */
+.milkdown .editor th,
+.milkdown .editor th p {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .milkdown .editor td p {
