@@ -4,6 +4,8 @@ import type { AccountStore, CloudJobInput, JobStore, StoredCloudJob, PipelineWor
 import { defaultJobWorkspace } from "./store";
 import { redact } from "../../src/monitor/runtime";
 import type { TaskStatusReport } from "../../src/task-manager";
+import { validateArticleStyleSnapshot } from "../../src/article-style";
+import { readArticleTheme } from "../../src/article-theme";
 
 interface PipelineCommandResult {
   result: any;
@@ -120,6 +122,14 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     throw new Error(`Pipeline account is not configured: ${input.account}`);
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
+  // 任务私有样式文件只来自已验证 JSON，不读取调用方路径或修改全局配置。
+  const articleStyle = input.articleStyle ? validateArticleStyleSnapshot(input.articleStyle) : undefined;
+  const articleStylePath = join(workspace, "article-style.json");
+  if (articleStyle) await writeFile(articleStylePath, JSON.stringify(articleStyle.manifest), { mode: 0o600 });
+  // CLI 主题包含既有默认字段，其 hash 与正文快照的纯 manifest hash 分开记录。
+  const articleThemeHash = articleStyle ? (await readArticleTheme(articleStylePath)).hash : undefined;
+  const styleIdentity = articleStyle ? { articleStyleHash: articleStyle.hash, articleThemeHash } : {};
+  if (articleStyle) job.result = styleIdentity;
   const bodyPath = join(workspace, "source.md");
   // 内容图保留完整文章，发送配文通过独立快照传递。
   await writeFile(bodyPath, input.body, "utf8");
@@ -144,6 +154,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     ...(generateNewspic ? ["--newspic-render-spec-file", newspicSpecPath] : []),
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
     ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
+    ...(articleStyle ? ["--article-theme", articleStylePath] : []),
   ], account);
   const initResult = init.result as { state_path?: string; run_id?: string };
   let statePath = stringParam(initResult.state_path);
@@ -161,11 +172,14 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
       const result = current.summary.publish.results.find(item => item.account === input.account);
       if (result?.status !== "success" || !result.external_id)
         throw new Error("Pipeline completed without a confirmed WeChat draft media_id");
+      if (articleStyle && result.article_theme_hash !== articleThemeHash)
+        throw new Error("Pipeline completed without the expected article theme hash");
       job.step = "done";
       job.result = {
         runId: job.runId,
         phase: current.summary?.phase?.current || "done",
         publishResults: publishResults(current),
+        ...styleIdentity,
       };
       return;
     }
@@ -194,7 +208,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
       } catch (error) {
         // 发布失败时仍保留原运行的业务结果；不得创建新 run 自动重试。
         const latest = await status(workspace, statePath, account).catch(() => null);
-        if (latest) job.result = { runId: job.runId, publishResults: publishResults(latest) };
+        if (latest) job.result = { runId: job.runId, publishResults: publishResults(latest), ...styleIdentity };
         throw error;
       }
       continue;

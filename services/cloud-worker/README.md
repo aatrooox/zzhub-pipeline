@@ -106,6 +106,14 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 
 未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。提交任务时 `Content-Length` 超过 2,500,000 字节会返回 `413`。当前没有任务列表、取消、重试、SSE 或文件上传接口。
 
+### 正文样式快照
+
+新源码的 `/health` 包含 `capabilities.articleStyleSchemaVersions: [1]`。调用方有样式时必须先确认该能力；旧 Worker 缺此字段，不能假设它会应用未知参数。无样式请求不增加字段，沿用原请求 hash 和执行方式。
+
+业务后端通过 `@akairos/pipeline/article-style` 的 `createArticleStyleSnapshot(manifest, id, revision)` 创建快照，用 `validateArticleStyleSnapshot(value)` 复查与验证 hash。可选 `articleStyle` 仅用于 article，格式为 `{ schemaVersion: 1, id, revision, manifest, hash }`；根 id 必须等于 manifest.id。身份字段沿用 ArticleThemeSchema，revision 为正整数。manifest 只支持 `editorVars.--brand`、`exportTheme.bodyFontSize`（12–24px）、`bodyLineHeight`（1.2–2.4）、`primaryColor`、`h2Color` 与 `syntaxPresets.h2`（pillar/bottom-line/plain）。颜色仅 `#RRGGBB`，归一化小写；数值去多余零。css 缺省为空且只允许空字符串；structure、资源、字体、路径、模块及其他字段均拒绝。
+
+Worker 严格验证后持久化 `input.articleStyle`，执行时写入 job 私有 `article-style.json` 并传给 CLI `init --article-theme`，不修改共享配置。`result.articleStyleHash` 是规范化 manifest 的 SHA-256；`result.articleThemeHash` 是现有 CLI 加入主题默认字段后的独立 hash，与实际发布结果 `article_theme_hash` 核对，两者不要求相等。这样可以从请求快照、私有文件追踪到 CLI 发布主题；未知版本、篡改或主题不匹配明确失败，不回落默认样式继续确认成功。
+
 维护模式下提交新任务返回 `503 worker_maintenance`，`/health` 增加 `maintenance`。该开关持久化在任务存储旁，重启后仍保持暂停，必须显式恢复。更新时暂停并等待队列清空，再备份、停止 Worker、切换配置并重建容器，验收后恢复。图片插件和 myno 都使用镜像内的 npm 入口，不要求独立 Studio 服务或管理员密钥。运行时资产可同步到 `/data/pipeline-runtime`，业务凭据仍在 `accounts.json`，详见[运行时配置指南](../../docs/visual-studio-and-config-sync.md)。
 
 ### 1. 同步账号

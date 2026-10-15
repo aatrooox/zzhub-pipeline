@@ -1,6 +1,6 @@
 {
   "name": "@akairos/pipeline",
-  "version": "0.19.2",
+  "version": "0.20.0",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -12,6 +12,7 @@
   },
   "files": [
     "src/",
+    "article-style.ts",
     "ARTICLE-THEMES.md",
     "THIRD-PARTY-NOTICES.md"
   ],

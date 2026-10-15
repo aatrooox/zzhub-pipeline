@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { createArticleStyleSnapshot } from "../../src/article-style";
 
 test("worker defaults to loopback and authenticates health and job requests", async () => {
   const root = await mkdtemp(join(tmpdir(), "zzp-worker-test-"));
@@ -29,6 +31,7 @@ test("worker defaults to loopback and authenticates health and job requests", as
     expect((await fetch(`${url}/health`)).status).toBe(401);
     expect((await fetch(`${url}/health`, { headers: { Authorization: "Bearer wrong" } })).status).toBe(401);
     expect((await fetch(`${url}/health`, { headers })).status).toBe(200);
+    expect((await (await fetch(`${url}/health`, { headers })).json()).capabilities.articleStyleSchemaVersions).toEqual([1]);
     expect((await fetch(`${url}/v1/jobs/missing`)).status).toBe(401);
     expect((await fetch(`${url}/v1/jobs/missing`, { headers })).status).toBe(404);
 
@@ -63,6 +66,22 @@ test("worker defaults to loopback and authenticates health and job requests", as
     const generated = await submit({ ...input, idempotencyKey: "newspic-generated", newspic: { ...input.newspic, photos: [] } });
     expect(generated.status).toBe(202);
     expect((await generated.json()).input.newspic.photos).toEqual([]);
+
+    const articleStyle = createArticleStyleSnapshot({ schemaVersion: 1, engineVersion: 1, id: "body-style", name: "正文", version: "1.0.0", exportTheme: { bodyFontSize: "20px" } }, "body-style", 1);
+    const article = { idempotencyKey: "article-style", title: "正文样式", body: "正文", contentForm: "article", account: "missing-account", articleStyle };
+    const styled = await (await submit(article)).json();
+    expect(styled.input.articleStyle).toEqual(articleStyle);
+    expect((await (await submit(article)).json()).id).toBe(styled.id);
+    expect((await submit({ ...article, articleStyle: { ...articleStyle, schemaVersion: 2 } })).status).toBe(400);
+    expect((await submit({ ...input, articleStyle })).status).toBe(400);
+    const different = createArticleStyleSnapshot({ ...articleStyle.manifest, exportTheme: { bodyFontSize: "21px" } }, "body-style", 2);
+    expect((await submit({ ...article, articleStyle: different })).status).toBe(409);
+    const legacyInput = { idempotencyKey: "legacy-article", title: "旧正文", body: "正文", contentForm: "article", account: "missing-account" };
+    const legacyJob = await (await submit(legacyInput)).json();
+    expect(legacyJob.input).not.toHaveProperty("articleStyle");
+    expect(legacyJob.requestHash).toBe(createHash("sha256").update(JSON.stringify({ ...legacyInput, existingDraftMediaId: null })).digest("hex"));
+    const saved = JSON.parse(await readFile(env.PIPELINE_WORKER_STATE_FILE, "utf8"));
+    expect(saved.jobs.find((item: any) => item.id === styled.id).input.articleStyle.hash).toBe(articleStyle.hash);
 
     const rejected = Bun.spawnSync(command, { env: { ...env, PIPELINE_WORKER_HOST: "0.0.0.0" } });
     expect(rejected.exitCode).not.toBe(0);

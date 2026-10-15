@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.20.0
+
+### Features
+
+- Expose strict, normalized article style snapshots at `@akairos/pipeline/article-style`.
+- Accept optional article styles in cloud Worker jobs, persist their immutable content, and pass private theme files to the existing CLI workflow.
+- Advertise supported article style schema versions and report both snapshot and resolved CLI theme hashes.
+
+### Compatibility
+
+- Preserve request hashes and rendering behavior for jobs without an article style.
+- Keep the existing myno 0.3.1 and Typeset Studio 0.2.7 runtime versions.
+
 ## v0.19.2
 
 [compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.19.1...v0.19.2)

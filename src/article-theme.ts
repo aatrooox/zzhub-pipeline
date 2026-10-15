@@ -41,6 +41,16 @@ export interface ArticleThemePackage {
   files: Map<string, Uint8Array>;
 }
 
+/** 本地主题与云端快照共用 CSS 边界，禁止隐藏外部资源。 */
+export function validateArticleThemeCss(manifest: ArticleThemeManifest, css: string): void {
+  const unsafeCss = (value: string) => /\\|@import\b|url\s*\(|expression\s*\(/i.test(value.replace(/\/\*[\s\S]*?\*\//g, ""));
+  if (Object.keys(manifest.editorVars).some(key => !/^--[a-zA-Z0-9_-]+$/.test(key))) throw new Error("模板变量名无效");
+  for (const value of [...Object.values(manifest.editorVars), ...Object.values(manifest.exportTheme)]) {
+    if (value.length > 8192 || unsafeCss(value)) throw new Error("模板变量不能包含外部资源或 CSS 转义");
+  }
+  if (css.length > 256_000 || unsafeCss(css)) throw new Error("模板 CSS 不支持外部资源、CSS 转义或可执行表达式");
+}
+
 /** 限制所有资源在包内，拒绝符号链接、目录越界及过大文件。 */
 export async function readArticleTheme(inputPath: string): Promise<ArticleThemePackage> {
   const entry = resolve(inputPath);
@@ -76,14 +86,8 @@ export async function readArticleTheme(inputPath: string): Promise<ArticleThemeP
   if (manifest.structure.headerImage) paths.push(manifest.structure.headerImage);
   for (const name of new Set(paths)) await read(name);
   const css = manifest.css ?? new TextDecoder().decode(files.get(manifest.stylesheet));
-  // 模板无需 CSS 转义；拒绝用转义或注释隐藏的网络/文件资源。
-  const unsafeCss = (value: string) => /\\|@import\b|url\s*\(|expression\s*\(/i.test(value.replace(/\/\*[\s\S]*?\*\//g, ""));
-  if (Object.keys(manifest.editorVars).some(key => !/^--[a-zA-Z0-9_-]+$/.test(key))) throw new Error("模板变量名无效");
-  for (const value of [...Object.values(manifest.editorVars), ...Object.values(manifest.exportTheme)]) {
-    if (value.length > 8192 || unsafeCss(value)) throw new Error("模板变量不能包含外部资源或 CSS 转义");
-  }
+  validateArticleThemeCss(manifest, css);
   if (manifest.structure.headerImage && !/\.(png|jpe?g|gif|webp)$/i.test(manifest.structure.headerImage)) throw new Error("模板页首素材仅支持 PNG、JPEG、GIF、WebP");
-  if (css.length > 256_000 || unsafeCss(css)) throw new Error("模板 CSS 不支持外部资源、CSS 转义或可执行表达式");
   const digest = createHash("sha256").update(JSON.stringify(manifest)).update(css);
   for (const name of [...new Set([...manifest.assets, ...(manifest.structure.headerImage ? [manifest.structure.headerImage] : [])])].sort()) {
     digest.update(name).update(files.get(name)!);

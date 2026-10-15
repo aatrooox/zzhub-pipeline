@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { executeCloudJob } from "./pipeline";
 import { cloudJobProgress } from "./progress";
 import { AccountStore, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
+import { validateArticleStyleSnapshot } from "../../src/article-style";
 
 const host = process.env.PIPELINE_WORKER_HOST?.trim() || "127.0.0.1";
 const port = Number(process.env.PIPELINE_WORKER_PORT || "18887");
@@ -66,6 +67,8 @@ function validateInput(value: unknown): CloudJobInput {
     || !Array.isArray(newspic.photos) || newspic.photos.length > 20
     || newspic.photos.some(photo => typeof photo !== "string" || !/^https?:\/\//i.test(photo) || !URL.canParse(photo))
   )) throw new Error("newspic requires text and up to 20 HTTP image URLs; an empty list generates images");
+  if (input.articleStyle !== undefined && contentForm !== "article") throw new Error("articleStyle requires article contentForm");
+  const articleStyle = input.articleStyle !== undefined ? validateArticleStyleSnapshot(input.articleStyle) : undefined;
   return {
     idempotencyKey,
     title,
@@ -75,6 +78,7 @@ function validateInput(value: unknown): CloudJobInput {
     intentText: typeof input.intentText === "string" ? input.intentText.trim() : undefined,
     existingDraftMediaId: typeof input.existingDraftMediaId === "string" ? input.existingDraftMediaId.trim() || null : null,
     ...(newspic ? { newspic } : {}),
+    ...(articleStyle ? { articleStyle } : {}),
   };
 }
 
@@ -153,7 +157,8 @@ async function main(): Promise<void> {
       if (!bearerMatches(request))
         return json({ error: "unauthorized" }, 401);
       if (url.pathname === "/health" && request.method === "GET")
-        return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size, maintenance });
+        return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size, maintenance,
+          capabilities: { articleStyleSchemaVersions: [1] } });
 
       try {
         if (url.pathname === "/v1/maintenance" && request.method === "PUT") {
@@ -200,6 +205,7 @@ async function main(): Promise<void> {
               useDefaultCover: input.useDefaultCover,
               coverTheme: input.coverTheme,
               ...(input.newspic ? { newspic: input.newspic } : {}),
+              ...(input.articleStyle ? { articleStyle: input.articleStyle } : {}),
             },
             status: "queued",
             step: "queued",
