@@ -234,7 +234,7 @@ Studio 模板与 pipeline 配置分开保存：`data/templates/*.json` 保存模
 
 固定素材的 `templateAssetKey` 是模板内的替换标识，图片来源仍是 `images[].src`。支持可访问的 HTTP/HTTPS URL、本地文件及 `/uploads/...` 引用。使用 `/uploads/...` 时应连同 `uploads/` 目录原文件名一起同步；绝对路径应改为服务器可用路径，或把素材上传到 COS/CDN 后使用稳定 HTTPS URL。编辑器预览远程图片还需要图片服务允许跨域读取。
 
-**版本基线（2026-10-15）：** Pipeline `0.19.1` 固定 Typeset Studio `0.2.6` 和 myno `0.3.1`；插件仍需显式配置。模板与素材不打进 npm 包，服务器通过运行时配置包提供。源码适配器路径仅用于本地联调，Worker 使用 npm 入口。
+**版本基线（2026-10-15）：** Pipeline `0.19.2` 固定 Typeset Studio `0.2.7` 和 myno `0.3.1`；插件仍需显式配置。模板与素材不打进 npm 包，服务器通过运行时配置包提供。源码适配器路径仅用于本地联调，Worker 使用 npm 入口。
 
 ### 生成 Worker 运行时配置包
 

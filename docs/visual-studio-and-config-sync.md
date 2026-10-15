@@ -1,6 +1,6 @@
 # Studio 排版与运行时配置
 
-本文以 Pipeline 0.19.0、myno 0.3.0、Typeset Studio 0.2.6 为基线。工作台和执行器可以分别使用：myno 编辑正文、调样式并导出 JSON；Typeset Studio 设计封面和图片页面；Pipeline 负责读取配置、运行浏览器、生成文件和写入微信草稿。
+本文以 Pipeline 0.19.2、myno 0.3.1、Typeset Studio 0.2.7 为基线。工作台和执行器可以分别使用：myno 编辑正文、调样式并导出 JSON；Typeset Studio 设计封面和图片页面；Pipeline 负责读取配置、运行浏览器、生成文件和写入微信草稿。
 
 ## 选择工作台
 

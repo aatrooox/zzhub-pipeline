@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@akairos/milkdown-article-plugins": "^0.1.6",
-    "@akairos/typeset-studio": "0.2.6",
+    "@akairos/typeset-studio": "0.2.7",
     "@chenglou/pretext": "0.0.8",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",
