@@ -1,6 +1,6 @@
 {
   "name": "@akairos/pipeline",
-  "version": "0.18.5",
+  "version": "0.19.0",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -36,6 +36,7 @@
     "zod": "^4.4.2"
   },
   "optionalDependencies": {
+    "@akairos/myno": "0.3.0",
     "@napi-rs/canvas": "^0.1.97",
     "cos-nodejs-sdk-v5": "^2.15.4"
   },

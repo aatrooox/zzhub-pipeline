@@ -10,7 +10,7 @@ import { resolveBunBinary } from "./spawn";
 /** 插件错误保留阶段和错误码，终端与调用方使用同一提示。 */
 export class PluginExecutionError extends Error {
   constructor(readonly code: string, specifier: string, action: string, detail: string) {
-    const stage = action === "describe" ? "加载" : action === "doctor" ? "检查" : "渲染";
+    const stage = action === "describe" || action === "browser" ? "加载" : action === "doctor" ? "检查" : action === "studio" ? "工作台加载" : "渲染";
     super(`[${code}] 插件「${specifier}」${stage}失败：${detail}。请检查插件配置、运行 zzp doctor 或切换内置渲染器，修复后再重试；本次未自动重试。`);
     this.name = "PluginExecutionError";
   }
@@ -20,6 +20,15 @@ export const PluginMetadataSchema = z.object({
   name: z.string().trim().min(1),
   version: z.string().optional(),
   hasDoctor: z.boolean(),
+  hasStudio: z.boolean().default(false),
+  hasBrowser: z.boolean().default(false),
+});
+export const PluginBrowserSchema = z.object({
+  scriptPath: z.string().refine(isAbsolute, "浏览器入口必须是绝对路径"),
+});
+export const PluginStudioSchema = z.object({
+  root: z.string().refine(isAbsolute, "Studio root 必须是绝对路径"),
+  entry: z.string().min(1).refine(value => !isAbsolute(value) && !value.split(/[\\/]/).includes(".."), "Studio entry 必须位于资源目录内"),
 });
 export const PluginDoctorSchema = z.array(z.object({
   name: z.string().min(1), ok: z.boolean(), message: z.string().optional(), detail: z.unknown().optional(),
@@ -48,7 +57,7 @@ const ProgressSchema = z.object({
 /** 外部插件独立执行；父进程可终止同步死循环、异常退出和永不结束的 Promise。 */
 export async function runExternalPlugin<T>(
   specifier: string,
-  action: "describe" | "doctor" | "render",
+  action: "describe" | "doctor" | "render" | "studio" | "browser",
   schema: z.ZodType<T>,
   input?: Record<string, unknown>,
   configuration: { options?: Record<string, unknown>; environment?: Record<string, string> } = {},

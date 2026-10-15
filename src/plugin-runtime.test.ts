@@ -115,6 +115,25 @@ test("markdown plugins receive their own options in doctor and render", async ()
   expect((await plugin.render({ markdownPath: join(directory, "post.md"), outPath: join(directory, "post.html"), account: "default" })).html).toBe(options.html);
 });
 
+test("browser-only markdown plugins validate their entry and receive their own options", async () => {
+  const pluginPath = join(directory, "browser-plugin.mjs");
+  await writeFile(pluginPath, `export default {name:'browser-test',browser(options){return {scriptPath:options.scriptPath}}}`);
+  const plugin = await resolveMarkdownRenderer(PipelineConfigSchema.parse({ plugins: { markdownRenderer: { module: pluginPath, options: { scriptPath: "relative.js" } } } }));
+  await expect(plugin.render({ markdownPath: "unused.md", outPath: "out.html", account: "default" })).rejects.toMatchObject({ code: "PLUGIN_INVALID_RESULT" });
+  expect((await plugin.doctor!()).some(check => check.name === "chrome")).toBe(true);
+});
+
+test("Studio capability is optional, isolated and validates asset directory paths", async () => {
+  const pluginPath = await fixture("return null", `async studio(options){return {root:${JSON.stringify(directory)},entry:options.entry}},`);
+  const config = (entry: string) => PipelineConfigSchema.parse({ plugins: { markdownRenderer: { module: pluginPath, options: { entry } } } });
+  const plugin = await resolveMarkdownRenderer(config("studio.html"));
+  expect(await plugin.studio!()).toEqual({ root: directory, entry: "studio.html" });
+  const invalid = await resolveMarkdownRenderer(config("../outside.html"));
+  await expect(invalid.studio!()).rejects.toMatchObject({ code: "PLUGIN_INVALID_RESULT" });
+  const plain = await resolveMarkdownRenderer(PipelineConfigSchema.parse({ plugins: { markdownRenderer: await fixture("return null") } }));
+  expect(plain.studio).toBeUndefined();
+});
+
 test("reports thrown errors, process exits, and invalid image results without escaping the parent", async () => {
   for (const [body, code] of [
     ['throw new Error("bad template")', "PLUGIN_EXECUTION_FAILED"],

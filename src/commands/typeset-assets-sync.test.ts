@@ -66,6 +66,7 @@ test("deduplicates shared images, rewrites only sources, and exports styles with
   const configPath = join(root, "config.json");
   const config = await result(configPath);
   config.wx.accounts.default.articleTheme = "style.json";
+  config.plugins.markdownRenderer = { module: "@akairos/myno/adapter", options: {} };
   await writeFile(configPath, JSON.stringify(config));
   let uploads = 0;
   const command = createTypesetAssetsSyncCommand({ upload: uploader(async () => { uploads++; }), verifyUrl });
@@ -74,6 +75,7 @@ test("deduplicates shared images, rewrites only sources, and exports styles with
   expect(uploads).toBe(1);
   expect((await result(join(root, "templates/jinx.json"))).images[0]).toEqual({ ...template.images[0], src: "https://cdn.example/jinx.png" });
   const patch = await result(join(destination, "pipeline.patch.json"));
+  expect(patch.plugins.markdownRenderer).toEqual({ module: "@akairos/myno/adapter", options: {} });
   expect(patch.wx.accounts.default).toMatchObject({ customCss: null, articleTheme: "/data/pipeline-runtime/markdown/article-themes/default/manifest.json" });
   expect((await readArticleTheme(join(destination, "markdown/article-themes/default/manifest.json"))).css).toBe(style.css);
   for (const secret of ["secret-cos-token", "private-secret", "private-app-id", "private-pat"]) expect(JSON.stringify(patch)).not.toContain(secret);

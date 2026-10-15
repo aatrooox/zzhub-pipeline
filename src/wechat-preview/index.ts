@@ -100,6 +100,8 @@ export interface ExportMarkdownToWechatHtmlInput {
   timeoutMs?: number;
   /** Write intermediate artifacts for debugging. */
   debugDir?: string;
+  /** 外部插件提供的已构建入口；浏览器和文件输出继续由宿主管理。 */
+  browserScriptPath?: string;
 }
 
 export interface ExportMarkdownToWechatHtmlResult {
@@ -405,7 +407,9 @@ export async function exportMarkdownToWechatHtml(
 
     let bundle: BundleAssets;
     try {
-      bundle = ensureBundle();
+      bundle = input.browserScriptPath
+        ? { scriptPath: input.browserScriptPath, rebuilt: false, stale: false }
+        : ensureBundle();
       bundleRebuilt = bundle.rebuilt;
       bundleStale = bundle.stale;
     } catch (error) {
@@ -432,6 +436,7 @@ export async function exportMarkdownToWechatHtml(
         assetBaseUrl: pathToFileURL(`${dirname(resolve(input.markdownPath))}/`).href,
         editorVars: theme.editorVars,
         exportTheme: theme.exportTheme,
+        syntaxPresets,
         customCss,
         structure,
       }),

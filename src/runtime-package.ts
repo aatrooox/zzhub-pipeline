@@ -61,7 +61,7 @@ export function validateStudioDefaults(text: string, templateIds: Set<string>): 
 }
 
 /** 准备账号主题文件，只导出样式白名单，不复制凭据或本机插件入口。 */
-export async function prepareMarkdownRuntime(config: PipelineConfig, accountMap: Record<string, string> = {}): Promise<{ files: Map<string, Uint8Array>; accounts: Record<string, unknown> }> {
+export async function prepareMarkdownRuntime(config: PipelineConfig, accountMap: Record<string, string> = {}): Promise<{ files: Map<string, Uint8Array>; accounts: Record<string, unknown>; markdownRenderer: PipelineConfig["plugins"]["markdownRenderer"] }> {
   const files = new Map<string, Uint8Array>();
   const accounts: Record<string, unknown> = {};
   for (const [localAccount, value] of Object.entries(config.wx.accounts)) {
@@ -84,7 +84,12 @@ export async function prepareMarkdownRuntime(config: PipelineConfig, accountMap:
     }
     accounts[account] = next;
   }
-  return { files, accounts };
+  const entry = config.plugins.markdownRenderer;
+  const module = typeof entry === "string" ? entry : entry?.module;
+  // 部署只接受可复现的 npm 入口，禁止把本机绝对路径带到服务器。
+  if (module && module !== "@akairos/myno/adapter") throw new Error("运行时同步仅支持 @akairos/myno/adapter 或内置 Markdown 渲染器");
+  if (typeof entry === "object" && entry && Object.keys(entry.options).length) throw new Error("myno 运行时同步暂不接受专属参数");
+  return { files, accounts, markdownRenderer: module ? { module, options: {} } : null };
 }
 
 /** 写入带文件哈希的独立配置包，调用者在全部成功后切换目录。 */
@@ -103,7 +108,7 @@ export async function writeRuntimePackage(destination: string, templates: Map<st
   files.set("typeset-studio/templates/.initialized", Buffer.from("1"));
   files.set("typeset-studio/templates/.canvas-presets-v1", Buffer.from("1"));
   const patch = {
-    plugins: { imageRenderer: { module: "@akairos/typeset-studio/adapter", options: { dataDir: `${RUNTIME_ROOT}/typeset-studio` } }, markdownRenderer: null },
+    plugins: { imageRenderer: { module: "@akairos/typeset-studio/adapter", options: { dataDir: `${RUNTIME_ROOT}/typeset-studio` } }, markdownRenderer: markdown.markdownRenderer },
     wx: { accounts: markdown.accounts },
   };
   files.set("pipeline.patch.json", Buffer.from(JSON.stringify(patch, null, 2) + "\n"));

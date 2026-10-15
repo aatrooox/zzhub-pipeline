@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.19.0
+
+### Features
+
+- Load optional myno browser rendering and Studio resources through `plugins.markdownRenderer`.
+- Reuse Pipeline's Chrome lifecycle, style validation, and output handling for browser-only plugins.
+- Pin the optional `@akairos/myno` dependency to 0.3.0; preserve its npm entry in runtime configuration packages.
+
+### Fixes
+
+- Keep preview registration and history available when an external Studio cannot load.
+- Restrict Studio asset paths to the plugin's resource directory, including symbolic links.
+
 ## v0.18.1
 
 [compare changes](https://github.com/k7airos/zzhub-pipeline/compare/v0.18.0...v0.18.1)

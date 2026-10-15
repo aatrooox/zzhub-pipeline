@@ -207,7 +207,21 @@ export interface MarkdownRenderPlugin {
   /** Environment checks */
   doctor?: (options?: Record<string, unknown>) => Promise<PipelinePluginDoctorCheck[]>;
 
+  /** 工作台静态资源由插件分发，配置读写仍由宿主提供。 */
+  studio?: (options?: Record<string, unknown>) => Promise<MarkdownStudioAssets>;
+
   /** Render markdown to WeChat-compatible HTML */
   /** 专属配置作为第二个参数传入，旧插件可忽略。 */
   render: (input: MarkdownRenderInput, options?: Record<string, unknown>) => Promise<MarkdownRenderOutput>;
+}
+
+/** root 是插件资源目录，entry 是该目录内的 HTML 相对路径。 */
+export interface MarkdownStudioAssets {
+  root: string;
+  entry: string;
+}
+
+/** 仅提供浏览器排版资源的插件，Chrome 生命周期由 pipeline 管理。 */
+export interface BrowserMarkdownRenderPlugin extends Omit<MarkdownRenderPlugin, "render"> {
+  browser: (options?: Record<string, unknown>) => Promise<{ scriptPath: string }>;
 }

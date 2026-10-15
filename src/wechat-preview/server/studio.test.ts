@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { tmpdir } from "os";
 import { join } from "path";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { startPreviewServer, type StartPreviewServerResult } from "./http";
 import { loadConfig, saveConfig } from "../../config";
 
@@ -191,5 +191,39 @@ describe("wechat-preview studio server APIs", () => {
     expect(html).toContain("WeChat Visual Studio");
     expect(html).toContain("studio.js");
     expect(html).toContain('id="btn-export-config"');
+  });
+
+  test("external Studio serves plugin resources without exposing files outside its root", async () => {
+    const root = join(testDir, "plugin-assets");
+    mkdirSync(root);
+    writeFileSync(join(root, "studio.html"), '<script src="/studio.js"></script><link href="/style.css"><a href="/">History</a>');
+    writeFileSync(join(root, "studio.js"), "/* plugin studio */");
+    writeFileSync(join(testDir, "private.txt"), "private");
+    symlinkSync(join(testDir, "private.txt"), join(root, "outside.txt"));
+    const pluginPath = join(testDir, "studio-plugin.mjs");
+    writeFileSync(pluginPath, `export default {name:'studio-test',render(){},studio(){return {root:${JSON.stringify(root)},entry:'studio.html'}}}`);
+    const config = loadConfig();
+    const original = config.plugins.markdownRenderer;
+    config.plugins.markdownRenderer = pluginPath;
+    saveConfig(config);
+    let external: StartPreviewServerResult | undefined;
+    const originalServerDir = process.env.ZZHUB_WECHAT_PREVIEW_DIR;
+    process.env.ZZHUB_WECHAT_PREVIEW_DIR = join(testDir, "external-server");
+    try {
+      external = await startPreviewServer({ host: "127.0.0.1", port: 0, reuseExisting: false });
+      const page = await (await fetch(`${external.url}/studio`)).text();
+      expect(page).toContain('src="/studio-assets/studio.js"');
+      expect(page).toContain('href="/studio-assets/style.css"');
+      expect(page).toContain('<a href="/">History</a>');
+      expect(await (await fetch(`${external.url}/studio-assets/studio.js`)).text()).toBe("/* plugin studio */");
+      expect((await fetch(`${external.url}/studio-assets/outside.txt`)).status).toBe(404);
+      expect((await fetch(`${external.url}/studio-assets/..%2fprivate.txt`)).status).toBe(404);
+      expect((await fetch(`${external.url}/api/studio/config`)).status).toBe(200);
+    } finally {
+      external?.stop?.();
+      process.env.ZZHUB_WECHAT_PREVIEW_DIR = originalServerDir;
+      config.plugins.markdownRenderer = original;
+      saveConfig(config);
+    }
   });
 });

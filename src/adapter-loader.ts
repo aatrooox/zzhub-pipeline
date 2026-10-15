@@ -15,7 +15,10 @@ import type {
 } from "./adapter-types";
 import { builtinImageRenderer } from "./adapters/builtin-image-renderer";
 import { builtinMarkdownRenderer } from "./adapters/builtin-markdown-renderer";
-import { PluginDoctorSchema, PluginImageOutputSchema, PluginMarkdownOutputSchema, PluginMetadataSchema, runExternalPlugin } from "./plugin-runtime";
+import { PluginBrowserSchema, PluginDoctorSchema, PluginImageOutputSchema, PluginMarkdownOutputSchema, PluginMetadataSchema, PluginStudioSchema, runExternalPlugin } from "./plugin-runtime";
+import { exportMarkdownToWechatHtml } from "./wechat-preview";
+import { notifyProgress } from "./monitor/recorder";
+import { findChrome } from "./imgx/runtime";
 
 // ── Public API ───────────────────────────────────────────────────
 
@@ -75,9 +78,26 @@ export async function resolveMarkdownRenderer(
     return {
       name: metadata.name,
       version: metadata.version,
-      ...(metadata.hasDoctor ? { doctor: () => runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema, undefined, { options }) } : {}),
-      render: ({ onProgress, ...input }) => runExternalPlugin(pluginPath, "render", PluginMarkdownOutputSchema, input, { options }, onProgress,
-        input.timeoutMs && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0 ? input.timeoutMs + 10_000 : 120_000),
+      ...(metadata.hasDoctor || metadata.hasBrowser ? { doctor: async () => {
+        const checks = metadata.hasDoctor ? await runExternalPlugin(pluginPath, "doctor", PluginDoctorSchema, undefined, { options }) : [];
+        if (metadata.hasBrowser) {
+          const chrome = findChrome();
+          checks.push({ name: "chrome", ok: Boolean(chrome), message: chrome ?? "Chrome/Chromium not found" });
+        }
+        return checks;
+      } } : {}),
+      ...(metadata.hasStudio ? { studio: () => runExternalPlugin(pluginPath, "studio", PluginStudioSchema, undefined, { options }) } : {}),
+      render: async ({ onProgress, ...input }) => {
+        if (metadata.hasBrowser) {
+          const browser = await runExternalPlugin(pluginPath, "browser", PluginBrowserSchema, undefined, { options });
+          notifyProgress(onProgress, { stage: "render.html", message: "正在导出微信 HTML" });
+          const result = await exportMarkdownToWechatHtml({ ...input, browserScriptPath: browser.scriptPath });
+          notifyProgress(onProgress, { stage: "render.html", message: "微信 HTML 导出完成", current: 1, total: 1, unit: "files" });
+          return result;
+        }
+        return runExternalPlugin(pluginPath, "render", PluginMarkdownOutputSchema, input, { options }, onProgress,
+          input.timeoutMs && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0 ? input.timeoutMs + 10_000 : 120_000);
+      },
     };
   }
 

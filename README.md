@@ -160,7 +160,7 @@ Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸，�
 | **`@akairos/milkdown-article-plugins`** | Remark / Milkdown 全语法自定义解析与渲染插件 |
 | **`@akairos/typeset-studio`** | 微信大图头图、多比例排版与卡片视觉合成引擎 |
 
-配置在 `plugins.imageRenderer` / `plugins.markdownRenderer` 的外部插件在独立 Bun 子进程中加载和执行。加载与 doctor 默认上限为 10 秒，渲染为 120 秒；Markdown 渲染显式传入 `timeoutMs` 时，子进程上限额外预留 10 秒。可通过 `ZZHUB_PIPELINE_PLUGIN_TIMEOUT_MS` 覆盖调用上限。同步死循环、超时和异常退出会终止插件进程，非法返回值会给出 `PLUGIN_*` 错误，命令不会自动重试或静默切换模板。
+配置在 `plugins.imageRenderer` / `plugins.markdownRenderer` 的外部插件在独立 Bun 子进程中加载，插件的 `render`、`doctor`、`browser` 和 `studio` 方法也在子进程调用。加载、资源入口查询与 doctor 默认上限为 10 秒，`render` 为 120 秒；Markdown 渲染显式传入 `timeoutMs` 时，子进程上限额外预留 10 秒。可通过 `ZZHUB_PIPELINE_PLUGIN_TIMEOUT_MS` 覆盖子进程调用上限。同步死循环、超时和异常退出会终止插件进程，非法返回值会给出 `PLUGIN_*` 错误，命令不会自动重试或静默切换模板。浏览器型插件返回入口后，由 pipeline 现有 Chrome 运行时加载页面，并按渲染 `timeoutMs` 管理浏览器生命周期。
 
 图片渲染失败后任务进入失败状态，保留正文与审核结果。修复插件后执行 `zzp reset --state <state_path> --mode render`，再继续任务；也可以将对应的 `plugins.*Renderer` 配置设为 `null` 使用内置渲染器。外部插件通过 `onProgress` 回传进度，不应依赖修改输入对象或跨调用保存内存状态。子进程继承当前环境和文件权限，这一机制负责故障隔离，不是权限沙箱。
 
@@ -169,6 +169,27 @@ Pipeline 在创建和更新草稿时，会自动读取封面图真实尺寸，�
 `plugins.imageRenderer` 与 `plugins.markdownRenderer` 都支持 `{ "module": "包名或文件路径", "options": {} }`。`module` 指定适配器入口，`options` 保存该插件的详细规则，可包含嵌套对象和数组；pipeline 校验入口结构，将参数传给插件的 `doctor(options)` 和 `render(input, options)`，参数含义与业务校验由插件负责。两个渲染器分别接收自己的参数。
 
 旧的字符串入口继续有效，等同于没有配置专属参数；`null` 使用内置渲染器。`zzp config --import` 中的渲染器条目整体替换原条目，只改一个参数时使用 `--key plugins.imageRenderer.options.<参数名>`。
+
+### myno 排版插件
+
+myno 通过可选的 Markdown 渲染插件接入。从 pipeline 0.19.0 起可选依赖固定为 `@akairos/myno@0.3.0`，仍需在配置中显式启用；使用 `--omit optional` 安装时需自行提供插件。npm 配置示例：
+
+```json
+{
+  "plugins": {
+    "markdownRenderer": {
+      "module": "@akairos/myno/adapter",
+      "options": {}
+    }
+  }
+}
+```
+
+本地开发时可先在 myno 仓库执行 `bun run build`，将 `module` 指向构建后的 `dist/adapter.js` 绝对路径。运行时部署包只接受 npm 入口和空 `options`，不会复制本机插件路径。
+
+插件可以实现原有的 `render(input, options)`，也可以像 myno 一样只实现 `browser(options)`，返回浏览器排版入口的绝对路径 `{ scriptPath }`。`wechat-export` 和公众号文章发布通过同一个插件加载器调度；浏览器型插件复用 pipeline 现有的 Chrome、超时清理、离线模板校验和文件输出，仅页面排版实现来自插件。myno 不增加浏览器自动化依赖，调样式和导出 config 也不需要启动无头浏览器。独立样式仍与发布账号分离。
+
+Markdown 插件可选提供 `studio(options)`，返回绝对资源目录 `root` 和该目录内的 HTML 相对路径 `entry`。`zzp wechat-preview studio` 将插件页面挂到 `/studio`，脚本和样式挂到 `/studio-assets/`；`/api/studio/config`、`/api/studio/save-config` 和历史记录继续由 pipeline 提供。插件不支持 Studio 时返回明确提示；配置为 `null` 保留内置工作台。切换插件后需重启已运行的预览服务。
 
 ### Typeset Studio 插件配置
 

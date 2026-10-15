@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { realpath, stat } from "fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { z } from "zod";
 import {
   previewBaseUrl,
@@ -32,6 +33,8 @@ import { readArticleTheme } from "../../article-theme";
 import { PipelineConfigSchema, WechatExportThemeOverridesSchema, WechatStructureOverridesSchema } from "../../schema/config";
 import { loadConfig, saveConfig, getPipelineConfigPath, resolveConfigRelativePath } from "../../config";
 import { DIST_DIR, WECHAT_PREVIEW_DIR } from "../../runtime-paths";
+import { resolveMarkdownRenderer } from "../../adapter-loader";
+import type { MarkdownStudioAssets } from "../../adapter-types";
 import type { PreviewRegisterInput } from "./types";
 
 /** 保存入口先校验完整请求，避免写入 CLI 无法加载的配置。 */
@@ -103,6 +106,32 @@ export async function startPreviewServer(
 
   if (existing.kind === "stale_lock") {
     clearServerLock();
+  }
+
+  // 工作台与导出使用同一个插件；没有工作台能力时给出明确提示。
+  const pluginConfig = loadConfig();
+  const externalMarkdown = Boolean(pluginConfig.plugins.markdownRenderer);
+  let studioAssets: Promise<MarkdownStudioAssets | undefined> | undefined;
+  /** 按需加载工作台，故障插件不影响预览登记和历史页面。 */
+  function getStudio() {
+    return studioAssets ??= resolveMarkdownRenderer(pluginConfig).then(async renderer => {
+      const studio = await renderer.studio?.();
+      return studio ? { ...studio, root: await realpath(studio.root) } : undefined;
+    });
+  }
+
+  /** 插件静态资源独立挂载，真实路径也必须留在插件资源目录内。 */
+  async function studioFile(name: string): Promise<string | null> {
+    try {
+      if (!externalMarkdown) return null;
+      const studioRoot = (await getStudio())?.root;
+      if (!studioRoot) return null;
+      const target = await realpath(resolve(studioRoot, name));
+      const rel = relative(studioRoot, target);
+      return rel && !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`) && (await stat(target)).isFile() ? target : null;
+    } catch {
+      return null;
+    }
   }
 
   let server: ReturnType<typeof Bun.serve>;
@@ -317,6 +346,21 @@ export async function startPreviewServer(
       }
 
       if (pathname === "/studio" || pathname === "/studio/" || pathname === "/studio/index.html") {
+        if (externalMarkdown) {
+          let studio: MarkdownStudioAssets | undefined;
+          try { studio = await getStudio(); }
+          catch (error) { return json({ error: error instanceof Error ? error.message : String(error) }, 500); }
+          if (!studio) return html("<h1>当前 Markdown 渲染插件未提供 Studio 工作台。</h1>", 404);
+          const entry = await studioFile(studio.entry);
+          if (!entry) return html("<h1>插件 Studio 入口不存在或超出资源目录。</h1>", 500);
+          // 相对资源按插件入口解析，统一放入命名空间且保留页面导航链接。
+          return html(readFileSync(entry, "utf8").replace(/<(?:script|link)\b[^>]*>/g,
+            tag => tag.replace(/\b(src|href)=(["'])([^"']+)\2/g, (attribute, name, quote, value: string) => {
+              if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(value)) return attribute;
+              const asset = new URL(value, `http://studio/${studio.entry}`);
+              return `${name}=${quote}/studio-assets${asset.pathname}${asset.search}${quote}`;
+            })));
+        }
         const studioHtmlPath = join(DIST_DIR, "src/wechat-preview/browser/studio/studio.html");
         const fallbackPath = join(DIST_DIR, "studio.html");
         const targetHtmlPath = existsSync(studioHtmlPath) ? studioHtmlPath : fallbackPath;
@@ -324,6 +368,17 @@ export async function startPreviewServer(
           return html(readFileSync(targetHtmlPath, "utf-8"));
         }
         return html("<h1>Studio not built. Run bun run build:wechat-preview first.</h1>", 500);
+      }
+
+      if (pathname.startsWith("/studio-assets/")) {
+        let name: string;
+        try { name = decodeURIComponent(pathname.slice("/studio-assets/".length)); }
+        catch { return json({ error: "invalid asset path" }, 400); }
+        const target = await studioFile(name);
+        if (!target) return json({ error: "Studio asset not found" }, 404);
+        return new Response(new Uint8Array(readFileSync(target)), {
+          headers: { "content-type": guessContentType(target), "cache-control": "no-cache" },
+        });
       }
 
       if (pathname === "/studio.js" || pathname === "/editor-export.js") {
