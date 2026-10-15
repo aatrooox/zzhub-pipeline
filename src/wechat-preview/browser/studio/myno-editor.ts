@@ -10,8 +10,8 @@ import {
 
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
-import "@akairos/milkdown-article-style/tokens-default.css";
-import "@akairos/milkdown-article-style/article.css";
+import "@akairos/myno/tokens-default.css";
+import "@akairos/myno/article.css";
 
 export interface MynoEditorOptions {
   root: HTMLElement;

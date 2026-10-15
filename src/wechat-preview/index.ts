@@ -119,9 +119,9 @@ export interface ExportMarkdownToWechatHtmlResult {
 
 const requireFromHere = createRequire(import.meta.url);
 
-/** Absolute path to shared article.css (@akairos/milkdown-article-style). */
+/** Absolute path to shared article.css (@akairos/myno). */
 export function resolveMilkdownArticleStylePath(): string {
-  return requireFromHere.resolve("@akairos/milkdown-article-style/article.css");
+  return requireFromHere.resolve("@akairos/myno/article.css");
 }
 
 /** Source files that feed the browser Vite bundle. */

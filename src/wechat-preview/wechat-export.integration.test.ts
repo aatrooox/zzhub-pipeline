@@ -175,6 +175,9 @@ window.__zzhubRenderReady = (async () => {
     expect(html).toContain("![代码示例](./missing-example.png)");
     expect(html).not.toMatch(/<img[^>]+src="\.\.?\//);
     expect(html).toContain("<table");
+    expect(html).toMatch(/<table[^>]*overflow-x: auto/);
+    expect(html).toMatch(/<th\b[^>]*white-space: nowrap/);
+    expect(html).toMatch(/<td\b[^>]*word-break: break-word/);
     expect(html).toContain("<img ");
     expect(html).toContain("图片说明：克制、清晰、适合移动端阅读");
     expect(html).toContain("typescript</p><pre");

@@ -425,7 +425,7 @@ Both renderer entries also accept `{ "module": "package-or-path", "options": {} 
 The pipeline passes each renderer's own options to `doctor(options)` and
 `render(input, options)`; the plugin defines and validates its options.
 String entries remain supported, and `null` selects the built-in renderer.
-Pipeline 0.19.0 optionally installs `@akairos/myno@0.3.0`; enable
+Pipeline 0.19.1 requires `@akairos/myno@0.3.1` for shared CSS; enable
 `plugins.markdownRenderer.module="@akairos/myno/adapter"` with empty options.
 The browser entry and Studio assets stay in the myno package, without a
 browser automation dependency or separate service authentication.
@@ -491,23 +491,23 @@ To pin text to a page, add explicit markers in the body and provide `page_specs`
 ### Shared article styles
 
 Typography and syntax plugins are modularized under `@akairos`:
-- **`@akairos/milkdown-article-style`** on npm (`article.css` + `tokens-default.css`): Shared typography specification.
+- **`@akairos/myno/article.css`** and **`@akairos/myno/tokens-default.css`**: Canonical typography, maintained in myno `src/styles/`.
 - **`@akairos/milkdown-article-plugins`** on npm: Callouts, Badges, Kbd, and Article Cards Remark/Milkdown plugins.
 - **`@akairos/typeset-studio`** on npm: Header and banner image composition.
 - **`@akairos/myno`** on npm: Editor, standalone typography Studio, and optional browser rendering resources.
 
-Edit CSS only in that package; do not fork rules into this repo.
+Edit CSS only in myno `src/styles/`; do not fork rules into this repo.
 
 ```json
 {
-  "@akairos/milkdown-article-style": "^0.1.2",
+  "@akairos/myno": "0.3.1",
   "@akairos/milkdown-article-plugins": "^0.1.6"
 }
 ```
 
 ### Style modification requires rebuild
 
-The export entry imports `@akairos/milkdown-article-style/article.css` and
+The export entry imports `@akairos/myno/article.css` and
 **bundles it into** `browser-dist/editor-export.js` at build time. The runtime
 `wechat-export` command loads the built bundle, not the package CSS file.
 

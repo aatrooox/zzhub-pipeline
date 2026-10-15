@@ -10,12 +10,12 @@
     "file": "assets/simple-mode-GW_nhZxv.js",
     "name": "simple-mode"
   },
-  "_wechat-renderer-DgJekW7H.js": {
-    "file": "assets/wechat-renderer-DgJekW7H.js",
+  "_wechat-renderer-GrfbOjo2.js": {
+    "file": "assets/wechat-renderer-GrfbOjo2.js",
     "name": "wechat-renderer"
   },
   "node_modules/@codemirror/lang-angular/dist/index.js": {
-    "file": "assets/index-Bs7tnkbE.js",
+    "file": "assets/index-BOH11YN9.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-angular/dist/index.js",
     "isDynamicEntry": true,
@@ -24,45 +24,45 @@
       "node_modules/@codemirror/lang-html/dist/index.js",
       "node_modules/@codemirror/lang-javascript/dist/index.js",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js",
+      "_wechat-renderer-GrfbOjo2.js",
       "node_modules/@codemirror/lang-css/dist/index.js"
     ]
   },
   "node_modules/@codemirror/lang-cpp/dist/index.js": {
-    "file": "assets/index-CNHJolB9.js",
+    "file": "assets/index-TOFwZskx.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-cpp/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-css/dist/index.js": {
-    "file": "assets/index-DvXIQ667.js",
+    "file": "assets/index-BTPh91V-.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-css/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-go/dist/index.js": {
-    "file": "assets/index-DS612OWK.js",
+    "file": "assets/index-lWl3DOj9.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-go/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-html/dist/index.js": {
-    "file": "assets/index-BSq6oOuj.js",
+    "file": "assets/index-C1Bxnw4o.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-html/dist/index.js",
     "isDynamicEntry": true,
@@ -71,33 +71,33 @@
       "src/wechat-preview/browser/studio/studio.html",
       "node_modules/@codemirror/lang-css/dist/index.js",
       "node_modules/@codemirror/lang-javascript/dist/index.js",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-java/dist/index.js": {
-    "file": "assets/index-dl642OYW.js",
+    "file": "assets/index-CwgSvQOC.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-java/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-javascript/dist/index.js": {
-    "file": "assets/index-DBS0Hkv3.js",
+    "file": "assets/index-C2N6r4Fw.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-javascript/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-jinja/dist/index.js": {
-    "file": "assets/index-Bfp6spxf.js",
+    "file": "assets/index-52O71prB.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-jinja/dist/index.js",
     "isDynamicEntry": true,
@@ -105,24 +105,24 @@
       "src/wechat-preview/browser/studio/studio.html",
       "node_modules/@codemirror/lang-html/dist/index.js",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js",
+      "_wechat-renderer-GrfbOjo2.js",
       "node_modules/@codemirror/lang-css/dist/index.js",
       "node_modules/@codemirror/lang-javascript/dist/index.js"
     ]
   },
   "node_modules/@codemirror/lang-json/dist/index.js": {
-    "file": "assets/index-tkZLexCK.js",
+    "file": "assets/index-BRUZEgPh.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-json/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-less/dist/index.js": {
-    "file": "assets/index-DCO2aiX_.js",
+    "file": "assets/index-Dyi5bUmz.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-less/dist/index.js",
     "isDynamicEntry": true,
@@ -130,11 +130,11 @@
       "src/wechat-preview/browser/studio/studio.html",
       "node_modules/@codemirror/lang-css/dist/index.js",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-liquid/dist/index.js": {
-    "file": "assets/index-qlDok5lr.js",
+    "file": "assets/index-DkhSv5cA.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-liquid/dist/index.js",
     "isDynamicEntry": true,
@@ -142,19 +142,19 @@
       "src/wechat-preview/browser/studio/studio.html",
       "node_modules/@codemirror/lang-html/dist/index.js",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js",
+      "_wechat-renderer-GrfbOjo2.js",
       "node_modules/@codemirror/lang-css/dist/index.js",
       "node_modules/@codemirror/lang-javascript/dist/index.js"
     ]
   },
   "node_modules/@codemirror/lang-markdown/dist/index.js": {
-    "file": "assets/index-B3UJj__N.js",
+    "file": "assets/index-DmoEW40N.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-markdown/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js",
+      "_wechat-renderer-GrfbOjo2.js",
       "node_modules/@codemirror/lang-html/dist/index.js",
       "_index-B13lCSuc.js",
       "node_modules/@codemirror/lang-css/dist/index.js",
@@ -162,7 +162,7 @@
     ]
   },
   "node_modules/@codemirror/lang-php/dist/index.js": {
-    "file": "assets/index-BU_Xlmnn.js",
+    "file": "assets/index-Btrc4kp0.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-php/dist/index.js",
     "isDynamicEntry": true,
@@ -170,35 +170,35 @@
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
       "node_modules/@codemirror/lang-html/dist/index.js",
-      "_wechat-renderer-DgJekW7H.js",
+      "_wechat-renderer-GrfbOjo2.js",
       "node_modules/@codemirror/lang-css/dist/index.js",
       "node_modules/@codemirror/lang-javascript/dist/index.js"
     ]
   },
   "node_modules/@codemirror/lang-python/dist/index.js": {
-    "file": "assets/index-dE7rE8de.js",
+    "file": "assets/index-BOZWI3FE.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-python/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-rust/dist/index.js": {
-    "file": "assets/index-I3kRtPcl.js",
+    "file": "assets/index-Cbm1GiZg.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-rust/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-sass/dist/index.js": {
-    "file": "assets/index-CIbHxQuN.js",
+    "file": "assets/index-ButcQVWD.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-sass/dist/index.js",
     "isDynamicEntry": true,
@@ -206,22 +206,22 @@
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
       "node_modules/@codemirror/lang-css/dist/index.js",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-sql/dist/index.js": {
-    "file": "assets/index-nRGvkmJU.js",
+    "file": "assets/index-BoIlqlZt.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-sql/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "src/wechat-preview/browser/studio/studio.html",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-vue/dist/index.js": {
-    "file": "assets/index-CNU_iT-2.js",
+    "file": "assets/index-D7f6KXoI.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-vue/dist/index.js",
     "isDynamicEntry": true,
@@ -230,41 +230,41 @@
       "node_modules/@codemirror/lang-html/dist/index.js",
       "node_modules/@codemirror/lang-javascript/dist/index.js",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js",
+      "_wechat-renderer-GrfbOjo2.js",
       "node_modules/@codemirror/lang-css/dist/index.js"
     ]
   },
   "node_modules/@codemirror/lang-wast/dist/index.js": {
-    "file": "assets/index-C0F5XTwB.js",
+    "file": "assets/index-BXjcry0g.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-wast/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "src/wechat-preview/browser/studio/studio.html",
       "_index-B13lCSuc.js",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-xml/dist/index.js": {
-    "file": "assets/index-B_AxhzQH.js",
+    "file": "assets/index-sgpqKtmR.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-xml/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/lang-yaml/dist/index.js": {
-    "file": "assets/index-B-uQruHF.js",
+    "file": "assets/index-C-LFn5io.js",
     "name": "index",
     "src": "node_modules/@codemirror/lang-yaml/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "_index-B13lCSuc.js",
       "src/wechat-preview/browser/studio/studio.html",
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "node_modules/@codemirror/legacy-modes/mode/apl.js": {
@@ -1085,7 +1085,7 @@
     "src": "src/wechat-preview/browser/editor-export.ts",
     "isEntry": true,
     "imports": [
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ]
   },
   "src/wechat-preview/browser/studio/studio.html": {
@@ -1094,7 +1094,7 @@
     "src": "src/wechat-preview/browser/studio/studio.html",
     "isEntry": true,
     "imports": [
-      "_wechat-renderer-DgJekW7H.js"
+      "_wechat-renderer-GrfbOjo2.js"
     ],
     "dynamicImports": [
       "node_modules/@codemirror/lang-sql/dist/index.js",

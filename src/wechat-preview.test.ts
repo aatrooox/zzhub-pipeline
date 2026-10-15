@@ -30,7 +30,7 @@ describe("wechat preview theme mapping", () => {
     //   - it styles both bare <code> (live editor) and the export-only
     //     [data-wechat-node] hooks emitted by wechat-renderer.
     // Exact colors/padding values belong to the external
-    // @akairos/milkdown-article-style package and must NOT be pinned here, or a
+    // @akairos/myno package and must NOT be pinned here, or a
     // package theme bump breaks this repo for no functional reason.
     const { resolveMilkdownArticleStylePath } = await import("./wechat-preview/index");
     const css = await Bun.file(resolveMilkdownArticleStylePath()).text();

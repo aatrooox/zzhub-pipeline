@@ -1,4 +1,4 @@
-import articleCss from "@akairos/milkdown-article-style/article.css?raw";
+import articleCss from "@akairos/myno/article.css?raw";
 import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";

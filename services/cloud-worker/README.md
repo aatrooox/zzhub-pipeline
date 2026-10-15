@@ -12,7 +12,7 @@ Web / App / 桌面端 → 业务后端 → 私有 Worker → Pipeline CLI → �
 
 Worker 是 [Pipeline](../../README.md) 仓库中的部署组件，不是独立 npm 包。现有应用消费方包括 Nezus 后端；其他后端可按本文 HTTP 契约接入，无需依赖该应用。正文可通过 [myno](https://github.com/k7airos/myno) 排版，封面与贴图可通过 [Typeset Studio](https://github.com/k7airos/typeset-studio) 渲染，均由 Pipeline 配置选择。
 
-Pipeline 0.19.0 的 myno 配置示例：
+Pipeline 0.19.1 固定安装 myno 0.3.1，并从 myno 复用正文 CSS。完整 myno 排版配置示例：
 
 ```json
 {

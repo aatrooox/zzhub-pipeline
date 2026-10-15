@@ -21,7 +21,7 @@ Pipeline 可以独立使用，也可以作为 Web、App、桌面客户端背后�
 | [myno](https://github.com/k7airos/myno) · [`@akairos/myno`](https://www.npmjs.com/package/@akairos/myno) | 可选的正文编辑、排版与 Studio 插件，配置 `plugins.markdownRenderer` | 交互调样式、导出独立配置、复制富文本；也能脱离 Pipeline 独立运行 |
 | [Typeset Studio](https://github.com/k7airos/typeset-studio) · [`@akairos/typeset-studio`](https://www.npmjs.com/package/@akairos/typeset-studio) | 图片渲染插件，配置 `plugins.imageRenderer` | 设计与渲染文章封面、贴图封面和多页内容图 |
 | [Milkdown Article Plugins](https://github.com/k7airos/milkdown-article-plugins) | Pipeline 与 myno 共用的语法、序列化和微信组件渲染 | 给自己的 Milkdown 宿主接入高亮、提示卡、徽章和快捷键 |
-| [Milkdown Article Style](https://github.com/k7airos/milkdown-article-style) | Pipeline 与 myno 共用的纯 CSS 排版和主题变量 | 复用正文样式或调整品牌配色 |
+| myno CSS 入口 | `@akairos/myno/article.css` 与 `tokens-default.css`，统一提供正文排版和主题变量 | 仅复用样式时无需加载编辑器脚本 |
 | [Obsidian 微信发布插件](https://github.com/k7airos/obsidian-wechat-publish) | 通过本机 `zzp` 调用 Pipeline 的桌面客户端 | 在 Obsidian 内提交笔记到公众号草稿箱 |
 | [Kairos Skills](https://github.com/k7airos/kairos-skills) | 外部 Agent 的写作规范、审核与状态机编排说明 | 让 Agent 按 `status → next_action` 写稿和推进任务 |
 | [blog.zzao.club](https://github.com/k7airos/blog.zzao.club) | 博客路由的公开消费方和目录约定示例 | 将文章同步到 Nuxt Content，再执行自定义发布命令 |
@@ -123,7 +123,7 @@ zzp wechat-preview studio
 
 ### 公众号全语法与扩展组件
 
-Pipeline 与 myno 基于 `@akairos/milkdown-article-plugins` 和 `@akairos/milkdown-article-style` 支持以下扩展，导出时转换为微信兼容的内联样式：
+Pipeline 与 myno 基于 `@akairos/milkdown-article-plugins` 和 myno 内置正文样式支持以下扩展，导出时转换为微信兼容的内联样式：
 
 #### 1. 语义提示卡片 (Callout Alerts)
 支持 GFM 标准的 5 种语义卡片，并支持行内自定义标题与 Emoji：
@@ -173,7 +173,7 @@ Pipeline 在创建和更新草稿时读取封面图真实尺寸，默认裁切�
 | 模块包名 | 职责说明 |
 | --- | --- |
 | **`@akairos/pipeline`** | 核心可恢复状态机、CLI 工具链与多端发布器 |
-| **`@akairos/milkdown-article-style`** | Kairos 原创微信排版 CSS 样式规范与设计令牌 |
+| **`@akairos/myno/article.css`** | Kairos 原创微信排版 CSS 样式规范与设计令牌，随 myno 维护 |
 | **`@akairos/milkdown-article-plugins`** | Remark / Milkdown 文章扩展语法与渲染插件 |
 | **`@akairos/myno`** | 可独立运行的正文编辑器、样式工作台与可选 Markdown 渲染插件 |
 | **`@akairos/typeset-studio`** | 微信大图头图、多比例排版与卡片视觉合成引擎 |
@@ -190,7 +190,7 @@ Pipeline 在创建和更新草稿时读取封面图真实尺寸，默认裁切�
 
 ### myno 排版插件
 
-myno 通过可选的 Markdown 渲染插件接入。从 pipeline 0.19.0 起可选依赖固定为 `@akairos/myno@0.3.0`，仍需在配置中显式启用；使用 `--omit optional` 安装时需自行提供插件。npm 配置示例：
+Pipeline 0.19.1 起固定依赖 `@akairos/myno@0.3.1`，内置导出与插件共用 myno 正文 CSS。使用 myno 完整排版和工作台时，仍需在配置中显式选择插件。npm 配置示例：
 
 ```json
 {
@@ -234,7 +234,7 @@ Studio 模板与 pipeline 配置分开保存：`data/templates/*.json` 保存模
 
 固定素材的 `templateAssetKey` 是模板内的替换标识，图片来源仍是 `images[].src`。支持可访问的 HTTP/HTTPS URL、本地文件及 `/uploads/...` 引用。使用 `/uploads/...` 时应连同 `uploads/` 目录原文件名一起同步；绝对路径应改为服务器可用路径，或把素材上传到 COS/CDN 后使用稳定 HTTPS URL。编辑器预览远程图片还需要图片服务允许跨域读取。
 
-**版本基线（2026-10-15）：** Pipeline `0.19.0` 固定 Typeset Studio `0.2.6`，可选依赖 myno `0.3.0`；插件仍需显式配置。模板与素材不打进 npm 包，服务器通过运行时配置包提供。源码适配器路径仅用于本地联调，Worker 使用 npm 入口。
+**版本基线（2026-10-15）：** Pipeline `0.19.1` 固定 Typeset Studio `0.2.6` 和 myno `0.3.1`；插件仍需显式配置。模板与素材不打进 npm 包，服务器通过运行时配置包提供。源码适配器路径仅用于本地联调，Worker 使用 npm 入口。
 
 ### 生成 Worker 运行时配置包
 
