@@ -30,6 +30,7 @@ import { wxDraftDelete } from "./commands/wx-draft-delete";
 import type { CommandOutcome } from "./command-outcome";
 import { monitor } from "./commands/monitor";
 import { typesetAssetsSync } from "./commands/typeset-assets-sync";
+import { articleExport } from "./commands/article-export";
 
 export interface CommandDefinition {
   name: string;
@@ -76,6 +77,7 @@ export function getCommandPlugins(): CommandPlugin[] {
         { name: "imgx", summary: "Run bundled imgx renderer subcommands", plugin: "ops", handler: imgxCommand },
         { name: "article-theme", summary: "Inspect or install a local article theme", plugin: "ops", handler: articleTheme },
         { name: "wechat-export", summary: "Render markdown to WeChat HTML with bundled preview styles", plugin: "ops", handler: wechatExport },
+        { name: "article-export", summary: "Export a rendered article locally without publishing", plugin: "ops", handler: articleExport },
         { name: "wechat-preview", summary: "Local singleton server to preview exported WeChat HTML", plugin: "ops", handler: wechatPreview },
         { name: "cos-upload", summary: "Upload a local image to configured COS CDN", plugin: "ops", handler: cosUpload },
         { name: "typeset-assets-sync", summary: "Upload Studio template assets and build a runtime config package", plugin: "ops", handler: typesetAssetsSync },

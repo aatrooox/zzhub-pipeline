@@ -3,17 +3,14 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import {
-  resolveConfigRelativePath,
   type PipelineConfig,
   type ResolvedWorkspacePaths,
 } from "../config";
 import { PublishResult, RenderAsset, RoutePrimary, WorkflowState } from "../state";
 import {
-  injectIllustrationImages,
   prepareBodyForNewspic,
 } from "../text";
-import { resolveMarkdownRenderer } from "../adapter-loader";
-import { reportProgress } from "../monitor/recorder";
+import { exportWechatArticle, readFrozenArticleArtifacts } from "./article-export";
 import { publishBlogRoute } from "./blog";
 import { createWechatDraft, createWechatNewspic, extractImageUrls, mergePhotoLists } from "./wechat";
 
@@ -36,70 +33,22 @@ async function publishWechatArticleRoute({
   accountOverride,
   articleTheme,
 }: PublishRouteContext): Promise<PublishResult> {
-  const postPath = join(state.asset_path, "post.md");
-  let exportPostPath = postPath;
-  const cover = (state.images.render_assets as RenderAsset[]).find(
-    (asset) => asset.route === "wechat-article" && asset.kind === "cover",
-  );
-
-  const photos: string[] = [];
-  if (cover) {
-    photos.push(cover.path);
-  }
-  if (
-    state.images.body_inputs.scope === "article" &&
-    state.images.body_inputs.status === "ready"
-  ) {
-    const postContent = await readFile(postPath, "utf-8");
-    const draftContent = injectIllustrationImages(
-      postContent,
-      state.images.body_inputs.received,
-    );
-    exportPostPath = join(state.asset_path, "post-wechat-draft.md");
-    if (!dryRun) {
-      await writeFile(exportPostPath, draftContent, "utf-8");
-    }
-
-    for (const img of state.images.body_inputs.received) {
-      photos.push(img.path);
-    }
-  }
-
   const account = accountOverride || state.route.account;
-
   if (dryRun) {
-    console.error(`[dry-run] Zotepad export: ${exportPostPath}`);
-    console.error(`[dry-run] Wechat draft: ${state.metadata.title}`);
-    return {
-      route: "wechat-article",
-      account,
-      status: "skipped",
-      detail: "dry-run",
-      published_at: null,
-      content_version: state.artifacts.content_version,
-      render_version: state.artifacts.render_version,
-    };
+    return { route: "wechat-article", account, status: "skipped", detail: "dry-run", published_at: null,
+      content_version: state.artifacts.content_version, render_version: state.artifacts.render_version };
   }
 
   try {
-    const markdownRenderer = await resolveMarkdownRenderer(config);
-    const wxAccount = config.wx.accounts[account] ?? config.wx.accounts[config.wx.defaultAccount];
-    // 独立正文配置与发布账号的凭据、默认 CSS 分离。
-    const standalone = articleTheme?.manifest.css !== undefined;
-    const rendered = await markdownRenderer.render({
-      onProgress: reportProgress,
-      markdownPath: exportPostPath,
-      outPath: workspacePaths.zotepadExportHtml,
-      account,
-      title: state.metadata.title,
-      customCss: standalone ? null : resolveConfigRelativePath(wxAccount?.customCss),
-      articleThemePath: articleTheme?.path,
-      themeOverrides: standalone ? undefined : wxAccount?.theme,
-    });
-    const { html } = rendered;
+    if (process.env.ZZHUB_PIPELINE_PREVIEW_ONLY === "1") throw new Error("Preview operation cannot publish or upload WeChat images");
+    const frozenPath = process.env.ZZHUB_PIPELINE_ARTICLE_ARTIFACTS;
+    const prepared = frozenPath
+      ? await readFrozenArticleArtifacts(frozenPath)
+      : await exportWechatArticle({ state, config, workspacePaths, account, articleTheme });
+    const { html, photos, rendered, exportPostPath } = prepared;
 
     // Register with local preview server unless explicitly disabled.
-    if (process.env.ZZHUB_WECHAT_PREVIEW_ON_PUBLISH !== "0") {
+    if (rendered && process.env.ZZHUB_WECHAT_PREVIEW_ON_PUBLISH !== "0") {
       try {
         const { registerPreviewEntry } = await import("../wechat-preview/server");
         const registration = await registerPreviewEntry(
@@ -131,6 +80,7 @@ async function publishWechatArticleRoute({
       title: state.metadata.title,
       html,
       photos,
+      ...(frozenPath ? { explicitPhotos: true } : {}),
       idempotencyKey: createHash("sha256").update(JSON.stringify([state.run_id, state.publish.attempt ?? 0, account, state.artifacts.content_version, state.artifacts.render_version, articleTheme?.hash, state.intent.existing_draft_media_id])).digest("hex"),
       config,
       existingDraftMediaId: state.intent.existing_draft_media_id,

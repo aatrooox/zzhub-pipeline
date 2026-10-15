@@ -12,7 +12,7 @@ Web / App / 桌面端 → 业务后端 → 私有 Worker → Pipeline CLI → �
 
 Worker 是 [Pipeline](../../README.md) 仓库中的部署组件，不是独立 npm 包。现有应用消费方包括 Nezus 后端；其他后端可按本文 HTTP 契约接入，无需依赖该应用。正文可通过 [myno](https://github.com/k7airos/myno) 排版，封面与贴图可通过 [Typeset Studio](https://github.com/k7airos/typeset-studio) 渲染，均由 Pipeline 配置选择。
 
-Pipeline 0.19.1 固定安装 myno 0.3.1，并从 myno 复用正文 CSS。完整 myno 排版配置示例：
+Pipeline 0.22.0 固定安装 myno 0.4.1，并从 myno 复用正文 CSS。完整 myno 排版配置示例：
 
 ```json
 {
@@ -142,6 +142,28 @@ POST `/v1/jobs` 的可选 `coverSnapshot` 只用于 article，可与 `articleSty
 定向检查入口：`bun test src/cover-snapshot.test.ts services/cloud-worker/server.test.ts services/cloud-worker/cover.test.ts`。`cover.test.ts` 的实际私有材料与 CLI 参数案例需主控显式提供上述同 hash 字体的 `TYPESET_ARTICLE_COVER_FONT_PATH`；缺省时跳过该用例，不能声称已验证字体或实际微信发布。
 
 维护模式下提交新任务返回 `503 worker_maintenance`，`/health` 增加 `maintenance`。该开关持久化在任务存储旁，重启后仍保持暂停，必须显式恢复。更新时暂停并等待队列清空，再备份、停止 Worker、切换配置并重建容器，验收后恢复。图片插件和 myno 都使用镜像内的 npm 入口，不要求独立 Studio 服务或管理员密钥。运行时资产可同步到 `/data/pipeline-runtime`，业务凭据仍在 `accounts.json`，详见[运行时配置指南](../../docs/visual-studio-and-config-sync.md)。
+
+### 完整文章预览与确认（0.22.0）
+
+完整预览沿用现 `title/body/account/articleStyle/coverSnapshot` 字段，只增加 `operation: "preview"` 和 `articleSnapshot`。公共入口 `@akairos/pipeline/article-snapshot` 的 `createArticleSnapshot({ documentId, documentRevision, title, body, account, articleStyle?, coverSnapshot?, bodyAssets })` 生成 `{ schemaVersion: 1, documentId, documentRevision, bodyAssets, inputHash }`；`validateArticleSnapshot(value, content)` 重算输入身份。缺少这些新字段的旧请求仍直接发布，不注入 operation 或改变原 requestHash。
+
+正文素材先用 `PUT /v1/assets/:sha256` 传二进制，要求 Worker Token 和实际 Content-Type（PNG/JPEG/WebP）。单图限 5 MiB/3200 万像素，每篇可见图片节点最多 20 个，去重正文资源总 40 MiB，封面方图另计。Worker 实际解码并核 SHA-256，重复上传同字节幂等；任务 `bodyAssets` 仅含 `{ id, sha256, contentType, byteLength, width, height }`，不接调用方路径或 URL。正文图片必须是 `asset:<UUID>`，引用式图片可定点转换，代码和普通链接不改；未托管及 raw HTML 图片明确拒绝。产品上传、旧图主动导入与所有权仍属于调用后端。
+
+Worker 接受任务、入队前解析并固化有效默认或已选配置，复制正文图片、默认资源、私有模板和固定封面字体，生成 `snapshotHash`。系统默认模板的远程资源仅允许部署显式 `PIPELINE_DEFAULT_ASSET_ORIGIN`（HTTPS origin）与 `PIPELINE_DEFAULT_ASSET_PATH_PREFIX` 前缀，拒绝重定向；该规则不用于任意正文 URL 下载。Typeset 默认字体映射为已验证 `Publishing Cover` 字节，并记录 requested/resolved 身份；未知自定义字体拒绝。正文 HTML 保留有效 CSS 字体栈，不宣称已固定客户端字体字节。
+
+`/health.capabilities` 增加 `articleSnapshotSchemaVersions: [1]`、`previewConfirm: true`、`bodyAssetUpload: true`。调用方还需核固定封面字体能力。完整快照要求包内 myno 与 Typeset Studio 适配器；Worker 固定任务私有 config/env，不在确认时读取实时默认。
+
+预览任务由真实 CLI 的 `status → next_action` 推进到 publish 检查点，再运行只做本地导出的 `article-export`，保存最终 HTML、封面 PNG、正文素材及产物 manifest，停在 `status/step=preview_ready`。预览不会调用微信 token、素材上传或草稿写接口；额外 provider guard 拒绝未确认预览执行 publish。`preview_ready` 重启后保持待确认，不自动入队。
+
+结果含 `inputHash`、`snapshotHash`、`artifactManifestHash`、`artifactManifest`。manifest 是 `{ schemaVersion: 1, snapshotHash, runtime: { pipeline, myno, typeset }, artifacts: [{ key, kind, contentType, byteLength, sha256 }] }`；固定 key 为 `article`、`cover`、`media_<UUID>`。公共 `createArtifactManifest`、`hashArtifactManifest`、`validateArtifactManifest` 供调用后端复用，避免另建格式。
+
+`GET /v1/jobs/:id/artifacts/:key` 只读取该任务 manifest 的固定 key，要求 Worker Token，校对 job 保存的 manifest/snapshot 身份与实际文件 hash；不接受文件路径。业务后端检查 owner/job 归属后代理字节，前端以无脚本 sandbox 展示，将 HTML 中 `asset:<UUID>` 的实际 img 属性映射为受控素材，不注入主页面 DOM。
+
+`POST /v1/jobs/:id/publish` 只接 `{ snapshotHash, artifactManifestHash }`。首次确认核对双 hash 和材料完整性，持久化 `publicationRequested` 后继续同 job/run；重复确认返回原身份，不修改原输入 hash，不重新 init/导出/渲染。维护模式拒绝首次确认。业务后端必须在自己的事务中锁定文档与任务，核对当前 documentRevision 后接受确认；接受后再编辑文章不撤销已经接受的任务，同 hash 重试仍查原结果。
+
+发布使用冻结 HTML/PNG/素材，再交现有微信上传和 URL 替换。微信回读 URL 和 HTML 清洗单独验证，不要求回读字节与预览 HTML 相同。所有私有材料、`prepared.json`、产物和确认意图都需随 Worker 卷备份恢复；interrupted/unknown 仍先检查原 run/草稿箱，不换键或新 run 盲重试。
+
+定向测试由主控执行：`bun test src/article-snapshot.test.ts services/cloud-worker/preview.test.ts`。实际 Worker/CLI 集成用例需显式固定 `TYPESET_ARTICLE_COVER_FONT_PATH` 和 Chrome，微信边界用可计数 HTTP 替身验证预览零写；它不等同于正式真实草稿验收。
 
 ### 1. 同步账号
 

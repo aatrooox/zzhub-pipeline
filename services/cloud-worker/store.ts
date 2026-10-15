@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { ArticleStyleSnapshot } from "../../src/article-style";
 import type { CoverSnapshot } from "../../src/cover-snapshot";
+import type { ArticleSnapshot } from "../../src/article-snapshot";
 
-export type CloudJobStatus = "queued" | "running" | "succeeded" | "failed" | "interrupted";
+export type CloudJobStatus = "queued" | "running" | "preview_ready" | "succeeded" | "failed" | "interrupted";
 
 export interface CloudJobInput {
   idempotencyKey: string;
@@ -19,6 +20,8 @@ export interface CloudJobInput {
   newspic?: { content: string; photos: string[] };
   articleStyle?: ArticleStyleSnapshot;
   coverSnapshot?: CoverSnapshot;
+  operation?: "preview";
+  articleSnapshot?: ArticleSnapshot;
 }
 
 export interface CloudJob {
@@ -39,6 +42,8 @@ export interface CloudJob {
 export interface StoredCloudJob extends CloudJob {
   body: string;
   statePath: string | null;
+  publicationRequested?: boolean;
+  preparedHash?: string;
 }
 
 export interface PipelineWorkerAccount {

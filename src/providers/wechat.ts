@@ -139,6 +139,8 @@ interface BaseWechatPublishInput {
 }
 
 export interface WechatDraftInput extends BaseWechatPublishInput {
+  /** 冻结产物已给出真实图片清单，禁止从代码文本再猜图片来源。 */
+  explicitPhotos?: boolean;
   html: string;
   existingDraftMediaId?: string | null;
 }
@@ -642,7 +644,7 @@ export function calculatePicCrop(width: number, height: number): { pic_crop_235_
 
 export async function createWechatDraft(input: WechatDraftInput): Promise<Record<string, unknown>> {
   const runtime = getWxRuntimeConfig(input.config, input.account);
-  const fallbackPhotos = extractImageUrls(input.html);
+  const fallbackPhotos = input.explicitPhotos ? [] : extractImageUrls(input.html);
   const photos = parsePhotos(input.photos);
   const finalPhotos = mergePhotoLists(photos, fallbackPhotos);
   if (finalPhotos.length === 0) {

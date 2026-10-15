@@ -8,6 +8,8 @@ import { validateArticleStyleSnapshot } from "../../src/article-style";
 import { readArticleTheme } from "../../src/article-theme";
 import { materializeCoverSnapshot, type JobCoverMaterials } from "./cover";
 import { ARTICLE_COVER_IMAGE_KEY } from "@akairos/typeset-studio/cover";
+import { readPreparedArticle, preparedCover, type PreparedArticle } from "./job-materials";
+import { artifactsPath, freezeArticleArtifacts } from "./artifacts";
 
 interface PipelineCommandResult {
   result: any;
@@ -24,7 +26,7 @@ function pipelineEntry(): string {
   return resolve(pipelineRoot(), "src/cli.ts");
 }
 
-function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null, cover?: JobCoverMaterials): Record<string, string> {
+function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null, cover?: JobCoverMaterials, prepared?: PreparedArticle, publishing = false): Record<string, string> {
   const env = { ...process.env } as Record<string, string>;
   env.NO_COLOR = "1";
   env.FORCE_COLOR = "0";
@@ -48,6 +50,13 @@ function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null, 
     env.TYPESET_ARTICLE_COVER_FONT_PATH = cover.fontPath;
     env.ZZHUB_PIPELINE_COVER_SNAPSHOT = "1";
   }
+  if (prepared) {
+    env.ZZHUB_PIPELINE_ARTICLE_SNAPSHOT = "1";
+    env.ZZHUB_PIPELINE_CONFIG = prepared.configFile;
+    // 未确认的预览即使错误推进 publish，也会在 provider 边界被拒绝。
+    env.ZZHUB_PIPELINE_PREVIEW_ONLY = publishing ? "0" : "1";
+    if (publishing) env.ZZHUB_PIPELINE_ARTICLE_ARTIFACTS = artifactsPath(workspace);
+  }
   return env;
 }
 
@@ -57,7 +66,15 @@ async function runPipelineCommand(
   args: string[],
   account?: PipelineWorkerAccount | null,
   cover?: JobCoverMaterials,
+  prepared?: PreparedArticle,
+  publishing = false,
+  artifactManifestHash?: string,
 ): Promise<PipelineCommandResult> {
+  const environment = pipelineEnv(workspace, account, cover, prepared, publishing);
+  if (publishing && prepared) {
+    environment.ZZHUB_PIPELINE_ARTIFACT_MANIFEST_HASH = artifactManifestHash!;
+    environment.ZZHUB_PIPELINE_ARTICLE_SNAPSHOT_HASH = prepared.snapshotHash;
+  }
   const child = Bun.spawn([
     process.env.BUN_BIN?.trim() || process.execPath,
     pipelineEntry(),
@@ -65,7 +82,7 @@ async function runPipelineCommand(
     ...args,
   ], {
     cwd: pipelineRoot(),
-    env: pipelineEnv(workspace, account, cover),
+    env: environment,
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -99,8 +116,8 @@ function publishResults(status: PipelineTaskStatus): Array<Record<string, unknow
   return status.summary?.publish?.results || [];
 }
 
-async function status(workspace: string, statePath: string, account: PipelineWorkerAccount, cover?: JobCoverMaterials): Promise<PipelineTaskStatus> {
-  const output = await runPipelineCommand(workspace, "status", ["--state", statePath, ...(cover ? ["--full"] : [])], account, cover);
+async function status(workspace: string, statePath: string, account: PipelineWorkerAccount, cover?: JobCoverMaterials, prepared?: PreparedArticle): Promise<PipelineTaskStatus> {
+  const output = await runPipelineCommand(workspace, "status", ["--state", statePath, ...(cover ? ["--full"] : [])], account, cover, prepared);
   return output.result as PipelineTaskStatus;
 }
 
@@ -111,6 +128,9 @@ async function runAction(
   params: Record<string, unknown> = {},
   account: PipelineWorkerAccount,
   cover?: JobCoverMaterials,
+  prepared?: PreparedArticle,
+  publishing = false,
+  artifactManifestHash?: string,
 ): Promise<void> {
   const args = ["--state", statePath];
   if (action === "review") {
@@ -124,14 +144,14 @@ async function runAction(
   } else if (action === "render" && cover) {
     args.push("--studio-cover-template", cover.snapshot.id, "--template-images-file", cover.imagesFile);
   }
-  await runPipelineCommand(workspace, action, args, account, cover);
+  await runPipelineCommand(workspace, action, args, account, cover, prepared, publishing, artifactManifestHash);
 }
 
 /** 发布前核对 CLI 已接受精确模板与任务私有素材，防止配置回落仍被确认成功。 */
-function verifyCoverSelection(current: PipelineTaskStatus, cover: JobCoverMaterials): void {
+function verifyCoverSelection(current: PipelineTaskStatus, cover: JobCoverMaterials, prepared?: PreparedArticle): void {
   const studio = current.state?.intent.studio_render;
   if (studio?.templates?.cover !== cover.snapshot.id ||
-    studio.image_overrides?.cover?.[ARTICLE_COVER_IMAGE_KEY] !== join(cover.dataDir, "..", "image.jpg"))
+    !prepared && studio.image_overrides?.cover?.[ARTICLE_COVER_IMAGE_KEY] !== join(cover.dataDir, "..", "image.jpg"))
     throw new Error("Pipeline did not apply the expected cover template and private image");
 }
 
@@ -143,20 +163,21 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
   if (input.coverSnapshot && input.contentForm !== "article") throw new Error("coverSnapshot requires article contentForm");
-  const cover = input.coverSnapshot ? await materializeCoverSnapshot(workspace, input.coverSnapshot) : undefined;
+  const prepared = input.articleSnapshot ? await readPreparedArticle(workspace, job.preparedHash!) : undefined;
+  const cover = prepared ? preparedCover(prepared) : input.coverSnapshot ? await materializeCoverSnapshot(workspace, input.coverSnapshot) : undefined;
   // 任务私有样式文件只来自已验证 JSON，不读取调用方路径或修改全局配置。
   const articleStyle = input.articleStyle ? validateArticleStyleSnapshot(input.articleStyle) : undefined;
   const articleStylePath = join(workspace, "article-style.json");
-  if (articleStyle) await writeFile(articleStylePath, JSON.stringify(articleStyle.manifest), { mode: 0o600 });
+  if (articleStyle && !prepared) await writeFile(articleStylePath, JSON.stringify(articleStyle.manifest), { mode: 0o600 });
   // CLI 主题包含既有默认字段，其 hash 与正文快照的纯 manifest hash 分开记录。
-  const articleThemeHash = articleStyle ? (await readArticleTheme(articleStylePath)).hash : undefined;
+  const articleThemeHash = prepared?.articleThemeHash ?? (articleStyle ? (await readArticleTheme(articleStylePath)).hash : undefined);
   const styleIdentity = articleStyle ? { articleStyleHash: articleStyle.hash, articleThemeHash } : {};
-  const coverIdentity = cover ? { coverSnapshotHash: cover.snapshot.hash, coverAssetHash: cover.snapshot.asset.sha256, coverFontHash: cover.snapshot.font.sha256 } : {};
-  const snapshotIdentity = { ...styleIdentity, ...coverIdentity };
-  if (articleStyle || cover) job.result = snapshotIdentity;
-  const bodyPath = join(workspace, "source.md");
+  const coverIdentity = input.coverSnapshot ? { coverSnapshotHash: input.coverSnapshot.hash, coverAssetHash: input.coverSnapshot.asset.sha256, coverFontHash: input.coverSnapshot.font.sha256 } : {};
+  const snapshotIdentity = { ...styleIdentity, ...coverIdentity, ...(prepared ? { inputHash: prepared.inputHash, snapshotHash: prepared.snapshotHash, articleThemeHash: prepared.articleThemeHash } : {}) };
+  if (articleStyle || cover) job.result = { ...job.result, ...snapshotIdentity };
+  const bodyPath = prepared?.bodyPath ?? join(workspace, "source.md");
   // 内容图保留完整文章，发送配文通过独立快照传递。
-  await writeFile(bodyPath, input.body, "utf8");
+  if (!prepared) await writeFile(bodyPath, input.body, "utf8");
   const newspicPath = join(workspace, "newspic.json");
   if (input.newspic) await writeFile(newspicPath, JSON.stringify(input.newspic), "utf8");
   // 无手动配图时复用长文渲染，生成封面和内容页；给封面预留一张额度。
@@ -165,6 +186,8 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   if (generateNewspic)
     await writeFile(newspicSpecPath, JSON.stringify({ pagination_mode: "multi", max_pages: 19 }), "utf8");
 
+  let statePath = job.statePath;
+  if (!statePath) {
   const init = await runPipelineCommand(workspace, "init", [
     "--workspace", workspace,
     "--task-kind", "publish",
@@ -178,34 +201,36 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     ...(generateNewspic ? ["--newspic-render-spec-file", newspicSpecPath] : []),
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
     ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
-    ...(articleStyle ? ["--article-theme", articleStylePath] : []),
-  ], account, cover);
+    ...(articleStyle || prepared ? ["--article-theme", articleStylePath] : []),
+  ], account, cover, prepared);
   const initResult = init.result as { state_path?: string; run_id?: string };
-  let statePath = stringParam(initResult.state_path);
+  statePath = stringParam(initResult.state_path);
   if (!statePath)
     throw new Error("Pipeline init did not return state_path");
   job.runId = stringParam(initResult.run_id);
   job.statePath = statePath;
   await store.set(job);
+  }
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const current = await status(workspace, statePath, account, cover);
+    const current = await status(workspace, statePath, account, cover, prepared);
     statePath = current.summary.state_path;
     job.statePath = statePath;
+    if (prepared && current.summary.metadata?.title && (current.summary.metadata.title !== input.title || current.summary.route.account !== input.account)) throw new Error(`Original preview run differs from frozen input: title=${JSON.stringify(current.summary.metadata.title)} expected=${JSON.stringify(input.title)}, account=${current.summary.route.account} expected=${input.account}, next_action=${current.next_action?.action}`);
     if (isDone(current)) {
       // 校验失败也保留真实草稿身份，供调用方核对原结果而不盲目重发。
       job.result = {
+        ...job.result, ...snapshotIdentity,
         runId: job.runId,
         phase: current.summary?.phase?.current || "done",
         publishResults: publishResults(current),
-        ...snapshotIdentity,
       };
       const result = current.summary.publish.results.find(item => item.account === input.account);
       if (result?.status !== "success" || !result.external_id)
         throw new Error("Pipeline completed without a confirmed WeChat draft media_id");
-      if (articleStyle && result.article_theme_hash !== articleThemeHash)
+      if ((articleStyle || prepared) && result.article_theme_hash !== articleThemeHash)
         throw new Error("Pipeline completed without the expected article theme hash");
-      if (cover) verifyCoverSelection(current, cover);
+      if (cover) verifyCoverSelection(current, cover, prepared);
       job.step = "done";
       return;
     }
@@ -218,24 +243,37 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     await store.set(job);
 
     if (action === "attach-body") {
-      await runPipelineCommand(workspace, "attach-body", ["--state", statePath, "--body", bodyPath], account, cover);
+      await runPipelineCommand(workspace, "attach-body", ["--state", statePath, "--body", bodyPath], account, cover, prepared);
       continue;
     }
     if (action === "review-content") {
-      await runAction(workspace, statePath, "review", { status: "passed" }, account, cover);
+      await runAction(workspace, statePath, "review", { status: "passed" }, account, cover, prepared);
       continue;
     }
     if (action === "prepare" || action === "prepare-finalize" || action === "render" || action === "publish") {
       try {
-        if (action === "publish" && cover) verifyCoverSelection(current, cover);
+        if (action === "publish" && cover) verifyCoverSelection(current, cover, prepared);
+        if (action === "publish" && prepared && !job.publicationRequested) {
+          const exported = await runPipelineCommand(workspace, "article-export", ["--state", statePath], account, cover, prepared);
+          const artifacts = await freezeArticleArtifacts(workspace, prepared, exported.result.htmlPath, exported.result.coverPath, exported.result.assetPath);
+          job.result = { ...job.result, ...snapshotIdentity, ...artifacts };
+          job.status = "preview_ready"; job.step = "preview_ready";
+          await store.set(job); return;
+        }
+        if (prepared && job.publicationRequested && action !== "publish") throw new Error("Confirmed preview run no longer points to publish; inspect the original run");
+        if (prepared && job.publicationRequested) {
+          const { readArtifact } = await import("./artifacts");
+          const manifest = job.result?.artifactManifest as { artifacts: Array<{ key: string }> };
+          for (const artifact of manifest.artifacts) await readArtifact(workspace, artifact.key, String(job.result!.artifactManifestHash), prepared.snapshotHash);
+        }
         await runAction(workspace, statePath, action, {
           title: input.title,
           formatted_body_path: current.next_action?.params?.formatted_body_path,
-        }, account, cover);
+        }, account, cover, prepared, job.publicationRequested === true, job.result?.artifactManifestHash as string | undefined);
       } catch (error) {
         // 发布失败时仍保留原运行的业务结果；不得创建新 run 自动重试。
-        const latest = await status(workspace, statePath, account, cover).catch(() => null);
-        if (latest) job.result = { runId: job.runId, publishResults: publishResults(latest), ...snapshotIdentity };
+        const latest = await status(workspace, statePath, account, cover, prepared).catch(() => null);
+        if (latest) job.result = { ...job.result, runId: job.runId, publishResults: publishResults(latest), ...snapshotIdentity };
         throw error;
       }
       continue;

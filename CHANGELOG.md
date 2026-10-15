@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.22.0
+
+### Features
+
+- Expose complete article input and artifact manifest validation at `@akairos/pipeline/article-snapshot`.
+- Accept bounded, hash-verified body image bytes and freeze effective article defaults, cover templates, resources, and font identities before queueing previews.
+- Generate local article HTML and cover previews without WeChat requests, persist `preview_ready`, and confirm publication through the original job/run using the frozen artifacts.
+- Authenticate artifact downloads by fixed manifest keys and verify saved snapshot, manifest, and file hashes before confirmation and publication.
+
+### Compatibility
+
+- Preserve direct-publish requests and hashes when the new preview fields are absent.
+- Pin myno 0.4.1 and Typeset Studio 0.4.0; keep HTML typography stacks and bind only Typeset cover fonts to the verified Noto bytes.
+
 ## v0.21.1
 
 ### Fixes

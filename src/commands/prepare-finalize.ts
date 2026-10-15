@@ -40,6 +40,7 @@ import {
   stripLeadingTitleHeading,
   removePageMarkers,
 } from "../text";
+import { rewriteArticleImages } from "../article-snapshot";
 
 function isExternalAssetRef(value: string): boolean {
   return /^(https?:|data:|blob:|\/\/)/i.test(value);
@@ -133,7 +134,12 @@ async function materializeInlineAssets(options: {
     return targetRelativePath;
   };
 
-  let rewritten = options.body.replace(
+  let rewritten = process.env.ZZHUB_PIPELINE_ARTICLE_SNAPSHOT === "1"
+    ? rewriteArticleImages(options.body, source => {
+      const target = registerAsset(source);
+      return target ? formatRelativeAssetRef(target) : source;
+    })
+    : options.body.replace(
     /!\[([^\]]*)\]\((?:<([^>]+)>|([^\s)]+))(\s+(?:"[^"]*"|'[^']*'))?\)/g,
     (match, alt, angleSrc, bareSrc, titleSuffix) => {
       const targetRelativePath = registerAsset(String(angleSrc ?? bareSrc ?? ""));
@@ -147,7 +153,7 @@ async function materializeInlineAssets(options: {
     },
   );
 
-  rewritten = rewritten.replace(
+  if (process.env.ZZHUB_PIPELINE_ARTICLE_SNAPSHOT !== "1") rewritten = rewritten.replace(
     /(<img\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi,
     (match, prefix, src, suffix) => {
       const targetRelativePath = registerAsset(String(src ?? ""));

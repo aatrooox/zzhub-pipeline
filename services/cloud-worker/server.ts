@@ -3,10 +3,14 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { executeCloudJob } from "./pipeline";
 import { cloudJobProgress } from "./progress";
-import { AccountStore, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
+import { AccountStore, defaultJobWorkspace, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
 import { validateArticleStyleSnapshot } from "../../src/article-style";
 import { validateCoverSnapshot } from "../../src/cover-snapshot";
 import { coverCapabilities } from "./cover";
+import { canonicalHash, validateArticleSnapshot } from "../../src/article-snapshot";
+import { maxAssetBytes, putBodyAsset } from "./assets";
+import { prepareArticleMaterials, readPreparedArticle } from "./job-materials";
+import { readArtifact } from "./artifacts";
 
 // 正文最多 2 MiB，另预留一张 1 MiB JPEG 的 base64 与模板 JSON。
 const maxJobRequestBytes = 4_500_000;
@@ -42,6 +46,7 @@ async function publicJob(job: StoredCloudJob): Promise<Record<string, unknown>> 
   const safeJob = { ...job } as Record<string, unknown>;
   delete safeJob.body;
   delete safeJob.statePath;
+  delete safeJob.preparedHash;
   const progress = await cloudJobProgress({ ...job }, workspaceRoot).catch(() => null);
   return { ...safeJob, input: { ...job.input }, ...progress };
 }
@@ -77,6 +82,10 @@ function validateInput(value: unknown): CloudJobInput {
   if (input.coverSnapshot !== undefined && contentForm !== "article") throw new Error("coverSnapshot requires article contentForm");
   const coverSnapshot = input.coverSnapshot !== undefined ? validateCoverSnapshot(input.coverSnapshot) : undefined;
   if (coverSnapshot && Buffer.byteLength(body, "utf8") > 2_097_152) throw new Error("body with coverSnapshot must be <= 2 MiB UTF-8");
+  if (input.operation !== undefined && input.operation !== "preview") throw new Error("operation must be preview when present");
+  if ((input.operation === "preview") !== (input.articleSnapshot !== undefined)) throw new Error("preview requires articleSnapshot");
+  if (input.operation === "preview" && (contentForm !== "article" || input.newspic !== undefined || input.existingDraftMediaId)) throw new Error("preview only supports new article drafts");
+  const articleSnapshot = input.articleSnapshot !== undefined ? validateArticleSnapshot(input.articleSnapshot, { title, body, account, articleStyle, coverSnapshot }) : undefined;
   return {
     idempotencyKey,
     title,
@@ -88,6 +97,7 @@ function validateInput(value: unknown): CloudJobInput {
     ...(newspic ? { newspic } : {}),
     ...(articleStyle ? { articleStyle } : {}),
     ...(coverSnapshot ? { coverSnapshot } : {}),
+    ...(articleSnapshot ? { operation: "preview", articleSnapshot } : {}),
   };
 }
 
@@ -126,8 +136,7 @@ async function drain(): Promise<void> {
       await store.set(job);
       try {
         await executeCloudJob(job, { ...job.input, body: job.body }, store, accounts, workspaceRoot);
-        job.status = "succeeded";
-        job.finishedAt = new Date().toISOString();
+        if ((job as StoredCloudJob).status !== "preview_ready") { job.status = "succeeded"; job.finishedAt = new Date().toISOString(); }
         await store.set(job);
       } catch (error) {
         job.status = "failed";
@@ -161,16 +170,46 @@ async function main(): Promise<void> {
   const server = Bun.serve({
     hostname: host,
     port,
-    maxRequestBodySize: maxJobRequestBytes,
+    maxRequestBodySize: maxAssetBytes + 1,
     async fetch(request) {
       const url = new URL(request.url);
       if (!bearerMatches(request))
         return json({ error: "unauthorized" }, 401);
       if (url.pathname === "/health" && request.method === "GET")
         return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size, maintenance,
-          capabilities: { articleStyleSchemaVersions: [1], ...await coverCapabilities() } });
+          capabilities: { articleStyleSchemaVersions: [1], articleSnapshotSchemaVersions: [1], previewConfirm: true, bodyAssetUpload: true, ...await coverCapabilities() } });
 
       try {
+        const assetMatch = url.pathname.match(/^\/v1\/assets\/([a-f\d]{64})$/);
+        if (assetMatch && request.method === "PUT") {
+          if (maintenance) return json({ error: "worker_maintenance" }, 503);
+          return json(await putBodyAsset(workspaceRoot, assetMatch[1]!, request));
+        }
+        const artifactMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)\/artifacts\/([^/]+)$/);
+        if (artifactMatch && request.method === "GET") {
+          const job = store.get(artifactMatch[1]!);
+          if (!job?.input.articleSnapshot || !job.result?.artifactManifestHash) return json({ error: "artifact_not_found" }, 404);
+          const asset = await readArtifact(defaultJobWorkspace(workspaceRoot, job.id), artifactMatch[2]!, String(job.result.artifactManifestHash), String(job.result.snapshotHash));
+          return new Response(new Uint8Array(asset.bytes), { headers: { "Content-Type": asset.artifact.contentType, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+        }
+        const confirmMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)\/publish$/);
+        if (confirmMatch && request.method === "POST") {
+          const job = store.get(confirmMatch[1]!);
+          if (!job?.input.articleSnapshot) return json({ error: "preview_job_not_found" }, 404);
+          const confirmation = await request.json();
+          if (confirmation?.snapshotHash !== job.result?.snapshotHash || confirmation?.artifactManifestHash !== job.result?.artifactManifestHash) return json({ error: "preview_hash_conflict" }, 409);
+          if (job.publicationRequested) return json(await publicJob(job), 200);
+          if (maintenance) return json({ error: "worker_maintenance" }, 503);
+          if (job.status !== "preview_ready") return json({ error: "preview_not_ready" }, 409);
+          await readPreparedArticle(defaultJobWorkspace(workspaceRoot, job.id), job.preparedHash!);
+          const manifest = job.result?.artifactManifest as { artifacts?: Array<{ key: string }> };
+          for (const artifact of manifest.artifacts || []) await readArtifact(defaultJobWorkspace(workspaceRoot, job.id), artifact.key, String(job.result!.artifactManifestHash), String(job.result!.snapshotHash));
+          if (job.publicationRequested) return json(await publicJob(job), 200);
+          // 同一内存 job 是并发确认的线性点，先持久化意图再进入原任务队列。
+          job.publicationRequested = true; job.status = "queued"; job.step = "queued";
+          await store.set(job); queue.push(job.id); void drain();
+          return json(await publicJob(job), 202);
+        }
         if (url.pathname === "/v1/maintenance" && request.method === "PUT") {
           const input = await request.json();
           if (typeof input?.enabled !== "boolean") return json({ error: "enabled must be a boolean" }, 400);
@@ -195,6 +234,7 @@ async function main(): Promise<void> {
           if (Number.isFinite(contentLength) && contentLength > maxJobRequestBytes)
             return json({ error: "request body too large" }, 413);
           const requestText = await request.text();
+          if (Buffer.byteLength(requestText) > maxJobRequestBytes) return json({ error: "request body too large" }, 413);
           const input = validateInput(JSON.parse(requestText));
           // 无封面请求继续遵守原 2.5 MB 上限，不改变旧正文字符约定。
           if (!input.coverSnapshot && Buffer.byteLength(requestText, "utf8") > 2_500_000)
@@ -206,8 +246,10 @@ async function main(): Promise<void> {
             return json(await publicJob(existing), 200);
           if (maintenance) return json({ error: "worker_maintenance" }, 503);
           const now = new Date().toISOString();
+          const jobId = randomUUID();
+          const prepared = input.articleSnapshot ? await prepareArticleMaterials(defaultJobWorkspace(workspaceRoot, jobId), input, workspaceRoot) : undefined;
           const job: StoredCloudJob = {
-            id: randomUUID(),
+            id: jobId,
             requestHash: requestHash(input),
             input: {
               idempotencyKey: input.idempotencyKey,
@@ -221,19 +263,24 @@ async function main(): Promise<void> {
               ...(input.newspic ? { newspic: input.newspic } : {}),
               ...(input.articleStyle ? { articleStyle: input.articleStyle } : {}),
               ...(input.coverSnapshot ? { coverSnapshot: input.coverSnapshot } : {}),
+              ...(input.articleSnapshot ? { operation: "preview", articleSnapshot: input.articleSnapshot } : {}),
             },
             status: "queued",
             step: "queued",
             runId: null,
             error: null,
-            result: null,
+            result: prepared ? { inputHash: prepared.inputHash, snapshotHash: prepared.snapshotHash } : null,
             createdAt: now,
             updatedAt: now,
             startedAt: null,
             finishedAt: null,
             body: input.body,
             statePath: null,
+            ...(prepared ? { preparedHash: canonicalHash(prepared), publicationRequested: false } : {}),
           };
+          // 默认解析期间同键的另一请求可能已写入，入队前再次核对。
+          const concurrent = store.findByIdempotencyKey(input.idempotencyKey);
+          if (concurrent) return concurrent.requestHash === job.requestHash ? json(await publicJob(concurrent), 200) : json({ error: "idempotency_conflict" }, 409);
           await store.set(job);
           queue.push(job.id);
           void drain();
