@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.19.1
+
+[compare changes](https://github.com/aatrooox/zzhub-pipeline/compare/v0.19.0...v0.19.1)
+
+### Fixes
+
+- **wechat:** Rebuild article assets for scrollable tables ([ee3067c](https://github.com/aatrooox/zzhub-pipeline/commit/ee3067c))
+- **styles:** Consume canonical article styles from myno ([e647c1c](https://github.com/aatrooox/zzhub-pipeline/commit/e647c1c))
+
+### Documentation
+
+- Clarify public ecosystem and current integration guides ([c78294e](https://github.com/aatrooox/zzhub-pipeline/commit/c78294e))
+
+### ❤️ Contributors
+
+- Kairos ([@k7airos](https://github.com/k7airos))
+
 ## v0.19.0
 
 ### Features
