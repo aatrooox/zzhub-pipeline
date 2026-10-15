@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.21.0
+
+### Features
+
+- Expose strict cover snapshots at `@akairos/pipeline/cover-snapshot`, reusing Typeset Studio's finite controls and canonical template factory.
+- Persist immutable cover template revisions, normalized JPEG bytes, and fixed font identities in Worker jobs; render from task-private materials without changing shared defaults.
+- Advertise cover schema/font capabilities, verify font bytes in the rendering process before measurement, and report snapshot/asset/font hashes in job results.
+
+### Compatibility
+
+- Keep requests without cover snapshots on their existing hash, default-template, and body-limit paths.
+- Pin Typeset Studio 0.3.0 and retain myno 0.3.2; the Worker image pins its verified Noto CJK font package.
+
 ## v0.20.2
 
 ### Fixes

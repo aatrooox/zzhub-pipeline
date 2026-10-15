@@ -3,7 +3,7 @@ FROM oven/bun:1.3.14
 # `render` uses headless Chromium to export article HTML and cover images.
 # Keep the worker self-contained so a cloud host does not need a desktop browser.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends chromium fonts-noto-cjk \
+    && apt-get install -y --no-install-recommends chromium fonts-noto-cjk=1:20240730+repack1-1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -18,6 +18,7 @@ ENV NODE_ENV=production \
     PIPELINE_WORKER_PORT=18887 \
     PIPELINE_WORKER_STATE_FILE=/data/pipeline-worker/jobs.json \
     PIPELINE_WORKSPACE_ROOT=/data/pipeline-worker \
+    TYPESET_ARTICLE_COVER_FONT_PATH=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
     ZZHUB_PIPELINE_BRANDING_LOGO=/app/src/imgx/assets/icons/logo.png
 
 VOLUME ["/data"]

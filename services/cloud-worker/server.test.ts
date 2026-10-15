@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { createArticleStyleSnapshot } from "../../src/article-style";
+import { createCoverSnapshot } from "../../cover-snapshot";
+import { ARTICLE_COVER_FONT, DEFAULT_ARTICLE_COVER_CONTROLS } from "@akairos/typeset-studio/cover";
+import { createCanvas } from "@napi-rs/canvas";
 
 test("worker defaults to loopback and authenticates health and job requests", async () => {
   const root = await mkdtemp(join(tmpdir(), "zzp-worker-test-"));
@@ -79,9 +82,29 @@ test("worker defaults to loopback and authenticates health and job requests", as
     const legacyInput = { idempotencyKey: "legacy-article", title: "旧正文", body: "正文", contentForm: "article", account: "missing-account" };
     const legacyJob = await (await submit(legacyInput)).json();
     expect(legacyJob.input).not.toHaveProperty("articleStyle");
+    expect(legacyJob.input).not.toHaveProperty("coverSnapshot");
     expect(legacyJob.requestHash).toBe(createHash("sha256").update(JSON.stringify({ ...legacyInput, existingDraftMediaId: null })).digest("hex"));
     const saved = JSON.parse(await readFile(env.PIPELINE_WORKER_STATE_FILE, "utf8"));
     expect(saved.jobs.find((item: any) => item.id === styled.id).input.articleStyle.hash).toBe(articleStyle.hash);
+
+    const image = createCanvas(1000, 1000).toBuffer("image/jpeg");
+    const coverSnapshot = createCoverSnapshot({
+      id: "a7d3e690-7b83-4e40-a988-50f833ad7746", revision: 1, name: "私有封面",
+      controls: DEFAULT_ARTICLE_COVER_CONTROLS,
+      asset: { id: "1c39284b-d336-4539-94e3-c01d7a535aa6", sha256: createHash("sha256").update(image).digest("hex"), contentType: "image/jpeg", dataBase64: image.toString("base64") },
+      font: { id: ARTICLE_COVER_FONT.id, sha256: ARTICLE_COVER_FONT.sha256 },
+    });
+    const coveredInput = { ...article, idempotencyKey: "covered-article", coverSnapshot };
+    const covered = await (await submit(coveredInput)).json();
+    expect(covered.input.coverSnapshot).toEqual(coverSnapshot);
+    expect((await (await submit(coveredInput)).json()).id).toBe(covered.id);
+    expect((await submit({ ...coveredInput, coverSnapshot: { ...coverSnapshot, hash: "0".repeat(64) } })).status).toBe(400);
+    expect((await submit({ ...input, coverSnapshot })).status).toBe(400);
+    const coverFields = { ...coverSnapshot, revision: 2 } as Record<string, unknown>;
+    delete coverFields.hash; delete coverFields.config; delete coverFields.schemaVersion;
+    expect((await submit({ ...coveredInput, coverSnapshot: createCoverSnapshot(coverFields) })).status).toBe(409);
+    const storedCover = JSON.parse(await readFile(env.PIPELINE_WORKER_STATE_FILE, "utf8")).jobs.find((item: any) => item.id === covered.id);
+    expect(storedCover.input.coverSnapshot.asset.dataBase64).toBe(image.toString("base64"));
 
     const rejected = Bun.spawnSync(command, { env: { ...env, PIPELINE_WORKER_HOST: "0.0.0.0" } });
     expect(rejected.exitCode).not.toBe(0);

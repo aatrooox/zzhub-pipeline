@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { ArticleStyleSnapshot } from "../../src/article-style";
+import type { CoverSnapshot } from "../../src/cover-snapshot";
 
 export type CloudJobStatus = "queued" | "running" | "succeeded" | "failed" | "interrupted";
 
@@ -17,6 +18,7 @@ export interface CloudJobInput {
   coverTheme?: string | null;
   newspic?: { content: string; photos: string[] };
   articleStyle?: ArticleStyleSnapshot;
+  coverSnapshot?: CoverSnapshot;
 }
 
 export interface CloudJob {

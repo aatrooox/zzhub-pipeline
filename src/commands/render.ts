@@ -256,6 +256,9 @@ Options:
 
   try {
   const imageRenderer = await resolveImageRenderer(config);
+  if (process.env.ZZHUB_PIPELINE_COVER_SNAPSHOT === "1" && imageRenderer.name !== "typeset-studio") {
+    throw new Error("Cover snapshot requires the Typeset Studio image renderer");
+  }
   reportProgress({ stage: "render.adapter", message: "开始生成图片" });
 
   const bodyImages = (

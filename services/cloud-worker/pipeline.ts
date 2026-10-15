@@ -6,13 +6,15 @@ import { redact } from "../../src/monitor/runtime";
 import type { TaskStatusReport } from "../../src/task-manager";
 import { validateArticleStyleSnapshot } from "../../src/article-style";
 import { readArticleTheme } from "../../src/article-theme";
+import { materializeCoverSnapshot, type JobCoverMaterials } from "./cover";
+import { ARTICLE_COVER_IMAGE_KEY } from "@akairos/typeset-studio/cover";
 
 interface PipelineCommandResult {
   result: any;
   stderr: string;
 }
 
-type PipelineTaskStatus = Pick<TaskStatusReport, "summary" | "next_action">;
+type PipelineTaskStatus = Pick<TaskStatusReport, "summary" | "next_action"> & Partial<Pick<TaskStatusReport, "state">>;
 
 function pipelineRoot(): string {
   return resolve(process.env.PIPELINE_ROOT?.trim() || resolve(import.meta.dir, "../.."));
@@ -22,7 +24,7 @@ function pipelineEntry(): string {
   return resolve(pipelineRoot(), "src/cli.ts");
 }
 
-function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null): Record<string, string> {
+function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null, cover?: JobCoverMaterials): Record<string, string> {
   const env = { ...process.env } as Record<string, string>;
   env.NO_COLOR = "1";
   env.FORCE_COLOR = "0";
@@ -40,6 +42,12 @@ function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null):
     env.WX_APPSECRET = account.appSecret;
     env.ZZCLUB_PAT = account.pat;
   }
+  // 只覆盖本任务的子进程，插件子进程继承字体路径并在首次测量前核验注册。
+  if (cover) {
+    env.TYPESET_DATA_DIR = cover.dataDir;
+    env.TYPESET_ARTICLE_COVER_FONT_PATH = cover.fontPath;
+    env.ZZHUB_PIPELINE_COVER_SNAPSHOT = "1";
+  }
   return env;
 }
 
@@ -48,6 +56,7 @@ async function runPipelineCommand(
   command: string,
   args: string[],
   account?: PipelineWorkerAccount | null,
+  cover?: JobCoverMaterials,
 ): Promise<PipelineCommandResult> {
   const child = Bun.spawn([
     process.env.BUN_BIN?.trim() || process.execPath,
@@ -56,7 +65,7 @@ async function runPipelineCommand(
     ...args,
   ], {
     cwd: pipelineRoot(),
-    env: pipelineEnv(workspace, account),
+    env: pipelineEnv(workspace, account, cover),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -90,8 +99,8 @@ function publishResults(status: PipelineTaskStatus): Array<Record<string, unknow
   return status.summary?.publish?.results || [];
 }
 
-async function status(workspace: string, statePath: string, account: PipelineWorkerAccount): Promise<PipelineTaskStatus> {
-  const output = await runPipelineCommand(workspace, "status", ["--state", statePath], account);
+async function status(workspace: string, statePath: string, account: PipelineWorkerAccount, cover?: JobCoverMaterials): Promise<PipelineTaskStatus> {
+  const output = await runPipelineCommand(workspace, "status", ["--state", statePath, ...(cover ? ["--full"] : [])], account, cover);
   return output.result as PipelineTaskStatus;
 }
 
@@ -101,6 +110,7 @@ async function runAction(
   action: string,
   params: Record<string, unknown> = {},
   account: PipelineWorkerAccount,
+  cover?: JobCoverMaterials,
 ): Promise<void> {
   const args = ["--state", statePath];
   if (action === "review") {
@@ -111,8 +121,18 @@ async function runAction(
   } else if (action === "prepare-finalize") {
     const body = stringParam(params.formatted_body_path);
     if (body) args.push("--body", body);
+  } else if (action === "render" && cover) {
+    args.push("--studio-cover-template", cover.snapshot.id, "--template-images-file", cover.imagesFile);
   }
-  await runPipelineCommand(workspace, action, args, account);
+  await runPipelineCommand(workspace, action, args, account, cover);
+}
+
+/** 发布前核对 CLI 已接受精确模板与任务私有素材，防止配置回落仍被确认成功。 */
+function verifyCoverSelection(current: PipelineTaskStatus, cover: JobCoverMaterials): void {
+  const studio = current.state?.intent.studio_render;
+  if (studio?.templates?.cover !== cover.snapshot.id ||
+    studio.image_overrides?.cover?.[ARTICLE_COVER_IMAGE_KEY] !== join(cover.dataDir, "..", "image.jpg"))
+    throw new Error("Pipeline did not apply the expected cover template and private image");
 }
 
 /** 按 Pipeline 自己的 next_action 推进，避免在 worker 复制状态机规则。 */
@@ -122,6 +142,8 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     throw new Error(`Pipeline account is not configured: ${input.account}`);
   const workspace = defaultJobWorkspace(root, job.id);
   await mkdir(workspace, { recursive: true });
+  if (input.coverSnapshot && input.contentForm !== "article") throw new Error("coverSnapshot requires article contentForm");
+  const cover = input.coverSnapshot ? await materializeCoverSnapshot(workspace, input.coverSnapshot) : undefined;
   // 任务私有样式文件只来自已验证 JSON，不读取调用方路径或修改全局配置。
   const articleStyle = input.articleStyle ? validateArticleStyleSnapshot(input.articleStyle) : undefined;
   const articleStylePath = join(workspace, "article-style.json");
@@ -129,7 +151,9 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   // CLI 主题包含既有默认字段，其 hash 与正文快照的纯 manifest hash 分开记录。
   const articleThemeHash = articleStyle ? (await readArticleTheme(articleStylePath)).hash : undefined;
   const styleIdentity = articleStyle ? { articleStyleHash: articleStyle.hash, articleThemeHash } : {};
-  if (articleStyle) job.result = styleIdentity;
+  const coverIdentity = cover ? { coverSnapshotHash: cover.snapshot.hash, coverAssetHash: cover.snapshot.asset.sha256, coverFontHash: cover.snapshot.font.sha256 } : {};
+  const snapshotIdentity = { ...styleIdentity, ...coverIdentity };
+  if (articleStyle || cover) job.result = snapshotIdentity;
   const bodyPath = join(workspace, "source.md");
   // 内容图保留完整文章，发送配文通过独立快照传递。
   await writeFile(bodyPath, input.body, "utf8");
@@ -155,7 +179,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     ...(input.existingDraftMediaId ? ["--existing-draft-media-id", input.existingDraftMediaId] : []),
     ...(input.coverTheme ? ["--cover-theme", input.coverTheme] : []),
     ...(articleStyle ? ["--article-theme", articleStylePath] : []),
-  ], account);
+  ], account, cover);
   const initResult = init.result as { state_path?: string; run_id?: string };
   let statePath = stringParam(initResult.state_path);
   if (!statePath)
@@ -165,7 +189,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   await store.set(job);
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const current = await status(workspace, statePath, account);
+    const current = await status(workspace, statePath, account, cover);
     statePath = current.summary.state_path;
     job.statePath = statePath;
     if (isDone(current)) {
@@ -174,13 +198,14 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
         runId: job.runId,
         phase: current.summary?.phase?.current || "done",
         publishResults: publishResults(current),
-        ...styleIdentity,
+        ...snapshotIdentity,
       };
       const result = current.summary.publish.results.find(item => item.account === input.account);
       if (result?.status !== "success" || !result.external_id)
         throw new Error("Pipeline completed without a confirmed WeChat draft media_id");
       if (articleStyle && result.article_theme_hash !== articleThemeHash)
         throw new Error("Pipeline completed without the expected article theme hash");
+      if (cover) verifyCoverSelection(current, cover);
       job.step = "done";
       return;
     }
@@ -193,23 +218,24 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     await store.set(job);
 
     if (action === "attach-body") {
-      await runPipelineCommand(workspace, "attach-body", ["--state", statePath, "--body", bodyPath], account);
+      await runPipelineCommand(workspace, "attach-body", ["--state", statePath, "--body", bodyPath], account, cover);
       continue;
     }
     if (action === "review-content") {
-      await runAction(workspace, statePath, "review", { status: "passed" }, account);
+      await runAction(workspace, statePath, "review", { status: "passed" }, account, cover);
       continue;
     }
     if (action === "prepare" || action === "prepare-finalize" || action === "render" || action === "publish") {
       try {
+        if (action === "publish" && cover) verifyCoverSelection(current, cover);
         await runAction(workspace, statePath, action, {
           title: input.title,
           formatted_body_path: current.next_action?.params?.formatted_body_path,
-        }, account);
+        }, account, cover);
       } catch (error) {
         // 发布失败时仍保留原运行的业务结果；不得创建新 run 自动重试。
-        const latest = await status(workspace, statePath, account).catch(() => null);
-        if (latest) job.result = { runId: job.runId, publishResults: publishResults(latest), ...styleIdentity };
+        const latest = await status(workspace, statePath, account, cover).catch(() => null);
+        if (latest) job.result = { runId: job.runId, publishResults: publishResults(latest), ...snapshotIdentity };
         throw error;
       }
       continue;

@@ -88,6 +88,7 @@ docker run -d --name pipeline-worker --restart unless-stopped \
 | `ZZHUB_WX_BASE_URL` | 可覆盖配置中的微信中转服务地址 |
 | `ZZHUB_PIPELINE_BRANDING_LOGO` | Docker 默认使用镜像内 Logo；可指定容器内已挂载图片路径 |
 | `PIPELINE_ROOT` / `BUN_BIN` | 可覆盖源码根目录 / Bun 可执行路径，一般无需设置 |
+| `TYPESET_ARTICLE_COVER_FONT_PATH` | 受信部署字体路径；默认 `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`，任务不能覆盖 |
 
 Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过子进程环境注入；不接受在任务正文参数里传入凭据。Pipeline 基础配置中的账号可提供样式，但当前 Worker 不会用它替代账号存储中的注册。
 
@@ -104,7 +105,7 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 | `POST /v1/jobs` | 新任务返回 `202`；相同幂等键及内容返回原任务 `200` |
 | `GET /v1/jobs/:id` | 查询任务；不存在返回 `404` |
 
-未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。提交任务时 `Content-Length` 超过 2,500,000 字节会返回 `413`。当前没有任务列表、取消、重试、SSE 或文件上传接口。
+未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。无封面快照请求仍限 2,500,000 字节；带封面请求上限 4,500,000 字节，Bun 同时限制实际读取大小，不依赖调用方声明的 Content-Length。当前没有任务列表、取消、重试、SSE 或文件上传接口。
 
 ### 正文样式快照
 
@@ -113,6 +114,32 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 业务后端通过 `@akairos/pipeline/article-style` 的 `createArticleStyleSnapshot(manifest, id, revision)` 创建快照，用 `validateArticleStyleSnapshot(value)` 复查与验证 hash。可选 `articleStyle` 仅用于 article，格式为 `{ schemaVersion: 1, id, revision, manifest, hash }`；根 id 必须等于 manifest.id。身份字段沿用 ArticleThemeSchema，revision 为正整数。manifest 只支持 `editorVars.--brand`、`exportTheme.bodyFontSize`（12–24px）、`bodyLineHeight`（1.2–2.4）、`primaryColor`、`h2Color` 与 `syntaxPresets.h2`（pillar/bottom-line/plain）。颜色仅 `#RRGGBB`，归一化小写；数值去多余零。css 缺省为空且只允许空字符串；structure、资源、字体、路径、模块及其他字段均拒绝。
 
 Worker 严格验证后持久化 `input.articleStyle`，执行时写入 job 私有 `article-style.json` 并传给 CLI `init --article-theme`，不修改共享配置。`result.articleStyleHash` 是规范化 manifest 的 SHA-256；`result.articleThemeHash` 是现有 CLI 加入主题默认字段后的独立 hash，与实际发布结果 `article_theme_hash` 核对，两者不要求相等。这样可以从请求快照、私有文件追踪到 CLI 发布主题；未知版本、篡改或主题不匹配明确失败，不回落默认样式继续确认成功。
+
+### 封面模板快照
+
+Pipeline 0.21.0 使用 Typeset Studio 0.3.0 的有限控件和模板工厂。调用方先检查 `/health` 的 `capabilities.coverSnapshotSchemaVersions: [1]` 与 `articleCoverFonts: [{ id, sha256 }]`，字体身份须与 Typeset `ARTICLE_COVER_FONT` 相同。Worker 字体缺失、hash 不符或注册失败时不声明封面能力，旧正文任务仍可用；提交者不能把旧 Worker 的 2xx 当作支持新字段。
+
+公共入口 `@akairos/pipeline/cover-snapshot` 提供 `createCoverSnapshot(input)`、`validateCoverSnapshot(value)` 及 `CoverSnapshot` / `CoverSnapshotInput` 类型。创建输入：
+
+```ts
+{
+  id, revision, name, controls,
+  asset: { id: assetId, sha256, contentType: "image/jpeg", dataBase64 },
+  font: { id: ARTICLE_COVER_FONT.id, sha256: ARTICLE_COVER_FONT.sha256 }
+}
+```
+
+根 id 和素材 id 均为 UUID，revision 为正整数，name 为 1–80 字符。`controls` 由 Typeset `validateArticleCoverControls` 规范化，只允许背景色、标题色、80–200 整数字号、left/center/right 对齐及 60–200 整数安全留白。快照增加 `schemaVersion: 1`、工厂生成的完整 `config` 与 `hash`。hash 是包含模板身份、规范化控件/config、素材字节及字体身份的整个规范对象 SHA-256；素材 sha256 是实际规范化 JPEG 字节的 SHA-256，两者不同。
+
+`asset.dataBase64` 仅接受标准 base64 的 1000×1000 JPEG，字节不超过 1 MiB，并校验尺寸、内容 hash；Worker 执行时再次实际解码。业务后端负责在上传入口解码原图、限制原图尺寸与容量，中心裁成该固定方图。快照拒绝任意 URL、路径、CSS、字体文件、模块及非工厂生成的自由配置。带封面快照的正文另限 UTF-8 2 MiB。
+
+POST `/v1/jobs` 的可选 `coverSnapshot` 只用于 article，可与 `articleStyle` 同时使用；未选封面时完全省略字段，不注入默认快照。Worker 持久保存全部快照与 JPEG 字节，执行时在 `<job>/cover/` 写入 `snapshot.json`、`image.jpg`、`template-images.json` 及私有 `typeset/templates/<id>.json`。只有该任务 CLI 子进程收到私有 `TYPESET_DATA_DIR` 和受信字体路径。render 步骤通过 `--studio-cover-template` 与 `--template-images-file` 精确绑定模板/图片；发布前通过 `status --full` 核对冻结选择，配置渲染器必须是 Typeset Studio，不能静默回退。共享模板、账号默认配置及老请求 hash 不变。
+
+字体固定为 `publishing-noto-cjk-regular-v1`、别名 `Publishing Cover`，SHA-256 `b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`。Docker 固定 Debian `fonts-noto-cjk=1:20240730+repack1-1`；实际字节仍由 Typeset `server-font` 验证。该受信注册也在实际渲染插件进程首次测量前执行，不能仅在 Worker 父进程注册后假设字体跨进程继承。字体包保留原许可证，不将字体文件放入任务快照。
+
+任务结果新增 `result.coverSnapshotHash`、`coverAssetHash`、`coverFontHash`，既有 `publishResults` 契约不变。调用方将这些值与原 job 快照比对；排队后修改共享模板、换图或改名不会改变已存任务，unknown/interrupted 继续查原 job/run/草稿箱，不换键重发。
+
+定向检查入口：`bun test src/cover-snapshot.test.ts services/cloud-worker/server.test.ts services/cloud-worker/cover.test.ts`。`cover.test.ts` 的实际私有材料与 CLI 参数案例需主控显式提供上述同 hash 字体的 `TYPESET_ARTICLE_COVER_FONT_PATH`；缺省时跳过该用例，不能声称已验证字体或实际微信发布。
 
 维护模式下提交新任务返回 `503 worker_maintenance`，`/health` 增加 `maintenance`。该开关持久化在任务存储旁，重启后仍保持暂停，必须显式恢复。更新时暂停并等待队列清空，再备份、停止 Worker、切换配置并重建容器，验收后恢复。图片插件和 myno 都使用镜像内的 npm 入口，不要求独立 Studio 服务或管理员密钥。运行时资产可同步到 `/data/pipeline-runtime`，业务凭据仍在 `accounts.json`，详见[运行时配置指南](../../docs/visual-studio-and-config-sync.md)。
 
@@ -168,7 +195,7 @@ curl -X POST http://127.0.0.1:18887/v1/jobs \
 | `intentText` | 可选，发布意图；默认使用标题 |
 | `existingDraftMediaId` | 可选，更新已有草稿；必须属于目标公众号 |
 
-Worker 不提供客户端本地文件传输。正文内的图片必须在 Worker 环境中可读取，例如可访问的 HTTP(S) 图片或在请求大小范围内的 Base64 图片；客户端本机路径不会自动上传。当前任务接口没有正文模板/封面主题选择字段；默认样式可由服务端配置提供。
+Worker 不提供客户端本地文件传输。正文内的图片必须在 Worker 环境中可读取，例如可访问的 HTTP(S) 图片或在请求大小范围内的 Base64 图片；客户端本机路径不会自动上传。正文与封面可通过上述受限快照显式选择；未传快照时默认样式由服务端配置提供。
 
 Worker 将正文视为调用方已确认的内容，遇到 `review-content` 会执行 `review --status passed`，这不代表进行过模型或人工审核。需要补图、修订或其他未支持动作时，会返回失败而不会调用外部 Agent。
 

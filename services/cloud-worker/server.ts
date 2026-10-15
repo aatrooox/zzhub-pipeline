@@ -5,6 +5,11 @@ import { executeCloudJob } from "./pipeline";
 import { cloudJobProgress } from "./progress";
 import { AccountStore, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
 import { validateArticleStyleSnapshot } from "../../src/article-style";
+import { validateCoverSnapshot } from "../../src/cover-snapshot";
+import { coverCapabilities } from "./cover";
+
+// 正文最多 2 MiB，另预留一张 1 MiB JPEG 的 base64 与模板 JSON。
+const maxJobRequestBytes = 4_500_000;
 
 const host = process.env.PIPELINE_WORKER_HOST?.trim() || "127.0.0.1";
 const port = Number(process.env.PIPELINE_WORKER_PORT || "18887");
@@ -69,6 +74,9 @@ function validateInput(value: unknown): CloudJobInput {
   )) throw new Error("newspic requires text and up to 20 HTTP image URLs; an empty list generates images");
   if (input.articleStyle !== undefined && contentForm !== "article") throw new Error("articleStyle requires article contentForm");
   const articleStyle = input.articleStyle !== undefined ? validateArticleStyleSnapshot(input.articleStyle) : undefined;
+  if (input.coverSnapshot !== undefined && contentForm !== "article") throw new Error("coverSnapshot requires article contentForm");
+  const coverSnapshot = input.coverSnapshot !== undefined ? validateCoverSnapshot(input.coverSnapshot) : undefined;
+  if (coverSnapshot && Buffer.byteLength(body, "utf8") > 2_097_152) throw new Error("body with coverSnapshot must be <= 2 MiB UTF-8");
   return {
     idempotencyKey,
     title,
@@ -79,6 +87,7 @@ function validateInput(value: unknown): CloudJobInput {
     existingDraftMediaId: typeof input.existingDraftMediaId === "string" ? input.existingDraftMediaId.trim() || null : null,
     ...(newspic ? { newspic } : {}),
     ...(articleStyle ? { articleStyle } : {}),
+    ...(coverSnapshot ? { coverSnapshot } : {}),
   };
 }
 
@@ -152,13 +161,14 @@ async function main(): Promise<void> {
   const server = Bun.serve({
     hostname: host,
     port,
+    maxRequestBodySize: maxJobRequestBytes,
     async fetch(request) {
       const url = new URL(request.url);
       if (!bearerMatches(request))
         return json({ error: "unauthorized" }, 401);
       if (url.pathname === "/health" && request.method === "GET")
         return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accounts: accounts.accounts.size, maintenance,
-          capabilities: { articleStyleSchemaVersions: [1] } });
+          capabilities: { articleStyleSchemaVersions: [1], ...await coverCapabilities() } });
 
       try {
         if (url.pathname === "/v1/maintenance" && request.method === "PUT") {
@@ -182,9 +192,13 @@ async function main(): Promise<void> {
         }
         if (url.pathname === "/v1/jobs" && request.method === "POST") {
           const contentLength = Number(request.headers.get("content-length") || "0");
-          if (Number.isFinite(contentLength) && contentLength > 2_500_000)
+          if (Number.isFinite(contentLength) && contentLength > maxJobRequestBytes)
             return json({ error: "request body too large" }, 413);
-          const input = validateInput(await request.json());
+          const requestText = await request.text();
+          const input = validateInput(JSON.parse(requestText));
+          // 无封面请求继续遵守原 2.5 MB 上限，不改变旧正文字符约定。
+          if (!input.coverSnapshot && Buffer.byteLength(requestText, "utf8") > 2_500_000)
+            return json({ error: "request body too large" }, 413);
           const existing = store.findByIdempotencyKey(input.idempotencyKey);
           if (existing && existing.requestHash !== requestHash(input))
             return json({ error: "idempotency_conflict" }, 409);
@@ -206,6 +220,7 @@ async function main(): Promise<void> {
               coverTheme: input.coverTheme,
               ...(input.newspic ? { newspic: input.newspic } : {}),
               ...(input.articleStyle ? { articleStyle: input.articleStyle } : {}),
+              ...(input.coverSnapshot ? { coverSnapshot: input.coverSnapshot } : {}),
             },
             status: "queued",
             step: "queued",

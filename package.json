@@ -1,6 +1,6 @@
 {
   "name": "@akairos/pipeline",
-  "version": "0.20.2",
+  "version": "0.21.0",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -13,6 +13,7 @@
   "files": [
     "src/",
     "article-style.ts",
+    "cover-snapshot.ts",
     "ARTICLE-THEMES.md",
     "THIRD-PARTY-NOTICES.md"
   ],
@@ -30,7 +31,7 @@
   "dependencies": {
     "@akairos/milkdown-article-plugins": "^0.1.6",
     "@akairos/myno": "0.3.2",
-    "@akairos/typeset-studio": "0.2.7",
+    "@akairos/typeset-studio": "0.3.0",
     "@chenglou/pretext": "0.0.8",
     "image-size": "^2.0.2",
     "pngjs": "^7.0.0",
