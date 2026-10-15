@@ -26,7 +26,7 @@ export const SYNTAX_CATEGORIES: SyntaxCategory[] = [
         css: `.milkdown .editor h2 {
   margin: 2.8em 0 0.65em;
   padding-left: 9px;
-  border-left: 2.5px solid var(--wx-brand-accent, #ca6093);
+  border-left: 4px solid var(--wx-brand-accent, #ca6093);
   border-bottom: none;
   background: none;
   font-size: 20px;

@@ -417,6 +417,10 @@ const blockquoteRenderer: WechatElementRenderer = {
       element.prepend(label);
     }
   },
+  finalize(element) {
+    // 微信编辑器会给原生 blockquote 强制加灰色左边框，导出时降级为 section，外观全靠内联样式。
+    replaceTag(element, "section");
+  },
 };
 
 /** Normalize URL for reference dedupe (same target → one footnote entry). */

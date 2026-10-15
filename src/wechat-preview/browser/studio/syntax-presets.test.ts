@@ -44,9 +44,9 @@ describe("syntax presets module", () => {
   test("buildCombinedPresetsCss falls back to default preset when key missing or unknown", () => {
     const css = buildCombinedPresetsCss({});
     expect(css).toContain(".milkdown .editor h2");
-    expect(css).toContain("border-left: 2.5px solid");
+    expect(css).toContain("border-left: 4px solid");
 
     expect(buildCombinedPresetsCss({ h2: "bottom-line" })).toContain("padding-bottom: 0.45em");
-    expect(buildCombinedPresetsCss({ h2: "no-such-preset" })).toContain("padding-left: 9px");
+    expect(buildCombinedPresetsCss({ h2: "no-such-preset" })).toContain("border-left: 4px solid");
   });
 });

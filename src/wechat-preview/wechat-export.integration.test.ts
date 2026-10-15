@@ -46,9 +46,23 @@ describe("semantic WeChat HTML export", () => {
     expect(html).toContain("Citation</p>");
     // 公众号编辑器解析不了 currentcolor/多值 border 简写，导出必须展开为可见边单值属性
     expect(html).not.toContain("currentcolor");
-    expect(html).toMatch(/<blockquote[^>]+border-left: 3px solid/);
+    // 引用导出为 section（规避微信编辑器对原生 blockquote 的强制灰色左边框），样式全靠内联
+    expect(html).not.toContain("<blockquote");
+    expect(html).toContain("border-left: 3px solid");
     expect(html).toContain("Advice</strong>");
     expect(html).toMatch(/background-color: (?:#1f7a4d|rgb\(31, 122, 77\))/);
+  }, 30_000);
+
+  test("h2 pillar preset exports border-left on the heading section", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "zzhub-wechat-pillar-"));
+    const markdownPath = join(tempDir, "post.md");
+    await writeFile(markdownPath, "## 竖条标题\n\nBody.");
+    const { html } = await exportMarkdownToWechatHtml({
+      markdownPath, outPath: join(tempDir, "post.html"), account: "default",
+      themeOverrides: { syntaxPresets: { h2: "pillar" } },
+    });
+    const h2Tag = html.match(/<section[^>]*>(?:<span[^>]*>[^<]*<\/span>)*竖条标题/)?.[0] ?? "";
+    expect(h2Tag).toContain("border-left: 4px solid");
   }, 30_000);
 
   test.skipIf(findChrome() === null)("Studio saves and resets the same style and ignores stale renders", async () => {
@@ -151,7 +165,7 @@ window.__zzhubRenderReady = (async () => {
     expect(result.html).toBe(html);
     expect(html.length).toBeLessThan(65_400);
     expect(html).toContain("二级标题：清晰但不过度装饰");
-    expect(html).toContain("<blockquote");
+    expect(html).not.toContain("<blockquote");
     expect(html).toContain("重点结论</span>");
     expect(html).not.toContain("==重点结论==");
     expect(html).toContain("==不高亮==");
@@ -197,7 +211,7 @@ window.__zzhubRenderReady = (async () => {
 
     const tagNames = Array.from(html.matchAll(/<\/?([a-z][a-z0-9-]*)\b/gi), (match) => match[1]?.toLowerCase());
     const allowedTags = new Set([
-      "section", "p", "blockquote", "ul", "ol", "li", "pre", "code",
+      "section", "p", "ul", "ol", "li", "pre", "code",
       "span", "strong", "em", "b", "i", "u", "s", "del", "a", "img",
       "br", "hr", "table", "thead", "tbody", "tr", "th", "td",
     ]);
