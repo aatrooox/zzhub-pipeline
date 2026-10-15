@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.1
+
+### Fixes
+
+- Preserve the actual draft receipt when final article style verification fails, so callers can inspect the original result before retrying.
+
 ## v0.20.0
 
 ### Features

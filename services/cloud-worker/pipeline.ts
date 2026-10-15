@@ -169,18 +169,19 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     statePath = current.summary.state_path;
     job.statePath = statePath;
     if (isDone(current)) {
-      const result = current.summary.publish.results.find(item => item.account === input.account);
-      if (result?.status !== "success" || !result.external_id)
-        throw new Error("Pipeline completed without a confirmed WeChat draft media_id");
-      if (articleStyle && result.article_theme_hash !== articleThemeHash)
-        throw new Error("Pipeline completed without the expected article theme hash");
-      job.step = "done";
+      // 校验失败也保留真实草稿身份，供调用方核对原结果而不盲目重发。
       job.result = {
         runId: job.runId,
         phase: current.summary?.phase?.current || "done",
         publishResults: publishResults(current),
         ...styleIdentity,
       };
+      const result = current.summary.publish.results.find(item => item.account === input.account);
+      if (result?.status !== "success" || !result.external_id)
+        throw new Error("Pipeline completed without a confirmed WeChat draft media_id");
+      if (articleStyle && result.article_theme_hash !== articleThemeHash)
+        throw new Error("Pipeline completed without the expected article theme hash");
+      job.step = "done";
       return;
     }
 

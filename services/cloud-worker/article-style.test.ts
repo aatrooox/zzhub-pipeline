@@ -45,7 +45,14 @@ if(args[1]==="init") {
     expect(job.result?.articleThemeHash).toBe((await readArticleTheme(path)).hash);
     expect(job.result?.articleThemeHash).not.toBe(articleStyle.hash);
     if (matching) expect(job.step).toBe("done");
-    else expect(job.step).not.toBe("done");
+    else {
+      expect(job.step).not.toBe("done");
+      expect(job.result?.runId).toBe("fixture-run");
+      expect(job.result?.phase).toBe("done");
+      expect(job.result?.publishResults).toEqual([{
+        account: "test", status: "success", external_id: "SIMULATED_ONLY", article_theme_hash: "mismatched-theme",
+      }]);
+    }
   } finally {
     if (previous === undefined) delete process.env.BUN_BIN; else process.env.BUN_BIN = previous;
     await rm(root, { recursive: true, force: true });
