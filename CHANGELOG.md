@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.21.1
+
+### Fixes
+
+- Pin Typeset Studio 0.3.1 to normalize snapshot cover titles consistently with saved-template previews.
+
 ## v0.21.0
 
 ### Features
