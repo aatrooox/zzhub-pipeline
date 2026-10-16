@@ -127,6 +127,8 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 
 定向检查由主控执行：`bun test services/cloud-worker/capacity.test.ts services/cloud-worker/acceptance.test.ts services/cloud-worker/server.test.ts services/cloud-worker/preview.test.ts src/logger.test.ts src/monitor.test.ts`。真实 Worker／CLI 预览用例仍需显式字体与 Chrome，不能用本地通过替代正式草稿验收。
 
+发布子进程已经启动后，`WX_RESULT_UNKNOWN`、stdout 超限终止、响应缺失或 JSON 不完整都保留为 `interrupted`；完整 CLI 结果明确为失败且无未知写入时才记 `failed`。已取得成功 receipt 后的状态读取或完整性校验失败同样保留 receipt 和 `interrupted`。发布前空间、素材、模板或 hash 校验失败仍为 `failed`。Worker 不自动重排这些原 job/run，调用后端继续保留 unresolved active，核对原状态和草稿箱后再决定处置；定向回归见 `services/cloud-worker/uncertainty.test.ts`。
+
 ### 正文样式快照
 
 新源码的 `/health` 包含 `capabilities.articleStyleSchemaVersions: [1]`。调用方有样式时必须先确认该能力；旧 Worker 缺此字段，不能假设它会应用未知参数。无样式请求不增加字段，沿用原请求 hash 和执行方式。

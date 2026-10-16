@@ -52,12 +52,13 @@ export class WorkerCapacity {
   }
 
   private async checkSpace(additional = 0) {
-    const disk = await statfs(this.root);
     let outstanding = additional;
     for (const reserve of this.reservations.values()) {
       const growth = Math.max(0, await directoryBytes(reserve.workspace) - reserve.initialBytes);
       outstanding += Math.max(0, reserve.bytes - growth);
     }
+    // 先算预留再采空闲值，避免用写入前 free 搭配写入后 growth 重复计空闲。
+    const disk = await statfs(this.root);
     if (disk.bavail * disk.bsize - outstanding < workerLimits.freeBytes) throw new WorkerLimitError("worker_storage_low", 507);
   }
 

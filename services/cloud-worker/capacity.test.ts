@@ -69,3 +69,24 @@ test("artifact source limits reject before creating artifact copies", async () =
   await expect(freezeArticleArtifacts(root, { bodyAssets: [], systemAssets: [] } as unknown as PreparedArticle, html, cover, root)).rejects.toMatchObject({ code: "worker_artifacts_too_large", status: 413 });
   expect(await readdir(root)).not.toContain("artifacts");
 });
+
+test("space checks sample remaining free bytes after observing reservation growth", async () => {
+  const root = await temporary(); const fixture = join(root, "space-order.ts");
+  await writeFile(fixture, `import { mock } from "bun:test";
+import * as fs from "node:fs/promises";
+const original={...fs}; let checking=false, scanned=false; const calls=[];
+mock.module("node:fs/promises",()=>({...original,
+  readdir:async()=>{ if(!checking)return []; scanned=true; calls.push("growth"); return [{name:"bytes",isDirectory:()=>false,isFile:()=>true}]; },
+  stat:async()=>({size:4}),
+  statfs:async()=>{if(checking)calls.push("free"); return {bavail:checking?(scanned?8:12):100,bsize:1};}
+}));
+const {WorkerCapacity,workerLimits}=await import(${JSON.stringify(join(import.meta.dir, "capacity.ts"))});
+Object.assign(workerLimits,{freeBytes:8,jobReserveBytes:8});
+const capacity=new WorkerCapacity("/fixture",()=>[]); await capacity.reserveJob("job","/fixture/job"); checking=true;
+let error; try{await capacity.checkPhase();}catch(value){error=value.code;}
+console.log(JSON.stringify({calls,error}));`);
+  const child = Bun.spawn([process.execPath, fixture], { stdout: "pipe", stderr: "pipe" });
+  const [stdout, stderr, exit] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+  expect(stderr).toBe(""); expect(exit).toBe(0);
+  expect(JSON.parse(stdout)).toEqual({ calls: ["growth", "free"], error: "worker_storage_low" });
+});

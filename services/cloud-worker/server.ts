@@ -1,7 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { executeCloudJob } from "./pipeline";
+import { cloudJobFailureStatus, executeCloudJob } from "./pipeline";
 import { cloudJobProgress } from "./progress";
 import { AccountStore, defaultJobWorkspace, type CloudJobInput, JobStore, type StoredCloudJob } from "./store";
 import { validateArticleStyleSnapshot } from "../../src/article-style";
@@ -145,7 +145,7 @@ async function drain(): Promise<void> {
         if ((job as StoredCloudJob).status !== "preview_ready") { job.status = "succeeded"; job.finishedAt = new Date().toISOString(); }
         await store.set(job);
       } catch (error) {
-        job.status = "failed";
+        job.status = cloudJobFailureStatus(job, error);
         job.error = error instanceof Error ? error.message : String(error);
         job.finishedAt = new Date().toISOString();
         await store.set(job);

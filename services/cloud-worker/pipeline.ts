@@ -20,6 +20,17 @@ interface PipelineCommandResult {
 
 type PipelineTaskStatus = Pick<TaskStatusReport, "summary" | "next_action"> & Partial<Pick<TaskStatusReport, "state">>;
 
+class WorkerPublishUncertainError extends Error {
+  constructor(message: string, readonly results?: Array<Record<string, unknown>>) { super(message); }
+}
+
+/** 已进入发布但缺可靠结果，或已有写入凭据时，保留原任务供核查。 */
+export function cloudJobFailureStatus(job: StoredCloudJob, error: unknown): "failed" | "interrupted" {
+  const results = job.result?.publishResults as Array<Record<string, unknown>> | undefined;
+  return error instanceof WorkerPublishUncertainError || results?.some(result => result.status === "success" || String(result.detail).includes("WX_RESULT_UNKNOWN"))
+    ? "interrupted" : "failed";
+}
+
 function pipelineRoot(): string {
   return resolve(process.env.PIPELINE_ROOT?.trim() || resolve(import.meta.dir, "../.."));
 }
@@ -93,20 +104,25 @@ async function runPipelineCommand(
     boundedOutput(child.stdout, 8 * 1024 * 1024, false, () => child.kill()),
     boundedOutput(child.stderr, 64 * 1024, true),
     child.exited,
-  ]);
+  ]).catch(error => { throw command === "publish" ? new WorkerPublishUncertainError(error instanceof Error ? error.message : String(error)) : error; });
   const stdout = output.text, stderr = `${errors.exceeded ? "[Worker stderr truncated]\n" : ""}${errors.text}`;
-  if (output.exceeded) throw new Error(`${command} returned output above the Worker limit; inspect the original run before retrying`);
+  let result: any = null;
+  const fail = (message: string, uncertain = command === "publish"): never => {
+    throw uncertain ? new WorkerPublishUncertainError(message, Array.isArray(result?.publish_results) ? result.publish_results : undefined) : new Error(message);
+  };
+  if (output.exceeded) fail(`${command} returned output above the Worker limit; inspect the original run before retrying`);
+  if (stdout.trim()) {
+    try { result = JSON.parse(stdout); }
+    catch (error) { fail(`${command} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`); }
+  }
   if (exitCode !== 0) {
     // stdout 可能含正文或完整状态，只转发脱敏后的错误摘要。
-    throw new Error(`${command} failed (exit ${exitCode}): ${errors.exceeded ? "[Worker stderr truncated] " : ""}${redact(errors.text.trim()).slice(-2000)}`);
+    const results = result?.publish_results;
+    const confirmedFailure = Array.isArray(results) && results.length > 0 && results.every(item => item.status === "failed" && !String(item.detail).includes("WX_RESULT_UNKNOWN"));
+    fail(`${command} failed (exit ${exitCode}): ${errors.exceeded ? "[Worker stderr truncated] " : ""}${redact(errors.text.trim()).slice(-2000)}`, command === "publish" && !confirmedFailure);
   }
-  if (!stdout.trim())
-    return { result: null, stderr };
-  try {
-    return { result: JSON.parse(stdout), stderr };
-  } catch (error) {
-    throw new Error(`${command} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  if (command === "publish" && (!Array.isArray(result?.publish_results) || !result.publish_results.length || result.publish_results.some((item: Record<string, unknown>) => String(item.detail).includes("WX_RESULT_UNKNOWN")))) fail("publish returned no confirmed result; inspect the original run before retrying");
+  return { result, stderr };
 }
 
 function stringParam(value: unknown): string | null {
@@ -136,7 +152,7 @@ async function runAction(
   prepared?: PreparedArticle,
   publishing = false,
   artifactManifestHash?: string,
-): Promise<void> {
+): Promise<PipelineCommandResult> {
   const args = ["--state", statePath];
   if (action === "review") {
     args.push("--status", "passed");
@@ -149,7 +165,7 @@ async function runAction(
   } else if (action === "render" && cover) {
     args.push("--studio-cover-template", cover.snapshot.id, "--template-images-file", cover.imagesFile);
   }
-  await runPipelineCommand(workspace, action, args, account, cover, prepared, publishing, artifactManifestHash);
+  return runPipelineCommand(workspace, action, args, account, cover, prepared, publishing, artifactManifestHash);
 }
 
 /** 发布前核对 CLI 已接受精确模板与任务私有素材，防止配置回落仍被确认成功。 */
@@ -274,14 +290,19 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
           const manifest = job.result?.artifactManifest as { artifacts: Array<{ key: string }> };
           for (const artifact of manifest.artifacts) await readArtifact(workspace, artifact.key, String(job.result!.artifactManifestHash), prepared.snapshotHash);
         }
-        await runAction(workspace, statePath, action, {
+        const executed = await runAction(workspace, statePath, action, {
           title: input.title,
           formatted_body_path: current.next_action?.params?.formatted_body_path,
         }, account, cover, prepared, job.publicationRequested === true, job.result?.artifactManifestHash as string | undefined);
+        if (action === "publish") {
+          job.result = { ...job.result, runId: job.runId, publishResults: executed.result.publish_results, ...snapshotIdentity };
+          await store.set(job);
+        }
       } catch (error) {
         // 发布失败时仍保留原运行的业务结果；不得创建新 run 自动重试。
+        if (error instanceof WorkerPublishUncertainError && error.results?.length) job.result = { ...job.result, runId: job.runId, publishResults: error.results, ...snapshotIdentity };
         const latest = await status(workspace, statePath, account, cover, prepared).catch(() => null);
-        if (latest) job.result = { ...job.result, runId: job.runId, publishResults: publishResults(latest), ...snapshotIdentity };
+        if (latest) job.result = { ...job.result, runId: job.runId, ...(publishResults(latest).length ? { publishResults: publishResults(latest) } : {}), ...snapshotIdentity };
         throw error;
       }
       continue;

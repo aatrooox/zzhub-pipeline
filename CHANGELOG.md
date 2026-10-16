@@ -8,6 +8,7 @@
 - Persist accepting jobs before material preparation, share concurrent same-key acceptance, and preserve failed keys without preparing again after failures or restart.
 - Bound shared asset cache capacity and unreferenced retention, concurrent preparation, pinned defaults, child output, Worker diagnostics, and artifact copies.
 - Reserve conservative per-job disk growth and check available space before new writes, first confirmation, and workflow growth phases.
+- Preserve uncertain WeChat writes and known receipts as interrupted jobs, without requeueing the original run or releasing its unresolved business status.
 
 ### Compatibility
 
