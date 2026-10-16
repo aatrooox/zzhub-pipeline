@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { imageSize } from "image-size";
 import { loadImage } from "@napi-rs/canvas";
 import type { BodyAssetIdentity } from "../../src/article-snapshot";
+import { WorkerLimitError, type WorkerCapacity } from "./capacity";
 
 export const maxAssetBytes = 5 * 1024 * 1024;
 const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" } as const;
@@ -18,7 +19,7 @@ export async function readBoundedBody(request: Request, maximum: number): Promis
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > maximum) { await reader.cancel(); throw new Error("Asset body too large"); }
+    if (size > maximum) { await reader.cancel(); throw new WorkerLimitError("worker_material_too_large", 413); }
     chunks.push(value);
   }
   return Buffer.concat(chunks);
@@ -50,19 +51,23 @@ export async function validateSystemAsset(bytes: Buffer, contentType: string) {
   return { sha256: createHash("sha256").update(bytes).digest("hex"), contentType: "image/gif" as const, byteLength: bytes.byteLength, width: decoded.width, height: decoded.height };
 }
 
-export async function putBodyAsset(root: string, sha256: string, request: Request) {
+export async function putBodyAsset(root: string, sha256: string, request: Request, capacity?: WorkerCapacity) {
   const target = assetFile(root, sha256);
   const bytes = await readBoundedBody(request, maxAssetBytes);
   const identity = await validateBodyAsset(bytes, request.headers.get("content-type") || "");
   if (identity.sha256 !== sha256) throw new Error("Asset hash mismatch");
   await mkdir(join(root, "assets"), { recursive: true, mode: 0o700 });
-  const previous = await readFile(target).catch(error => { if (error.code === "ENOENT") return null; throw error; });
-  if (previous && !previous.equals(bytes)) throw new Error("Stored asset bytes mismatch");
-  if (!previous) {
+  const write = async () => {
+    const previous = await readFile(target).catch(error => { if (error.code === "ENOENT") return null; throw error; });
+    if (previous && !previous.equals(bytes)) throw new Error("Stored asset bytes mismatch");
+    if (previous) { const now = new Date(); await utimes(target, now, now); return; }
     const temporary = `${target}.${crypto.randomUUID()}.tmp`;
-    await writeFile(temporary, bytes, { mode: 0o600 });
-    await rename(temporary, target);
-  }
+    try {
+      await writeFile(temporary, bytes, { mode: 0o600 });
+      await rename(temporary, target);
+    } finally { await rm(temporary, { force: true }); }
+  };
+  if (capacity) await capacity.writeCache(target, bytes.length, write); else await write();
   return identity;
 }
 

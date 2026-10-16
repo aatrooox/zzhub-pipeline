@@ -28,7 +28,7 @@ beforeEach(async () => {
 afterEach(async () => {
   stop?.();
   stop = undefined;
-  for (const key of ["ZZHUB_PIPELINE_MONITOR_DIR", "ZZHUB_PIPELINE_LOG_DIR", "ZZHUB_PIPELINE_CONFIG", "ZZHUB_PIPELINE_MONITOR", "NO_COLOR"]) {
+  for (const key of ["ZZHUB_PIPELINE_MONITOR_DIR", "ZZHUB_PIPELINE_LOG_DIR", "ZZHUB_PIPELINE_CONFIG", "ZZHUB_PIPELINE_MONITOR", "ZZHUB_PIPELINE_WORKER_BUDGET", "NO_COLOR"]) {
     if (previousEnv[key] === undefined) delete process.env[key];
     else process.env[key] = previousEnv[key];
   }
@@ -176,6 +176,22 @@ test("incomplete final records resume on the next read and state aliases keep on
   await store.refresh();
   expect(store.snapshot().executions[0]?.status).toBe("exited");
   expect(store.snapshot().tasks[0]?.state_path).toContain("posts/test/workflow-state.json");
+});
+
+test("trusted Worker caps individual and cumulative events while returning the original failure", async () => {
+  process.env.ZZHUB_PIPELINE_WORKER_BUDGET = "1";
+  const message = "字".repeat(5000);
+  const outcome = await runWithCommandLog("render", [], async () => {
+    for (let index = 0; index < 1100; index++) reportProgress({ stage: `stage-${index}`, message });
+    return { status: "failed", errors: [{ code: "RENDER_FAILED", message: "原始最终错误" }] };
+  });
+  expect(outcome.errors?.[0]?.message).toBe("原始最终错误");
+  const directory = join(process.env.ZZHUB_PIPELINE_MONITOR_DIR!, "events");
+  const raw = await readFile(join(directory, (await readdir(directory))[0]!), "utf8");
+  const events = raw.trim().split("\n").map(line => JSON.parse(line));
+  expect(raw).toContain("truncated");
+  expect(Buffer.byteLength(raw)).toBeLessThan(LOG_LIMIT + 64 * 1024);
+  expect(events.at(-1)).toMatchObject({ type: "finished", data: { exit_code: 1, outcome: { errors: [{ message: "原始最终错误" }] } } });
 });
 
 test("HTTP/SSE support auth, shared subscriptions, cursor replay, resync and server restart", async () => {

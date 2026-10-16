@@ -1,19 +1,25 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createArtifactManifest, hashArtifactManifest, validateArtifactManifest, type ArtifactManifest } from "../../src/article-snapshot";
 import type { FrozenArticleArtifacts } from "../../src/providers/article-export";
 import type { PreparedArticle } from "./job-materials";
 import { assetExtension } from "./assets";
+import { WorkerLimitError } from "./capacity";
 
 export function artifactsPath(workspace: string): string { return join(workspace, "artifacts", "manifest.json"); }
 
 /** 固定 HTML 的实际图片属性；代码文本中的相同字符串保持原样。 */
 export async function freezeArticleArtifacts(workspace: string, prepared: PreparedArticle, htmlPath: string, coverPath: string, assetPath: string) {
+  const sourceSizes = await Promise.all([htmlPath, coverPath, ...prepared.bodyAssets.map(asset => asset.path), ...prepared.systemAssets.map(asset => asset.path)].map(async path => (await stat(path)).size));
+  if (sourceSizes.some(size => size > 50 * 1024 * 1024) || sourceSizes.reduce((sum, size) => sum + size, 0) > 256 * 1024 * 1024) throw new WorkerLimitError("worker_artifacts_too_large", 413);
   const directory = join(workspace, "artifacts"); await mkdir(directory, { recursive: true, mode: 0o700 });
   const files: Record<string, string> = {};
   const identities: ArtifactManifest["artifacts"] = [];
+  let total = 0;
   const store = async (key: string, kind: "html" | "cover" | "media", contentType: ArtifactManifest["artifacts"][number]["contentType"], bytes: Buffer, filename: string) => {
+    total += bytes.length;
+    if (bytes.length > 50 * 1024 * 1024 || total > 256 * 1024 * 1024) throw new WorkerLimitError("worker_artifacts_too_large", 413);
     files[key] = filename;
     await writeFile(join(directory, filename), bytes, { mode: 0o600 });
     identities.push({ key, kind, contentType, byteLength: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") });

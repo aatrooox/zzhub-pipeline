@@ -19,6 +19,8 @@ interface Recording {
   progressAccount?: string;
   ended?: boolean;
   tasks: Set<string>;
+  eventBytes: number;
+  eventTruncated: boolean;
 }
 
 /** 调用上下文自动穿过内置异步流程，不要求业务函数传监控对象。 */
@@ -29,8 +31,25 @@ function emit(type: MonitorEvent["type"], data: Record<string, unknown>): void {
   const current = recording.getStore();
   if (!current || current.disabled || current.ended) return;
   try {
-    const event: MonitorEvent = { version: 1, execution_id: current.id, seq: ++current.seq, at: new Date().toISOString(), type, data };
-    appendFileSync(current.file, `${JSON.stringify(event)}\n`, { encoding: "utf8", mode: 0o600 });
+    let event: MonitorEvent = { version: 1, execution_id: current.id, seq: ++current.seq, at: new Date().toISOString(), type, data };
+    if (process.env.ZZHUB_PIPELINE_WORKER_BUDGET === "1") {
+      // 仅截断观测内容，终态与调用方原异常、退出码和业务 receipt 不受影响。
+      event = JSON.parse(JSON.stringify(event, (_key, value) => typeof value === "string" && value.length > 4096 ? `${redact(value.slice(0, 4096))} [truncated]` : value)) as MonitorEvent;
+      if (Buffer.byteLength(JSON.stringify(event)) > 64 * 1024) {
+        const outcome = event.data.outcome as CommandOutcome | undefined;
+        event.data = type === "finished" ? { exit_code: event.data.exit_code, outcome: { status: outcome?.status, errors: outcome?.errors?.slice(0, 3).map(error => ({ code: error.code, message: error.message })) }, truncated: true }
+          : { level: "warn", message: "Worker 观测事件超过单条上限，内容已截断。", truncated: true };
+        if (type !== "finished") event.type = "log";
+      }
+      if (current.eventTruncated && type !== "finished") return;
+      if (current.eventBytes + Buffer.byteLength(JSON.stringify(event)) > LOG_LIMIT && type !== "finished") {
+        current.eventTruncated = true;
+        event.type = "log"; event.data = { level: "warn", message: "Worker 观测事件达到上限，后续事件截断；业务错误和终态保留。", truncated: true };
+      }
+    }
+    const line = `${JSON.stringify(event)}\n`;
+    appendFileSync(current.file, line, { encoding: "utf8", mode: 0o600 });
+    current.eventBytes += Buffer.byteLength(line);
   } catch {
     // 只停用本次记录，不重试、不递归写日志，也不影响业务结果。
     current.disabled = true;
@@ -115,7 +134,7 @@ export async function observeCommand(command: string, handler: () => Promise<Com
     const dir = join(monitorDir(), "events");
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     const id = crypto.randomUUID();
-    context = { id, file: join(dir, `${id}.jsonl`), seq: 0, disabled: false, logBytes: 0, truncated: false, lastProgressAt: 0, progressKey: "", tasks: new Set() };
+    context = { id, file: join(dir, `${id}.jsonl`), seq: 0, disabled: false, logBytes: 0, truncated: false, lastProgressAt: 0, progressKey: "", tasks: new Set(), eventBytes: 0, eventTruncated: false };
   } catch { return handler(); }
 
   return recording.run(context, async () => {

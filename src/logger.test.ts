@@ -7,10 +7,13 @@ import { getDailyLogPath, getLogDir, runWithCommandLog } from "./logger";
 describe("pipeline daily logger", () => {
   const previousLogDir = process.env.ZZHUB_PIPELINE_LOG_DIR;
   const previousMonitor = process.env.ZZHUB_PIPELINE_MONITOR;
+  const previousBudget = process.env.ZZHUB_PIPELINE_WORKER_BUDGET;
   beforeEach(() => { process.env.ZZHUB_PIPELINE_MONITOR = "0"; });
   let tempDir: string | null = null;
 
   afterEach(() => {
+    if (previousBudget === undefined) delete process.env.ZZHUB_PIPELINE_WORKER_BUDGET;
+    else process.env.ZZHUB_PIPELINE_WORKER_BUDGET = previousBudget;
     if (previousMonitor === undefined) delete process.env.ZZHUB_PIPELINE_MONITOR;
     else process.env.ZZHUB_PIPELINE_MONITOR = previousMonitor;
     if (previousLogDir === undefined) {
@@ -79,5 +82,17 @@ describe("pipeline daily logger", () => {
     expect(body).toContain("=== FAIL command=publish");
     expect(body).toContain("Error: boom-upload");
     expect(body).toContain("boom-upload");
+  });
+
+  test("trusted Worker truncates diagnostic lines without changing the original exception", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "zzhub-pipeline-log-"));
+    process.env.ZZHUB_PIPELINE_LOG_DIR = tempDir;
+    process.env.ZZHUB_PIPELINE_WORKER_BUDGET = "1";
+    const message = `original-error-${"x".repeat(20_000)}`;
+    await expect(runWithCommandLog("publish", [], async () => { throw new Error(message); })).rejects.toThrow(message);
+    const body = readFileSync(getDailyLogPath(), "utf8");
+    expect(body).toContain("[truncated]");
+    expect(body).toContain("=== FAIL command=publish");
+    expect(Buffer.byteLength(body)).toBeLessThan(6000);
   });
 });

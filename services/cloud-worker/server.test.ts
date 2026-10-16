@@ -35,6 +35,9 @@ test("worker defaults to loopback and authenticates health and job requests", as
     expect((await fetch(`${url}/health`, { headers: { Authorization: "Bearer wrong" } })).status).toBe(401);
     expect((await fetch(`${url}/health`, { headers })).status).toBe(200);
     expect((await (await fetch(`${url}/health`, { headers })).json()).capabilities.articleStyleSchemaVersions).toEqual([1]);
+    expect(await (await fetch(`${url}/health`, { headers })).json()).toMatchObject({ accepting: 0, preparing: 0, assetWrites: 0, capabilities: { jobLookupByIdempotencyKey: true } });
+    expect((await fetch(`${url}/v1/jobs/by-idempotency-key?idempotencyKey=absent&account=test`, { headers })).status).toBe(404);
+    expect((await fetch(`${url}/v1/jobs/by-idempotency-key?idempotencyKey=a&idempotencyKey=b&account=test`, { headers })).status).toBe(400);
     expect((await fetch(`${url}/v1/jobs/missing`)).status).toBe(401);
     expect((await fetch(`${url}/v1/jobs/missing`, { headers })).status).toBe(404);
 
@@ -59,6 +62,11 @@ test("worker defaults to loopback and authenticates health and job requests", as
     expect(created.status).toBe(202);
     const job = await created.json();
     expect(job.input.newspic).toEqual(input.newspic);
+    expect(job.bodyHash).toBe(createHash("sha256").update(input.body).digest("hex"));
+    const lookup = `${url}/v1/jobs/by-idempotency-key?idempotencyKey=${input.idempotencyKey}&account=${input.account}`;
+    expect((await (await fetch(lookup, { headers })).json()).id).toBe(job.id);
+    expect((await fetch(lookup, { headers })).headers.get("cache-control")).toBe("no-store");
+    expect((await fetch(lookup.replace(input.account, "wrong-account"), { headers })).status).toBe(409);
     expect((await (await submit(input)).json()).id).toBe(job.id);
     expect((await fetch(`${url}/v1/maintenance`, { method: "PUT", body: JSON.stringify({ enabled: true }) })).status).toBe(401);
     expect((await fetch(`${url}/v1/maintenance`, { method: "PUT", headers, body: JSON.stringify({ enabled: true }) })).status).toBe(200);

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.23.0
+
+### Features
+
+- Add authenticated job lookup by the original idempotency key and Worker account, with immutable body hashes on job responses.
+- Persist accepting jobs before material preparation, share concurrent same-key acceptance, and preserve failed keys without preparing again after failures or restart.
+- Bound shared asset cache capacity and unreferenced retention, concurrent preparation, pinned defaults, child output, Worker diagnostics, and artifact copies.
+- Reserve conservative per-job disk growth and check available space before new writes, first confirmation, and workflow growth phases.
+
+### Compatibility
+
+- Preserve CLI next-action execution, old request hashes, queued restart recovery, and running-job interruption behavior.
+- Keep myno 0.4.1 and Typeset Studio 0.4.0; Worker-only output guards do not change ordinary CLI limits.
+
 ## v0.22.0
 
 ### Features

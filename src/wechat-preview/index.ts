@@ -548,6 +548,9 @@ export async function exportMarkdownToWechatHtml(
     }
 
     const html = result.html;
+    if (process.env.ZZHUB_PIPELINE_WORKER_BUDGET === "1" && Buffer.byteLength(html, "utf8") > 50 * 1024 * 1024) {
+      throw makeError("render_error", "Worker HTML export exceeds 50 MiB");
+    }
     const semanticHtml =
       "semanticHtml" in result && typeof result.semanticHtml === "string"
         ? result.semanticHtml

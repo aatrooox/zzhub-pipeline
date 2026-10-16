@@ -5,7 +5,7 @@ import type { ArticleStyleSnapshot } from "../../src/article-style";
 import type { CoverSnapshot } from "../../src/cover-snapshot";
 import type { ArticleSnapshot } from "../../src/article-snapshot";
 
-export type CloudJobStatus = "queued" | "running" | "preview_ready" | "succeeded" | "failed" | "interrupted";
+export type CloudJobStatus = "accepting" | "queued" | "running" | "preview_ready" | "succeeded" | "failed" | "interrupted";
 
 export interface CloudJobInput {
   idempotencyKey: string;
@@ -44,6 +44,7 @@ export interface StoredCloudJob extends CloudJob {
   statePath: string | null;
   publicationRequested?: boolean;
   preparedHash?: string;
+  acceptanceIncomplete?: boolean;
 }
 
 export interface PipelineWorkerAccount {
@@ -71,7 +72,14 @@ export class JobStore {
       if (!Array.isArray(parsed.jobs)) throw new Error("Invalid worker job store");
       for (const job of parsed.jobs) {
         job.requestHash ||= createHash("sha256").update(JSON.stringify({ ...job.input, body: job.body })).digest("hex");
-        if (job.status === "running") {
+        if (job.status === "accepting") {
+          job.status = "failed";
+          job.error = "worker_acceptance_interrupted";
+          job.step = "acceptance";
+          job.finishedAt = new Date().toISOString();
+          job.updatedAt = job.finishedAt;
+          job.acceptanceIncomplete = true;
+        } else if (job.status === "running") {
           job.status = "interrupted";
           job.error = "Worker interrupted; inspect the original Pipeline run and draft box before retrying. Publishing may already have succeeded.";
           job.finishedAt = new Date().toISOString();

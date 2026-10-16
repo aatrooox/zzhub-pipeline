@@ -12,7 +12,7 @@ Web / App / 桌面端 → 业务后端 → 私有 Worker → Pipeline CLI → �
 
 Worker 是 [Pipeline](../../README.md) 仓库中的部署组件，不是独立 npm 包。现有应用消费方包括 Nezus 后端；其他后端可按本文 HTTP 契约接入，无需依赖该应用。正文可通过 [myno](https://github.com/k7airos/myno) 排版，封面与贴图可通过 [Typeset Studio](https://github.com/k7airos/typeset-studio) 渲染，均由 Pipeline 配置选择。
 
-Pipeline 0.22.0 固定安装 myno 0.4.1，并从 myno 复用正文 CSS。完整 myno 排版配置示例：
+Pipeline 0.23.0 固定安装 myno 0.4.1，并从 myno 复用正文 CSS。完整 myno 排版配置示例：
 
 ```json
 {
@@ -89,6 +89,11 @@ docker run -d --name pipeline-worker --restart unless-stopped \
 | `ZZHUB_PIPELINE_BRANDING_LOGO` | Docker 默认使用镜像内 Logo；可指定容器内已挂载图片路径 |
 | `PIPELINE_ROOT` / `BUN_BIN` | 可覆盖源码根目录 / Bun 可执行路径，一般无需设置 |
 | `TYPESET_ARTICLE_COVER_FONT_PATH` | 受信部署字体路径；默认 `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`，任务不能覆盖 |
+| `PIPELINE_WORKER_CACHE_BYTES` | 共享正文素材缓存上限，默认 512 MiB，包含临时文件 |
+| `PIPELINE_WORKER_CACHE_TTL_MS` | 未被保留任务引用的缓存过期时间，默认 30 分钟 |
+| `PIPELINE_WORKER_PREPARE_CONCURRENCY` | 同时接收并准备任务上限，默认 2；没有等待重材料的队列 |
+| `PIPELINE_WORKER_FREE_BYTES` | 扣除未实际消耗预留后的可用磁盘安全余量，默认 4 GiB |
+| `PIPELINE_WORKER_JOB_RESERVE_BYTES` | 每个准备／执行中任务的保守增长预留，默认 1 GiB |
 
 Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过子进程环境注入；不接受在任务正文参数里传入凭据。Pipeline 基础配置中的账号可提供样式，但当前 Worker 不会用它替代账号存储中的注册。
 
@@ -104,8 +109,23 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 | `DELETE /v1/accounts/:account` | 删除同步的凭据，返回 `deleted`；不删除微信草稿 |
 | `POST /v1/jobs` | 新任务返回 `202`；相同幂等键及内容返回原任务 `200` |
 | `GET /v1/jobs/:id` | 查询任务；不存在返回 `404` |
+| `GET /v1/jobs/by-idempotency-key?idempotencyKey=...&account=...` | 按原键与原 Worker 账号只读找回任务；无任务 `404`，账号不匹配 `409` |
 
-未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。无封面快照请求仍限 2,500,000 字节；带封面请求上限 4,500,000 字节，Bun 同时限制实际读取大小，不依赖调用方声明的 Content-Length。当前没有任务列表、取消、重试、SSE 或文件上传接口。
+未认证为 `401`，非法输入为 `400`，相同幂等键对应不同输入为 `409 idempotency_conflict`。无封面快照请求仍限 2,500,000 字节；带封面请求上限 4,500,000 字节，Bun 同时限制实际读取大小，不依赖调用方声明的 Content-Length。当前没有任务列表、取消、重试、SSE 或任意文件上传接口；正文素材有下文的受限二进制入口。
+
+### 接收恢复与容量门禁（0.23.0）
+
+`/health.capabilities.jobLookupByIdempotencyKey=true` 声明原键找回能力。该 GET 要求一份 `idempotencyKey` 和 `account`，拒绝重复或未知查询参数，并设置 `Cache-Control: no-store`。包括提交、按 ID／键查询及确认在内的任务响应都包含 `bodyHash`（原始 UTF-8 正文 SHA-256），保留 `input`、`requestHash`、`publicationRequested`。业务后端先核对不可变输入和正文 hash，再采用找到的 job ID；无 ID 的未知提交尤其在连接停用后只走 GET，不能重传凭据、素材、新建任务或再次确认。
+
+首次提交在重材料处理前持久化 `status/step=accepting` 和固定 job 身份。HTTP 仍同步完成准备后返回原 `202`；同键并发只共用短暂的持久化接收过程，随后返回同一 `accepting`／终态，不重复准备。并发准备超限在接收前返回 `429 worker_prepare_busy`。接收后准备失败保存同一 `failed` 任务和原键，清理未采用的任务目录；重复 POST 返回原失败。重启将 `accepting` 变为 `failed/worker_acceptance_interrupted`，仅清其未采用材料；保留已排队材料和全部历史已采用材料，`queued` 继续，`running` 沿用 `interrupted`。
+
+`/health` 同时提供 `accepting`、`preparing`、`assetWrites` 计数；`assetWrites` 覆盖请求体读取、解码和缓存落盘。维护备份需等待这三项均为 0、`queued=0` 且 `running=false`。新素材最多两份请求并行，超限 `429 worker_asset_busy`。缓存写入串行核总量，只移除超过 TTL 且没有任何保留任务引用的文件；任何状态的保留任务都保护其素材。启动时清理受控上传临时文件，不为腾空间删除被引用素材。
+
+缓存满或空间不足返回 `507 worker_cache_full/worker_storage_low`，输入或材料超限为 `413`。新素材、接收准备、首次确认和每次增长阶段要求 `free - outstanding reservations - new budget >= 4 GiB`；准备／执行预留随任务实际写入减少，完成时释放。1 GiB 是保守增长预留，不能视为任意旧插件、全部磁盘或 owner 的硬配额。首次确认前空间不足不接受发布；已经持久化 `publicationRequested` 的任务执行前失败仍保留原确认与 run，不能换键盲重排。已存在任务的查询与幂等结果读取始终可用。
+
+完整文章准备限制：header／cover 默认资源合计最多 8 项、20 MiB，每项 5 MiB；metadata／config／template／snapshot 累计 8 MiB，resolver stdout 8 MiB，固定字体实际字节核验后复制。产物在复制前核单项 50 MiB、总量 256 MiB。Worker 子进程 stdout 限 8 MiB，超限终止并排空子进程，绝不把截断 JSON 当成功；stderr 只留 64 KiB 尾部并注明截断。可信 Worker 环境下 HTML 落盘限 50 MiB，诊断日志和监控事件限制单条／累计内容并保留截断标记、退出状态及原业务返回／异常。普通 CLI 不启用这些新增输出门禁；Typeset 固定封面沿用有限尺寸和阶段水位，未增加通用 PNG 字节沙箱。
+
+定向检查由主控执行：`bun test services/cloud-worker/capacity.test.ts services/cloud-worker/acceptance.test.ts services/cloud-worker/server.test.ts services/cloud-worker/preview.test.ts src/logger.test.ts src/monitor.test.ts`。真实 Worker／CLI 预览用例仍需显式字体与 Chrome，不能用本地通过替代正式草稿验收。
 
 ### 正文样式快照
 

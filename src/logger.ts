@@ -14,6 +14,7 @@ import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { outcomeExitCode, type CommandOutcome } from "./command-outcome";
 import { observeCommand, reportLog } from "./monitor/recorder";
+import { LOG_LIMIT, redact } from "./monitor/runtime";
 
 const APP_DIR = "zzhub-pipeline";
 const LOG_DIR_NAME = "logs";
@@ -158,7 +159,20 @@ export async function runWithCommandLog(
     const startedAt = new Date();
     const startedMs = Date.now();
     const logPath = getDailyLogPath(startedAt);
-    const write = (message: string) => {
+    let logBytes = 0;
+    let truncated = false;
+    const write = (message: string, terminal = false) => {
+      if (process.env.ZZHUB_PIPELINE_WORKER_BUDGET === "1") {
+        if (truncated && !terminal) return;
+        const oversized = message.length > 4096;
+        message = redact(message);
+        if (oversized) message = `${message} [truncated]`;
+        if (logBytes + Buffer.byteLength(message) > LOG_LIMIT && !terminal) {
+          truncated = true;
+          message = "[truncated] Worker diagnostic log limit reached; command outcome remains available.";
+        }
+        logBytes += Buffer.byteLength(message) + 30;
+      }
       appendLogLine(`[${new Date().toISOString()}] ${message}`, startedAt);
     };
 
@@ -177,12 +191,14 @@ export async function runWithCommandLog(
         outcome = { status: "failed", errors: [{ code: "PROCESS_EXIT", message: `进程退出：${process.exitCode}` }] };
       }
       const label = outcomeExitCode(outcome) ? "FAIL" : outcome.status === "success" ? "OK" : outcome.status.toUpperCase();
-      write(`=== ${label} command=${command} duration_ms=${Date.now() - startedMs} ===`);
-      for (const error of outcome.errors ?? []) write(`${error.code}: ${error.message}${error.cause ? `\n${error.cause}` : ""}`);
+      write(`=== ${label} command=${command} duration_ms=${Date.now() - startedMs} ===`, true);
+      const errors = process.env.ZZHUB_PIPELINE_WORKER_BUDGET === "1" ? outcome.errors?.slice(0, 3) : outcome.errors;
+      for (const error of errors ?? []) write(`${error.code}: ${error.message}${error.cause ? `\n${error.cause}` : ""}`, true);
+      if (errors && outcome.errors!.length > errors.length) write("[truncated] Additional errors remain in the command result.", true);
       return outcome;
     } catch (err) {
-      write(`=== FAIL command=${command} duration_ms=${Date.now() - startedMs} ===`);
-      write(formatError(err));
+      write(`=== FAIL command=${command} duration_ms=${Date.now() - startedMs} ===`, true);
+      write(formatError(err), true);
       throw err;
     } finally {
       restoreConsole();

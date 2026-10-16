@@ -8,6 +8,8 @@ import { validateArticleStyleSnapshot } from "../../src/article-style";
 import { readArticleTheme } from "../../src/article-theme";
 import { materializeCoverSnapshot, type JobCoverMaterials } from "./cover";
 import { ARTICLE_COVER_IMAGE_KEY } from "@akairos/typeset-studio/cover";
+import type { WorkerCapacity } from "./capacity";
+import { boundedOutput } from "./bounded-output";
 import { readPreparedArticle, preparedCover, type PreparedArticle } from "./job-materials";
 import { artifactsPath, freezeArticleArtifacts } from "./artifacts";
 
@@ -37,6 +39,7 @@ function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null, 
   env.ZZHUB_PIPELINE_WORKSPACE_ROOT = workspace;
   env.ZZHUB_PIPELINE_ZOTEPAD_EXPORT_HTML = join(workspace, "exports", "post.html");
   env.ZZHUB_PIPELINE_LOG_DIR = join(workspace, "logs");
+  env.ZZHUB_PIPELINE_WORKER_BUDGET = "1";
   if (process.env.PIPELINE_CONFIG_FILE?.trim())
     env.ZZHUB_PIPELINE_CONFIG = process.env.PIPELINE_CONFIG_FILE.trim();
   if (account) {
@@ -86,14 +89,16 @@ async function runPipelineCommand(
     stdout: "pipe",
     stderr: "pipe",
   });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+  const [output, errors, exitCode] = await Promise.all([
+    boundedOutput(child.stdout, 8 * 1024 * 1024, false, () => child.kill()),
+    boundedOutput(child.stderr, 64 * 1024, true),
     child.exited,
   ]);
+  const stdout = output.text, stderr = `${errors.exceeded ? "[Worker stderr truncated]\n" : ""}${errors.text}`;
+  if (output.exceeded) throw new Error(`${command} returned output above the Worker limit; inspect the original run before retrying`);
   if (exitCode !== 0) {
     // stdout 可能含正文或完整状态，只转发脱敏后的错误摘要。
-    throw new Error(`${command} failed (exit ${exitCode}): ${redact(stderr.trim()).slice(-2000)}`);
+    throw new Error(`${command} failed (exit ${exitCode}): ${errors.exceeded ? "[Worker stderr truncated] " : ""}${redact(errors.text.trim()).slice(-2000)}`);
   }
   if (!stdout.trim())
     return { result: null, stderr };
@@ -156,7 +161,7 @@ function verifyCoverSelection(current: PipelineTaskStatus, cover: JobCoverMateri
 }
 
 /** 按 Pipeline 自己的 next_action 推进，避免在 worker 复制状态机规则。 */
-export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput, store: JobStore, accounts: AccountStore, root: string): Promise<void> {
+export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput, store: JobStore, accounts: AccountStore, root: string, capacity?: WorkerCapacity): Promise<void> {
   const account = accounts.get(input.account);
   if (!account)
     throw new Error(`Pipeline account is not configured: ${input.account}`);
@@ -238,6 +243,9 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
     const action = stringParam(current.next_action?.action);
     if (!action)
       throw new Error("Pipeline returned no next_action before completion");
+
+    // 只在增长阶段进入前核安全水位，读取旧状态和结果始终可用。
+    if (["attach-body", "prepare", "prepare-finalize", "render", "publish"].includes(action)) await capacity?.checkPhase();
 
     job.step = action;
     await store.set(job);

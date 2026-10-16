@@ -67,12 +67,14 @@ test("preview_ready重启保持待确认，只有正在执行的原任务标为i
     const file = join(root, "jobs.json");
     const now = new Date().toISOString();
     const base = { requestHash: "fixture", input: { idempotencyKey: "preview", account: "test", title: "test", contentForm: "article" }, body: "body", step: "preview_ready", runId: "original", error: null, result: {}, statePath: "/original", createdAt: now, updatedAt: now, startedAt: now, finishedAt: null, publicationRequested: false };
-    await writeFile(file, JSON.stringify({ jobs: [{ ...base, id: "ready", status: "preview_ready" }, { ...base, id: "running", status: "running", publicationRequested: true }] }));
+    await writeFile(file, JSON.stringify({ jobs: [{ ...base, id: "ready", status: "preview_ready" }, { ...base, id: "running", status: "running", publicationRequested: true }, { ...base, id: "accepting", status: "accepting" }, { ...base, id: "queued", status: "queued" }] }));
     const store = new JobStore(file); await store.load();
     expect(store.get("ready")!.status).toBe("preview_ready");
     expect(store.get("ready")!.publicationRequested).toBe(false);
     expect(store.get("running")!.status).toBe("interrupted");
     expect(store.get("running")!.runId).toBe("original");
+    expect(store.get("accepting")).toMatchObject({ status: "failed", error: "worker_acceptance_interrupted", acceptanceIncomplete: true });
+    expect(store.get("queued")!.status).toBe("queued");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
