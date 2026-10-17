@@ -20,12 +20,12 @@ function snapshot() {
   });
 }
 
-test("字体文件缺失不声明封面能力且禁止落盘执行", async () => {
+test("字体文件缺失仅声明已渲染封面能力且禁止旧版落盘执行", async () => {
   const root = await mkdtemp(join(tmpdir(), "zzp-cover-font-"));
   const previous = process.env.TYPESET_ARTICLE_COVER_FONT_PATH;
   try {
     process.env.TYPESET_ARTICLE_COVER_FONT_PATH = join(root, "missing.ttc");
-    expect((await coverCapabilities()).coverSnapshotSchemaVersions).toEqual([]);
+    expect((await coverCapabilities()).coverSnapshotSchemaVersions).toEqual([2]);
     await expect(materializeCoverSnapshot(root, snapshot())).rejects.toThrow("font file is unavailable");
     await writeFile(process.env.TYPESET_ARTICLE_COVER_FONT_PATH, "not a font");
     await expect(materializeCoverSnapshot(root, snapshot())).rejects.toThrow("font hash mismatch");

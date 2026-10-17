@@ -2,7 +2,8 @@ import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { createCanvas } from "@napi-rs/canvas";
 import { ARTICLE_COVER_FONT, DEFAULT_ARTICLE_COVER_CONTROLS } from "@akairos/typeset-studio/cover";
-import { createCoverSnapshot, validateCoverSnapshot } from "../cover-snapshot";
+import { createCoverSnapshot, createRenderedCoverSnapshot, coverSnapshotIdentity, hashRenderedCoverTitle, validateCoverSnapshot } from "./cover-snapshot";
+import { canonicalHash } from "./snapshot-identity";
 
 function input() {
   const canvas = createCanvas(1000, 1000);
@@ -40,4 +41,17 @@ test("封面快照拒绝任意配置、路径、字体、字节篡改和超范�
   ]) expect(() => createCoverSnapshot({ ...fields, ...patch })).toThrow();
   const bytes = createCanvas(10, 10).toBuffer("image/jpeg");
   expect(() => createCoverSnapshot({ ...fields, asset: { ...fields.asset, sha256: createHash("sha256").update(bytes).digest("hex"), dataBase64: bytes.toString("base64") } })).toThrow("1000x1000");
+});
+
+test("已渲染v2封面绑定标题、源模板、素材、字体与最终PNG身份", () => {
+  const input = { id: "e4a31a9b-f449-4bde-9226-1a0c7c543d8e", revision: 1, name: "完整封面", sourceHash: "a".repeat(64), assetsHash: "b".repeat(64),
+    titleHash: hashRenderedCoverTitle(" 完整标题 "), fontHashes: [{ id: "font-b", sha256: "c".repeat(64) }, { id: "font-a", sha256: "d".repeat(64) }],
+    renderedAsset: { id: "73edcb41-c90e-41da-9dcc-aaf9aa2a1cb4", sha256: "e".repeat(64), contentType: "image/png", byteLength: 1000, width: 3350, height: 1000 } };
+  const snapshot = createRenderedCoverSnapshot(input);
+  expect(validateCoverSnapshot(snapshot)).toEqual(snapshot);
+  expect(snapshot.fontHashes[0]!.id).toBe("font-a");
+  expect(createRenderedCoverSnapshot({ ...input, fontHashes: [...input.fontHashes].reverse() }).hash).toBe(snapshot.hash);
+  expect(coverSnapshotIdentity(snapshot)).toEqual({ coverSnapshotHash: snapshot.hash, coverAssetHash: input.renderedAsset.sha256, coverFontHash: canonicalHash(snapshot.fontHashes) });
+  for (const patch of [{ sourceHash: "f".repeat(64) }, { hash: "0".repeat(64) }, { path: "/tmp/cover.png" }, { renderedAsset: { ...input.renderedAsset, width: 2350 } }]) expect(() => validateCoverSnapshot({ ...snapshot, ...patch })).toThrow();
+  expect(() => createRenderedCoverSnapshot({ ...input, fontHashes: [input.fontHashes[0], input.fontHashes[0]] })).toThrow("Duplicate");
 });

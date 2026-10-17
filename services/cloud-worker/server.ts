@@ -90,6 +90,7 @@ function validateInput(value: unknown): CloudJobInput {
   if (input.operation !== undefined && input.operation !== "preview") throw new Error("operation must be preview when present");
   if ((input.operation === "preview") !== (input.articleSnapshot !== undefined)) throw new Error("preview requires articleSnapshot");
   if (input.operation === "preview" && (contentForm !== "article" || input.newspic !== undefined || input.existingDraftMediaId)) throw new Error("preview only supports new article drafts");
+  if ((coverSnapshot?.schemaVersion === 2 || articleStyle?.schemaVersion === 2) && input.operation !== "preview") throw new Error("Version 2 configuration requires article preview");
   const articleSnapshot = input.articleSnapshot !== undefined ? validateArticleSnapshot(input.articleSnapshot, { title, body, account, articleStyle, coverSnapshot }) : undefined;
   return {
     idempotencyKey,
@@ -193,7 +194,7 @@ async function main(): Promise<void> {
       if (url.pathname === "/health" && request.method === "GET")
         return json({ service: "zzhub-pipeline-worker", status: "ok", queued: queue.length, running: draining, accepting: [...store.jobs.values()].filter(job => job.status === "accepting").length,
           preparing: capacity.preparingCount, assetWrites, accounts: accounts.accounts.size, maintenance,
-          capabilities: { articleStyleSchemaVersions: [1], articleSnapshotSchemaVersions: [1], previewConfirm: true, bodyAssetUpload: true, jobLookupByIdempotencyKey: true, ...await coverCapabilities() } });
+          capabilities: { articleStyleSchemaVersions: [1, 2], articleSnapshotSchemaVersions: [1], previewConfirm: true, bodyAssetUpload: true, jobLookupByIdempotencyKey: true, ...await coverCapabilities() } });
 
       try {
         const assetMatch = url.pathname.match(/^\/v1\/assets\/([a-f\d]{64})$/);

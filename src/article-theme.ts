@@ -43,7 +43,7 @@ export interface ArticleThemePackage {
 
 /** 本地主题与云端快照共用 CSS 边界，禁止隐藏外部资源。 */
 export function validateArticleThemeCss(manifest: ArticleThemeManifest, css: string): void {
-  const unsafeCss = (value: string) => /\\|@import\b|url\s*\(|expression\s*\(/i.test(value.replace(/\/\*[\s\S]*?\*\//g, ""));
+  const unsafeCss = (value: string) => /\\|@import\b|(?:url|image-set|image|src|expression)\s*\(/i.test(value.replace(/\/\*[\s\S]*?\*\//g, ""));
   if (Object.keys(manifest.editorVars).some(key => !/^--[a-zA-Z0-9_-]+$/.test(key))) throw new Error("模板变量名无效");
   for (const value of [...Object.values(manifest.editorVars), ...Object.values(manifest.exportTheme)]) {
     if (value.length > 8192 || unsafeCss(value)) throw new Error("模板变量不能包含外部资源或 CSS 转义");

@@ -1,17 +1,12 @@
-import { createHash } from "node:crypto";
 import { remark } from "remark";
 import { z } from "zod";
 import { validateArticleStyleSnapshot, type ArticleStyleSnapshot } from "./article-style";
-import { validateCoverSnapshot, type CoverSnapshot } from "./cover-snapshot";
+import { hashRenderedCoverTitle, validateCoverSnapshot, type CoverSnapshot } from "./cover-snapshot";
+import { BodyAssetIdentitySchema, canonicalHash, type BodyAssetIdentity } from "./snapshot-identity";
+export { BodyAssetIdentitySchema, canonicalHash, type BodyAssetIdentity } from "./snapshot-identity";
 
 const hash = z.string().regex(/^[a-f\d]{64}$/);
 const uuid = z.string().uuid().transform(value => value.toLowerCase());
-export const BodyAssetIdentitySchema = z.object({
-  id: uuid, sha256: hash, contentType: z.enum(["image/png", "image/jpeg", "image/webp"]),
-  byteLength: z.number().int().positive().max(5 * 1024 * 1024),
-  width: z.number().int().positive(), height: z.number().int().positive(),
-}).strict().refine(value => value.width * value.height <= 32_000_000, "Body image exceeds 32 megapixels");
-export type BodyAssetIdentity = z.infer<typeof BodyAssetIdentitySchema>;
 
 export interface ArticleSnapshotContent {
   title: string; body: string; account: string;
@@ -60,12 +55,6 @@ export function rewriteArticleImages(body: string, resolveImage: (source: string
   return body;
 }
 
-export function canonicalHash(value: unknown): string {
-  const normalize = (item: any): any => Array.isArray(item) ? item.map(normalize) : item && typeof item === "object"
-    ? Object.fromEntries(Object.keys(item).sort().filter(key => item[key] !== undefined).map(key => [key, normalize(item[key])])) : item;
-  return createHash("sha256").update(JSON.stringify(normalize(value))).digest("hex");
-}
-
 /** 输入 hash 包含文章、账号固定身份、配置内容与素材清单，不重复保存大字段。 */
 export function createArticleSnapshot(value: ArticleSnapshotInput): ArticleSnapshot {
   const content = z.object({ title: z.string().trim().min(1).max(255), body: z.string().min(1), account: z.string().regex(/^[a-zA-Z0-9_.-]+$/) }).parse(value);
@@ -85,6 +74,7 @@ export function createArticleSnapshot(value: ArticleSnapshotInput): ArticleSnaps
   if (used.size !== identities.size) throw new Error("Body asset is not referenced by the article");
   const articleStyle = value.articleStyle ? validateArticleStyleSnapshot(value.articleStyle) : undefined;
   const coverSnapshot = value.coverSnapshot ? validateCoverSnapshot(value.coverSnapshot) : undefined;
+  if (coverSnapshot?.schemaVersion === 2 && coverSnapshot.titleHash !== hashRenderedCoverTitle(content.title)) throw new Error("Rendered cover title hash mismatch");
   return { ...header, inputHash: canonicalHash({ ...header, ...content, articleStyle, coverSnapshot }) };
 }
 

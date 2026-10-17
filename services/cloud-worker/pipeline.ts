@@ -12,6 +12,7 @@ import type { WorkerCapacity } from "./capacity";
 import { boundedOutput } from "./bounded-output";
 import { readPreparedArticle, preparedCover, type PreparedArticle } from "./job-materials";
 import { artifactsPath, freezeArticleArtifacts } from "./artifacts";
+import { coverSnapshotIdentity } from "../../src/cover-snapshot";
 
 interface PipelineCommandResult {
   result: any;
@@ -70,6 +71,7 @@ function pipelineEnv(workspace: string, account?: PipelineWorkerAccount | null, 
     // 未确认的预览即使错误推进 publish，也会在 provider 边界被拒绝。
     env.ZZHUB_PIPELINE_PREVIEW_ONLY = publishing ? "0" : "1";
     if (publishing) env.ZZHUB_PIPELINE_ARTICLE_ARTIFACTS = artifactsPath(workspace);
+    if (prepared.renderedCover) env.ZZHUB_PIPELINE_RENDERED_COVER = JSON.stringify(prepared.renderedCover);
   }
   return env;
 }
@@ -193,7 +195,7 @@ export async function executeCloudJob(job: StoredCloudJob, input: CloudJobInput,
   // CLI 主题包含既有默认字段，其 hash 与正文快照的纯 manifest hash 分开记录。
   const articleThemeHash = prepared?.articleThemeHash ?? (articleStyle ? (await readArticleTheme(articleStylePath)).hash : undefined);
   const styleIdentity = articleStyle ? { articleStyleHash: articleStyle.hash, articleThemeHash } : {};
-  const coverIdentity = input.coverSnapshot ? { coverSnapshotHash: input.coverSnapshot.hash, coverAssetHash: input.coverSnapshot.asset.sha256, coverFontHash: input.coverSnapshot.font.sha256 } : {};
+  const coverIdentity = input.coverSnapshot ? coverSnapshotIdentity(input.coverSnapshot) : {};
   const snapshotIdentity = { ...styleIdentity, ...coverIdentity, ...(prepared ? { inputHash: prepared.inputHash, snapshotHash: prepared.snapshotHash, articleThemeHash: prepared.articleThemeHash } : {}) };
   if (articleStyle || cover) job.result = { ...job.result, ...snapshotIdentity };
   const bodyPath = prepared?.bodyPath ?? join(workspace, "source.md");

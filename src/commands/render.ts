@@ -45,6 +45,7 @@ import { getLongformTheme } from "../routes";
 import { collectNewspicRequiredMarkers } from "../workflow-materials";
 import type { CommandOutcome } from "../command-outcome";
 import { reportProgress } from "../monitor/recorder";
+import { copyRenderedCover } from "../rendered-cover";
 
 function getNewspicRenderSpec(state: WorkflowState): NewspicRenderSpec {
   const spec = normalizeNewspicRenderSpec(state.intent.newspic_render);
@@ -255,6 +256,11 @@ Options:
   // ── Invoke image renderer adapter ───────────────────────────────
 
   try {
+  const renderedCover = process.env.ZZHUB_PIPELINE_RENDERED_COVER;
+  if (renderedCover) {
+    if (process.env.ZZHUB_PIPELINE_ARTICLE_SNAPSHOT !== "1" || routePrimary !== "wechat-article") throw new Error("Rendered covers require a frozen article preview");
+    state.images.render_assets = [await copyRenderedCover(renderedCover, state.workspace_root, outputDir, state.metadata.title)];
+  } else {
   const imageRenderer = await resolveImageRenderer(config);
   if (process.env.ZZHUB_PIPELINE_COVER_SNAPSHOT === "1" && imageRenderer.name !== "typeset-studio") {
     throw new Error("Cover snapshot requires the Typeset Studio image renderer");
@@ -331,6 +337,7 @@ Options:
     });
   }
   state.images.render_assets = routeAssets;
+  }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     state.phase.render = { status: "failed", error: message };

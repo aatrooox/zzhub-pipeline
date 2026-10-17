@@ -54,6 +54,17 @@ test("cache serializes capacity checks, counts temporary bytes and preserves ret
   await expect(capacity.writeCache(file(stored), 4, async () => {})).rejects.toMatchObject({ code: "worker_cache_full" });
 });
 
+test("cache keeps the rendered cover referenced by retained v2 preview jobs", async () => {
+  const root = await temporary(); const directory = join(root, "assets"); await mkdir(directory);
+  Object.assign(workerLimits, { freeBytes: 1, jobReserveBytes: 1, cacheTtlMs: 1 });
+  const pinned = "a".repeat(64), expired = "b".repeat(64);
+  const old = new Date(Date.now() - 60_000);
+  for (const hash of [pinned, expired]) { const path = join(directory, `${hash}.bytes`); await writeFile(path, "1234"); await utimes(path, old, old); }
+  const retained = { input: { coverSnapshot: { schemaVersion: 2, renderedAsset: { sha256: pinned } } } } as StoredCloudJob;
+  await new WorkerCapacity(root, () => [retained]).initialize();
+  expect(await readdir(directory)).toEqual([`${pinned}.bytes`]);
+});
+
 test("bounded child output drains after overflow, signals once and preserves only stderr tail", async () => {
   let reads = 0, exceeded = 0;
   const source = new ReadableStream<Uint8Array>({ pull(controller) { if (++reads > 3) controller.close(); else controller.enqueue(Buffer.from("abcd")); } });

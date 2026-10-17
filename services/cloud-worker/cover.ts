@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ARTICLE_COVER_FONT, ARTICLE_COVER_IMAGE_KEY } from "@akairos/typeset-studio/cover";
-import { validateCoverSnapshot, type CoverSnapshot } from "../../src/cover-snapshot";
+import { validateCoverSnapshot, type CoverSnapshotV1 } from "../../src/cover-snapshot";
 
 /** 字体路径只由受信部署环境映射，任务快照没有路径输入。 */
 export function articleCoverFontPath(): string {
@@ -16,14 +16,14 @@ export async function verifyArticleCoverFont(): Promise<void> {
 export async function coverCapabilities() {
   try {
     await verifyArticleCoverFont();
-    return { coverSnapshotSchemaVersions: [1], articleCoverFonts: [{ id: ARTICLE_COVER_FONT.id, sha256: ARTICLE_COVER_FONT.sha256 }] };
+    return { coverSnapshotSchemaVersions: [1, 2], articleCoverFonts: [{ id: ARTICLE_COVER_FONT.id, sha256: ARTICLE_COVER_FONT.sha256 }] };
   } catch (error) {
-    return { coverSnapshotSchemaVersions: [], articleCoverFonts: [], coverSnapshotError: error instanceof Error ? error.message : String(error) };
+    return { coverSnapshotSchemaVersions: [2], articleCoverFonts: [], coverSnapshotError: error instanceof Error ? error.message : String(error) };
   }
 }
 
 export interface JobCoverMaterials {
-  snapshot: CoverSnapshot;
+  snapshot: CoverSnapshotV1;
   dataDir: string;
   imagesFile: string;
   fontPath: string;
@@ -32,6 +32,7 @@ export interface JobCoverMaterials {
 /** 每个任务重新核验快照与 JPEG 解码，材料不进入共享 Typeset 目录。 */
 export async function materializeCoverSnapshot(workspace: string, value: unknown): Promise<JobCoverMaterials> {
   const snapshot = validateCoverSnapshot(value);
+  if (snapshot.schemaVersion !== 1) throw new Error("Rendered cover snapshots require article preview");
   await verifyArticleCoverFont();
   const bytes = Buffer.from(snapshot.asset.dataBase64, "base64");
   const { loadImage } = await import("@napi-rs/canvas");

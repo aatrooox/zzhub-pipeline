@@ -11,6 +11,7 @@ import type { TypesetConfig } from "@akairos/typeset-studio/cover";
 import pkg from "../../package.json";
 import { boundedOutput } from "./bounded-output";
 import { WorkerLimitError } from "./capacity";
+import type { RenderedCoverSnapshot } from "../../src/cover-snapshot";
 
 const metadataBytes = 8 * 1024 * 1024;
 const resourceBytes = 20 * 1024 * 1024;
@@ -40,6 +41,7 @@ export interface PreparedArticle {
   resources: Array<{ key: string; sha256: string; path: string; contentType: string }>;
   fonts: Array<{ requested: string; resolved: string; sha256: string }>;
   fontPath: string;
+  renderedCover?: { path: string; snapshot: RenderedCoverSnapshot };
   fileHashes: Record<string, string>;
   runtime: { pipeline: string; myno: string; typeset: string };
 }
@@ -82,12 +84,18 @@ export async function prepareArticleMaterials(workspace: string, input: CloudJob
     await writeFile(path, data, { mode: 0o600 });
   };
   const header = validateArticleSnapshot(input.articleSnapshot, input);
+  const renderedSnapshot = input.coverSnapshot?.schemaVersion === 2 ? input.coverSnapshot : undefined;
   if (header.bodyAssets.reduce((sum, asset) => sum + asset.byteLength, 0) > 100 * 1024 * 1024) throw new WorkerLimitError("worker_body_copies_too_large", 413);
-  await verifyArticleCoverFont();
   await mkdir(workspace, { recursive: true, mode: 0o700 });
-  const fontPath = join(workspace, "cover-font.ttc");
-  if ((await stat(articleCoverFontPath())).size !== 19_484_784) throw new Error("Pinned article font size mismatch");
-  await writeFile(fontPath, await limitedFile(articleCoverFontPath(), 19_484_784), { mode: 0o600 });
+  const fontPath = renderedSnapshot ? "" : join(workspace, "cover-font.ttc");
+  if (!renderedSnapshot) {
+    await verifyArticleCoverFont();
+    if ((await stat(articleCoverFontPath())).size !== 19_484_784) throw new Error("Pinned article font size mismatch");
+    await writeFile(fontPath, await limitedFile(articleCoverFontPath(), 19_484_784), { mode: 0o600 });
+  }
+  // 应用已经冻结全部图层与字体，Worker 只核验最终 PNG 的原字节。
+  const renderedCover = renderedSnapshot ? { path: join(workspace, "rendered-cover.png"), snapshot: renderedSnapshot } : undefined;
+  if (renderedCover) await writeFile(renderedCover.path, await readBodyAsset(root, renderedCover.snapshot.renderedAsset), { mode: 0o600 });
   const styleInput = join(workspace, "style-input.json");
   if (input.articleStyle) await writeMetadata(styleInput, input.articleStyle.manifest);
   const env: Record<string, string | undefined> = { ...process.env, PIPELINE_STYLE_INPUT: styleInput };
@@ -98,7 +106,7 @@ export async function prepareArticleMaterials(workspace: string, input: CloudJob
   if (stdout.exceeded) throw new WorkerLimitError("worker_metadata_too_large", 413);
   if (exit !== 0) throw new Error(`Cannot freeze article defaults: ${stderr.exceeded ? "[stderr truncated] " : ""}${stderr.text.slice(-2000)}`);
   const defaults = JSON.parse(stdout.text) as { config: PipelineConfig; article: any; cover: { config: TypesetConfig; source: string; resources: Array<{ key: string; src: string }> } | null };
-  const refs = input.coverSnapshot ? [{ key: "images.0.src", src: `data:image/jpeg;base64,${input.coverSnapshot.asset.dataBase64}` }] : defaults.cover!.resources;
+  const refs = input.coverSnapshot?.schemaVersion === 1 ? [{ key: "images.0.src", src: `data:image/jpeg;base64,${input.coverSnapshot.asset.dataBase64}` }] : renderedSnapshot ? [] : defaults.cover!.resources;
   if (refs.length + (defaults.article.structure?.headerImageUrl ? 1 : 0) > 8) throw new WorkerLimitError("worker_default_resources_too_many", 413);
   let resourcesTotal = 0;
   const resource = async (source: string) => {
@@ -126,13 +134,15 @@ export async function prepareArticleMaterials(workspace: string, input: CloudJob
   await writeMetadata(articleThemePath, article);
   const articleThemeHash = (await readArticleTheme(articleThemePath)).hash;
 
-  const coverConfig = structuredClone(input.coverSnapshot?.config ?? defaults.cover!.config);
-  const requestedFonts = [coverConfig.typography.headingFont, coverConfig.typography.bodyFont, ...Object.values(coverConfig.coverTheme?.typography || {}).map((font: any) => font.fontFamily)];
-  const supported = /^(Publishing Cover|PingFang SC|Songti SC|Hiragino Sans GB|Noto Sans CJK SC|Noto Sans SC|system-ui|sans-serif|AlimamaShuHeiTi|LXGWNeoZhiSongPlus|LXGWWenKai)$/;
-  if (requestedFonts.some(font => !supported.test(font))) throw new Error("Default template uses an unsupported custom font");
-  coverConfig.typography.headingFont = recordFont(coverConfig.typography.headingFont);
-  coverConfig.typography.bodyFont = recordFont(coverConfig.typography.bodyFont);
-  for (const font of Object.values(coverConfig.coverTheme?.typography || {}) as Array<{ fontFamily: string }>) font.fontFamily = recordFont(font.fontFamily);
+  const coverConfig = renderedSnapshot ? null : structuredClone(input.coverSnapshot?.schemaVersion === 1 ? input.coverSnapshot.config : defaults.cover!.config);
+  if (coverConfig) {
+    const requestedFonts = [coverConfig.typography.headingFont, coverConfig.typography.bodyFont, ...Object.values(coverConfig.coverTheme?.typography || {}).map((font: any) => font.fontFamily)];
+    const supported = /^(Publishing Cover|PingFang SC|Songti SC|Hiragino Sans GB|Noto Sans CJK SC|Noto Sans SC|system-ui|sans-serif|AlimamaShuHeiTi|LXGWNeoZhiSongPlus|LXGWWenKai)$/;
+    if (requestedFonts.some(font => !supported.test(font))) throw new Error("Default template uses an unsupported custom font");
+    coverConfig.typography.headingFont = recordFont(coverConfig.typography.headingFont);
+    coverConfig.typography.bodyFont = recordFont(coverConfig.typography.bodyFont);
+    for (const font of Object.values(coverConfig.coverTheme?.typography || {}) as Array<{ fontFamily: string }>) font.fontFamily = recordFont(font.fontFamily);
+  }
   const dataDir = join(workspace, "cover", "typeset");
   const templateDir = join(dataDir, "templates");
   const resourceDir = join(workspace, "resources");
@@ -144,12 +154,14 @@ export async function prepareArticleMaterials(workspace: string, input: CloudJob
     const identity = await validateBodyAsset(data.bytes, data.contentType);
     const path = join(resourceDir, `${index}.${assetExtension(identity.contentType)}`);
     await writeFile(path, data.bytes, { mode: 0o600 });
-    replaceResource(coverConfig, ref.key, path);
+    replaceResource(coverConfig!, ref.key, path);
     resources.push({ key: ref.key, sha256: identity.sha256, path, contentType: identity.contentType });
   }
   const coverTemplateId = input.coverSnapshot?.id ?? "frozen-default-cover";
-  coverConfig.id = coverTemplateId;
-  await writeMetadata(join(templateDir, `${coverTemplateId}.json`), coverConfig);
+  if (coverConfig) {
+    coverConfig.id = coverTemplateId;
+    await writeMetadata(join(templateDir, `${coverTemplateId}.json`), coverConfig);
+  }
   const bodyAssets: PreparedArticle["bodyAssets"] = [];
   const assetDir = join(workspace, "body-assets"); await mkdir(assetDir, { recursive: true, mode: 0o700 });
   for (const asset of header.bodyAssets) {
@@ -166,21 +178,23 @@ export async function prepareArticleMaterials(workspace: string, input: CloudJob
   const runtime = { pipeline: pkg.version, myno: pkg.dependencies["@akairos/myno"], typeset: pkg.dependencies["@akairos/typeset-studio"] };
   const canonicalCover = structuredClone(coverConfig);
   // Typeset 普通图片槽位会生成运行期 UUID，快照仅按稳定位置描述同一素材。
-  canonicalCover.images?.forEach((image, index) => { image.id = `frozen-image-${index}`; });
+  canonicalCover?.images?.forEach((image, index) => { image.id = `frozen-image-${index}`; });
   for (const resource of resources) replaceResource(canonicalCover, resource.key, `sha256:${resource.sha256}`);
   const snapshot = { schemaVersion: 1, inputHash: header.inputHash, title: input.title, body: input.body, account: input.account,
     documentId: header.documentId, documentRevision: header.documentRevision, article,
     cover: canonicalCover,
     coverSource: defaults.cover?.source ?? "explicit", resources: resources.map(({ path: _, ...value }) => value),
-    bodyAssets: header.bodyAssets, systemAssets: systemAssets.map(({ path: _, source: __, ...value }) => value), fonts, runtime };
+    bodyAssets: header.bodyAssets, systemAssets: systemAssets.map(({ path: _, source: __, ...value }) => value), fonts, runtime,
+    ...(renderedSnapshot ? { renderedCover: renderedSnapshot } : {}) };
   const snapshotHash = canonicalHash(snapshot);
   await writeMetadata(join(workspace, "snapshot.json"), { ...snapshot, snapshotHash });
   const fileHashes: Record<string, string> = {};
-  for (const path of [configFile, articleThemePath, bodyPath, imagesFile, fontPath, join(workspace, "snapshot.json"), join(templateDir, `${coverTemplateId}.json`), ...bodyAssets.map(asset => asset.path), ...systemAssets.map(asset => asset.path), ...resources.map(resource => resource.path)]) {
+  for (const path of [configFile, articleThemePath, bodyPath, imagesFile, ...(fontPath ? [fontPath] : []), join(workspace, "snapshot.json"), ...(coverConfig ? [join(templateDir, `${coverTemplateId}.json`)] : []), ...(renderedCover ? [renderedCover.path] : []), ...bodyAssets.map(asset => asset.path), ...systemAssets.map(asset => asset.path), ...resources.map(resource => resource.path)]) {
     fileHashes[path] = canonicalHash((await readFile(path)).toString("base64"));
   }
   const prepared: PreparedArticle = { schemaVersion: 1, inputHash: header.inputHash, snapshotHash, articleThemeHash, coverTemplateId,
-    configFile, articleThemePath, bodyPath, dataDir, imagesFile, bodyAssets, systemAssets, resources, fonts, fontPath, fileHashes, runtime };
+    configFile, articleThemePath, bodyPath, dataDir, imagesFile, bodyAssets, systemAssets, resources, fonts, fontPath, fileHashes, runtime,
+    ...(renderedCover ? { renderedCover } : {}) };
   await writeMetadata(join(workspace, "prepared.json"), prepared);
   return prepared;
 }
@@ -194,6 +208,7 @@ export async function readPreparedArticle(workspace: string, expectedHash: strin
   }
   return prepared;
 }
-export function preparedCover(prepared: PreparedArticle): JobCoverMaterials {
+export function preparedCover(prepared: PreparedArticle): JobCoverMaterials | undefined {
+  if (prepared.renderedCover) return undefined;
   return { dataDir: prepared.dataDir, imagesFile: prepared.imagesFile, fontPath: prepared.fontPath, snapshot: { id: prepared.coverTemplateId } as JobCoverMaterials["snapshot"] };
 }

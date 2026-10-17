@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createArticleSnapshot, validateArticleSnapshot, rewriteArticleImages, createArtifactManifest, hashArtifactManifest, validateArtifactManifest } from "../article-snapshot";
+import { createArticleSnapshot, validateArticleSnapshot, rewriteArticleImages, createArtifactManifest, hashArtifactManifest, validateArtifactManifest } from "./article-snapshot";
 
 const asset = { id: "31161ca7-af98-4a84-adc7-c60885a3bd0f", sha256: "a".repeat(64), contentType: "image/png" as const, byteLength: 100, width: 10, height: 10 };
 const input = { documentId: "521b9c37-1d74-4f23-a0ad-1801ad2f3669", documentRevision: 1, title: "预览", account: "fixed-account", body: `![描述](asset:${asset.id} "图注")`, bodyAssets: [asset] };

@@ -87,7 +87,10 @@ export class WorkerCapacity {
     const directory = join(this.root, "assets");
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const referenced = new Set<string>();
-    for (const job of this.jobs()) for (const asset of job.input.articleSnapshot?.bodyAssets || []) referenced.add(asset.sha256);
+    for (const job of this.jobs()) {
+      for (const asset of job.input.articleSnapshot?.bodyAssets || []) referenced.add(asset.sha256);
+      if (job.input.coverSnapshot?.schemaVersion === 2) referenced.add(job.input.coverSnapshot.renderedAsset.sha256);
+    }
     const entries = await readdir(directory, { withFileTypes: true });
     let bytes = 0;
     for (const entry of entries) {

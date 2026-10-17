@@ -131,15 +131,17 @@ Worker 每次执行从账号存储读取 `appId`、`appSecret`、`pat`，通过�
 
 ### 正文样式快照
 
-新源码的 `/health` 包含 `capabilities.articleStyleSchemaVersions: [1]`。调用方有样式时必须先确认该能力；旧 Worker 缺此字段，不能假设它会应用未知参数。无样式请求不增加字段，沿用原请求 hash 和执行方式。
+新源码的 `/health` 包含 `capabilities.articleStyleSchemaVersions: [1, 2]`。调用方有样式时必须先确认该能力；旧 Worker 缺此字段，不能假设它会应用未知参数。无样式请求不增加字段，沿用原请求 hash 和执行方式。
 
 业务后端通过 `@akairos/pipeline/article-style` 的 `createArticleStyleSnapshot(manifest, id, revision)` 创建快照，用 `validateArticleStyleSnapshot(value)` 复查与验证 hash。可选 `articleStyle` 仅用于 article，格式为 `{ schemaVersion: 1, id, revision, manifest, hash }`；根 id 必须等于 manifest.id。身份字段沿用 ArticleThemeSchema，revision 为正整数。manifest 只支持 `editorVars.--brand`、`exportTheme.bodyFontSize`（12–24px）、`bodyLineHeight`（1.2–2.4）、`primaryColor`、`h2Color` 与 `syntaxPresets.h2`（pillar/bottom-line/plain）。颜色仅 `#RRGGBB`，归一化小写；数值去多余零。css 缺省为空且只允许空字符串；structure、资源、字体、路径、模块及其他字段均拒绝。
 
 Worker 严格验证后持久化 `input.articleStyle`，执行时写入 job 私有 `article-style.json` 并传给 CLI `init --article-theme`，不修改共享配置。`result.articleStyleHash` 是规范化 manifest 的 SHA-256；`result.articleThemeHash` 是现有 CLI 加入主题默认字段后的独立 hash，与实际发布结果 `article_theme_hash` 核对，两者不要求相等。这样可以从请求快照、私有文件追踪到 CLI 发布主题；未知版本、篡改或主题不匹配明确失败，不回落默认样式继续确认成功。
 
+`createArticleStyleSnapshotV2(manifest, id, revision)` 创建外层 `schemaVersion: 2`，manifest 的主题版本仍是 `schemaVersion: 1 / engineVersion: 1`。该版本保留完整 `ArticleThemeSchema` 的 editorVars、exportTheme、syntaxPresets、structure 和显式 css；内容 hash 使用排序键的 `canonicalHash(manifest)`。只允许独立配置，拒绝 assets 目录文件和 structure.headerImage 相对路径；headerImageUrl 沿用已支持的内嵌 PNG/JPEG/GIF/WebP，限 5 MiB，并在 Worker 解码复验。变量和 CSS 复用主题安全边界，拒绝 url、@import、CSS 转义和表达式。v2 仅用于完整文章预览；v1 创建、验证、默认值与 hash 保持原样。
+
 ### 封面模板快照
 
-Pipeline 0.21.0 使用 Typeset Studio 0.3.0 的有限控件和模板工厂。调用方先检查 `/health` 的 `capabilities.coverSnapshotSchemaVersions: [1]` 与 `articleCoverFonts: [{ id, sha256 }]`，字体身份须与 Typeset `ARTICLE_COVER_FONT` 相同。Worker 字体缺失、hash 不符或注册失败时不声明封面能力，旧正文任务仍可用；提交者不能把旧 Worker 的 2xx 当作支持新字段。
+Pipeline 0.21.0 使用 Typeset Studio 0.3.0 的有限控件和模板工厂。调用方先检查 `/health` 的 `capabilities.coverSnapshotSchemaVersions` 与 `articleCoverFonts: [{ id, sha256 }]`，v1 字体身份须与 Typeset `ARTICLE_COVER_FONT` 相同。当前声明 `[1, 2]`；字体缺失、hash 不符或注册失败时仅声明 `[2]`，已渲染封面不依赖 Worker 字体。提交者不能把旧 Worker 的 2xx 当作支持新字段。
 
 公共入口 `@akairos/pipeline/cover-snapshot` 提供 `createCoverSnapshot(input)`、`validateCoverSnapshot(value)` 及 `CoverSnapshot` / `CoverSnapshotInput` 类型。创建输入：
 
@@ -160,6 +162,27 @@ POST `/v1/jobs` 的可选 `coverSnapshot` 只用于 article，可与 `articleSty
 字体固定为 `publishing-noto-cjk-regular-v1`、别名 `Publishing Cover`，SHA-256 `b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`。Docker 固定 Debian `fonts-noto-cjk=1:20240730+repack1-1`；实际字节仍由 Typeset `server-font` 验证。该受信注册也在实际渲染插件进程首次测量前执行，不能仅在 Worker 父进程注册后假设字体跨进程继承。字体包保留原许可证，不将字体文件放入任务快照。
 
 任务结果新增 `result.coverSnapshotHash`、`coverAssetHash`、`coverFontHash`，既有 `publishResults` 契约不变。调用方将这些值与原 job 快照比对；排队后修改共享模板、换图或改名不会改变已存任务，unknown/interrupted 继续查原 job/run/草稿箱，不换键重发。
+
+#### 完整封面 v2
+
+应用用完整 Typeset 模板、受管理素材和受信字体先生成最终 3350×1000 PNG（不超过 5 MiB），经 `PUT /v1/assets/:sha256` 上传原字节，再使用 `createRenderedCoverSnapshot(input)`：
+
+```ts
+{
+  id, revision, name,
+  sourceHash, // canonicalHash(完整 Typeset 配置)
+  assetsHash, // canonicalHash(按 id 排序的源素材身份)
+  fontHashes: [{ id, sha256 }],
+  titleHash: hashRenderedCoverTitle(title),
+  renderedAsset: { id, sha256, contentType: "image/png", byteLength, width: 3350, height: 1000 }
+}
+```
+
+输出增加 `schemaVersion: 2` 与 `hash=canonicalHash(规范化内容)`，fontHashes 按 id 排序并拒绝重复。标题 hash 由公共 `hashRenderedCoverTitle(title)` 对 trim 后 UTF-8 字节计算。完整模板和源素材保存在应用侧；Worker 不接收这些文件、外部 URL、路径或脚本，也不重新排版 PNG。`coverSnapshotIdentity(snapshot)` 统一结果身份：v1 保留原字段，v2 的 coverAssetHash 为最终 PNG sha256，coverFontHash 为 canonicalHash(fontHashes)。canonicalHash 由公共 article-snapshot 入口导出。
+
+v2 仅接受 `operation: "preview"` 的 article，ArticleSnapshot inputHash 包含整个封面快照且核对标题。Worker 在接受阶段从二进制缓存实际解码、复核身份并复制至 job 私有目录，snapshotHash 和 fileHashes 同时固定快照及 PNG。CLI 原 render action 通过受信子进程环境读取私有图片，原子写入 cover.png，并走原 render_assets、render_version 和状态写入流程；预览、确认和草稿发布复用同一 run，不另建任务或手改状态 JSON。旧无字段、v1、默认模板和直接发布路径保持原行为。
+
+v2 端到端定向检查由主控执行：`PIPELINE_V2_PREVIEW_TEST=1 bun test services/cloud-worker/rendered-preview.test.ts`。该用例使用真实 Worker/CLI/Chrome 和可计数的微信 HTTP 替身，验证完整样式、原 PNG、零写入预览和一次确认草稿；不能当作正式微信草稿验收。
 
 定向检查入口：`bun test src/cover-snapshot.test.ts services/cloud-worker/server.test.ts services/cloud-worker/cover.test.ts`。`cover.test.ts` 的实际私有材料与 CLI 参数案例需主控显式提供上述同 hash 字体的 `TYPESET_ARTICLE_COVER_FONT_PATH`；缺省时跳过该用例，不能声称已验证字体或实际微信发布。
 
